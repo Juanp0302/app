@@ -11,6 +11,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG TURSO_DATABASE_URL
+ARG TURSO_AUTH_TOKEN
+ENV TURSO_DATABASE_URL=$TURSO_DATABASE_URL
+ENV TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN
 RUN npm run build
 
 # ── Etapa 3: producción ───────────────────────────────────────────────────────
