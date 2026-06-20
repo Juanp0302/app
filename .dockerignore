@@ -1,0 +1,10 @@
+.next
+node_modules
+.git
+.env*.local
+data
+uploads
+*.md
+Dockerfile
+.dockerignore
+fly.toml

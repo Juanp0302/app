@@ -1,9 +1,3 @@
-/**
- * lib/auth.ts
- * NextAuth completo con provider de credenciales y acceso a SQLite.
- * Solo se importa desde Server Components y API routes (no desde middleware).
- */
-
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import crypto from 'crypto'
@@ -24,21 +18,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-
-        // Importación dinámica para evitar que SQLite llegue al Edge
-        const { db } = await import('./db')
-        const user = db.prepare(
-          'SELECT * FROM users WHERE email = ? AND activo = 1'
-        ).get(credentials.email as string) as any
-
+        const { queryOne } = await import('./db')
+        const user = await queryOne(
+          'SELECT * FROM users WHERE email = ? AND activo = 1',
+          [credentials.email as string]
+        )
         if (!user) return null
-        if (hashPassword(credentials.password as string) !== user.password) return null
-
+        if (hashPassword(credentials.password as string) !== (user as any).password) return null
         return {
-          id:    user.id,
-          email: user.email,
-          name:  user.nombre,
-          role:  user.rol,
+          id:    (user as any).id,
+          email: (user as any).email,
+          name:  (user as any).nombre,
+          role:  (user as any).rol,
         }
       },
     }),

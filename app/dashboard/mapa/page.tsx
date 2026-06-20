@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { db } from '@/lib/db'
+import { queryOne, queryAll } from '@/lib/db'
 import MapaClient from './MapaClient'
 
 export default async function MapaPage({
@@ -14,18 +14,16 @@ export default async function MapaPage({
   const user   = session.user as any
   const params = await searchParams
 
-  // Resolver qué cliente mostrar
   let clienteId = params.clienteId ?? null
 
   if (user.role === 'cliente') {
-    const c = db.prepare('SELECT id FROM clientes WHERE user_id = ?').get(user.id) as any
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
     if (!c) redirect('/dashboard')
-    clienteId = c.id
+    clienteId = (c as any).id
   }
 
-  // Lista de clientes para el selector del admin
   const clientes = user.role === 'admin'
-    ? (db.prepare(`
+    ? (await queryAll(`
         SELECT c.id, c.razon_social, c.nit,
                COUNT(co.id) AS total,
                SUM(CASE WHEN co.estado='cumplida' THEN 1 ELSE 0 END) AS cumplidas
@@ -33,7 +31,7 @@ export default async function MapaPage({
         LEFT JOIN cliente_obligaciones co ON co.cliente_id = c.id
         WHERE c.activo = 1
         GROUP BY c.id ORDER BY c.razon_social
-      `).all() as any[])
+      `) as any[])
     : []
 
   return (

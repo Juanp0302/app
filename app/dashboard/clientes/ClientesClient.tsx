@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import DonutChart from '@/components/DonutChart'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -39,6 +40,7 @@ interface Cliente {
   servicios:    string[]
   total_obl:    number
   cumplidas:    number
+  en_progreso:  number
   vencidas:     number
   pendientes:   number
   pct:          number
@@ -66,6 +68,9 @@ export default function ClientesClient({
   const [busqueda,    setBusqueda]    = useState('')
   const [nuevoServ,   setNuevoServ]   = useState('')
   const [addingServ,  setAddingServ]  = useState(false)
+  const [storageCfg,  setStorageCfg]  = useState<{ type: string; basePath: string | null; site_url: string | null; connected: boolean } | null>(null)
+  const [storageEdit, setStorageEdit] = useState({ basePath: '', siteUrl: '' })
+  const [storageSaving, setStorageSaving] = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -78,6 +83,18 @@ export default function ClientesClient({
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // Cargar config de almacenamiento al abrir modal
+  useEffect(() => {
+    if (!modalDetalle) { setStorageCfg(null); return }
+    fetch(`/api/storage/config?clienteId=${modalDetalle.id}`)
+      .then(r => r.json())
+      .then(d => {
+        setStorageCfg(d)
+        setStorageEdit({ basePath: d.basePath ?? '', siteUrl: d.site_url ?? '' })
+      })
+      .catch(() => setStorageCfg(null))
+  }, [modalDetalle])
 
   const clientesFiltrados = clientes.filter(c =>
     c.razon_social.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -134,6 +151,50 @@ export default function ClientesClient({
       setModalDetalle(null)
     } finally {
       setAddingServ(false)
+    }
+  }
+
+  async function guardarLocalPath() {
+    if (!modalDetalle) return
+    setStorageSaving(true)
+    try {
+      await fetch('/api/storage/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: modalDetalle.id, type: 'local', basePath: storageEdit.basePath || null }),
+      })
+      setStorageCfg(c => c ? { ...c, type: 'local', basePath: storageEdit.basePath || null, connected: true } : c)
+    } finally {
+      setStorageSaving(false)
+    }
+  }
+
+  async function guardarSharePointUrl() {
+    if (!modalDetalle) return
+    setStorageSaving(true)
+    try {
+      await fetch('/api/storage/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: modalDetalle.id, type: 'sharepoint', site_url: storageEdit.siteUrl }),
+      })
+    } finally {
+      setStorageSaving(false)
+    }
+  }
+
+  async function desconectarStorage() {
+    if (!modalDetalle) return
+    setStorageSaving(true)
+    try {
+      await fetch('/api/storage/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: modalDetalle.id, type: 'disconnect' }),
+      })
+      setStorageCfg(c => c ? { ...c, type: 'local', connected: true } : c)
+    } finally {
+      setStorageSaving(false)
     }
   }
 
@@ -236,17 +297,17 @@ export default function ClientesClient({
                   </div>
                 </div>
 
-                {/* Cumplimiento */}
-                <div style={{ textAlign:'center', minWidth:'120px' }}>
-                  <div style={{ fontSize:'2rem', fontWeight:700, color: pctColor(c.pct), fontFamily:"'Playfair Display', serif", lineHeight:1 }}>
-                    {c.pct}%
-                  </div>
-                  <div style={{ height:'4px', background:'rgba(231,223,202,0.1)', borderRadius:'2px', margin:'0.4rem 0', overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${c.pct}%`, background: pctColor(c.pct), borderRadius:'2px', transition:'width 0.5s' }} />
-                  </div>
-                  <div style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.4)' }}>
-                    {c.cumplidas}/{c.total_obl} · {c.vencidas > 0 && <span style={{ color:'#dc2626' }}>{c.vencidas} vencida{c.vencidas > 1 ? 's' : ''}</span>}
-                  </div>
+                {/* Gráfica de cumplimiento */}
+                <div style={{ flexShrink: 0 }}>
+                  <DonutChart
+                    cumplidas={c.cumplidas ?? 0}
+                    en_progreso={c.en_progreso ?? 0}
+                    pendientes={c.pendientes ?? 0}
+                    vencidas={c.vencidas ?? 0}
+                    size={110}
+                    strokeWidth={13}
+                    showCenter
+                  />
                 </div>
               </div>
             ))}
@@ -276,18 +337,29 @@ export default function ClientesClient({
             ))}
           </div>
 
-          {/* Cumplimiento */}
-          <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:'10px', padding:'1.1rem', marginBottom:'1.5rem' }}>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.5rem', textAlign:'center' }}>
+          {/* Gráfica de cumplimiento */}
+          <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:'10px', padding:'1.2rem', marginBottom:'1.5rem', display:'flex', alignItems:'center', gap:'2rem' }}>
+            <DonutChart
+              cumplidas={modalDetalle.cumplidas ?? 0}
+              en_progreso={modalDetalle.en_progreso ?? 0}
+              pendientes={modalDetalle.pendientes ?? 0}
+              vencidas={modalDetalle.vencidas ?? 0}
+              size={130}
+              strokeWidth={15}
+              showCenter
+              showLegend
+            />
+            <div style={{ flex:1 }}>
               {[
-                { label:'Cumplimiento', val:`${modalDetalle.pct}%`, color: pctColor(modalDetalle.pct) },
-                { label:'Cumplidas',   val: modalDetalle.cumplidas,  color:'#16a34a' },
-                { label:'Pendientes',  val: modalDetalle.pendientes, color:C.olivo },
-                { label:'Vencidas',    val: modalDetalle.vencidas,   color:'#dc2626' },
+                { label:'Total obligaciones', val: modalDetalle.total_obl, color:'rgba(231,223,202,0.7)' },
+                { label:'Cumplidas',          val: modalDetalle.cumplidas,  color:'#16a34a' },
+                { label:'En progreso',        val: modalDetalle.en_progreso ?? 0, color:'#3b82f6' },
+                { label:'Pendientes',         val: modalDetalle.pendientes, color:'#968622' },
+                { label:'Vencidas',           val: modalDetalle.vencidas,   color:'#dc2626' },
               ].map(s => (
-                <div key={s.label}>
-                  <div style={{ fontSize:'1.4rem', fontWeight:700, color:s.color, fontFamily:"'Playfair Display', serif" }}>{s.val}</div>
-                  <div style={{ fontSize:'0.58rem', textTransform:'uppercase', letterSpacing:'0.1em', color:'rgba(231,223,202,0.4)' }}>{s.label}</div>
+                <div key={s.label} style={{ display:'flex', justifyContent:'space-between', padding:'0.25rem 0', borderBottom:'1px solid rgba(231,223,202,0.06)' }}>
+                  <span style={{ fontSize:'0.75rem', color:'rgba(231,223,202,0.6)' }}>{s.label}</span>
+                  <span style={{ fontSize:'0.82rem', fontWeight:700, color:s.color }}>{s.val}</span>
                 </div>
               ))}
             </div>
@@ -322,6 +394,101 @@ export default function ClientesClient({
                 {addingServ ? 'Agregando…' : 'Agregar'}
               </button>
             </div>
+          </div>
+
+          {/* ── ALMACENAMIENTO ── */}
+          <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
+            <div style={labelStyle}>Almacenamiento de documentos</div>
+
+            {storageCfg ? (
+              <div style={{ marginTop:'0.8rem' }}>
+                {/* Badge tipo actual */}
+                <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'1rem' }}>
+                  <span style={{
+                    fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase',
+                    padding:'0.25rem 0.75rem', borderRadius:'20px', border:'1px solid',
+                    ...(storageCfg.type === 'local'
+                      ? { background:'rgba(107,114,128,0.15)', color:'#9ca3af', borderColor:'rgba(107,114,128,0.3)' }
+                      : storageCfg.type === 'googledrive'
+                      ? { background:'rgba(59,130,246,0.15)', color:'#60a5fa', borderColor:'rgba(59,130,246,0.3)' }
+                      : storageCfg.type === 'onedrive'
+                      ? { background:'rgba(37,99,235,0.15)', color:'#818cf8', borderColor:'rgba(37,99,235,0.3)' }
+                      : { background:'rgba(16,185,129,0.15)', color:'#34d399', borderColor:'rgba(16,185,129,0.3)' }
+                    ),
+                  }}>
+                    {storageCfg.type === 'local' ? 'Carpeta local'
+                      : storageCfg.type === 'googledrive' ? 'Google Drive'
+                      : storageCfg.type === 'onedrive' ? 'OneDrive'
+                      : 'SharePoint'}
+                  </span>
+                  {storageCfg.connected && storageCfg.type !== 'local' && (
+                    <span style={{ fontSize:'0.65rem', color:'#16a34a' }}>● Conectado</span>
+                  )}
+                </div>
+
+                {/* Local: ruta */}
+                {storageCfg.type === 'local' && (
+                  <div style={{ display:'flex', gap:'0.6rem' }}>
+                    <input
+                      value={storageEdit.basePath}
+                      onChange={e => setStorageEdit(s => ({ ...s, basePath: e.target.value }))}
+                      placeholder="C:\Clientes\ISP_Demo\Cumplimiento (vacío = carpeta uploads del servidor)"
+                      style={{ ...inputStyle, flex:1, fontSize:'0.78rem' }}
+                    />
+                    <button onClick={guardarLocalPath} disabled={storageSaving}
+                      style={{ ...btnStyle, flexShrink:0 }}>Guardar</button>
+                  </div>
+                )}
+
+                {/* SharePoint: URL del sitio */}
+                {storageCfg.type === 'sharepoint' && (
+                  <div style={{ display:'flex', gap:'0.6rem', marginBottom:'0.6rem' }}>
+                    <input
+                      value={storageEdit.siteUrl}
+                      onChange={e => setStorageEdit(s => ({ ...s, siteUrl: e.target.value }))}
+                      placeholder="https://empresa.sharepoint.com/sites/cumplimiento"
+                      style={{ ...inputStyle, flex:1, fontSize:'0.78rem' }}
+                    />
+                    <button onClick={guardarSharePointUrl} disabled={storageSaving}
+                      style={{ ...btnStyle, flexShrink:0 }}>Guardar URL</button>
+                  </div>
+                )}
+
+                {/* Botones de conexión cloud */}
+                <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', marginTop:'0.5rem' }}>
+                  {storageCfg.type !== 'googledrive' && (
+                    <a href={`/api/storage/auth/google?clienteId=${modalDetalle.id}`}
+                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(59,130,246,0.12)', color:'#60a5fa', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(59,130,246,0.25)' }}>
+                      Conectar Google Drive
+                    </a>
+                  )}
+                  {storageCfg.type !== 'onedrive' && (
+                    <a href={`/api/storage/auth/microsoft-onedrive?clienteId=${modalDetalle.id}`}
+                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(99,102,241,0.12)', color:'#818cf8', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(99,102,241,0.25)' }}>
+                      Conectar OneDrive
+                    </a>
+                  )}
+                  {storageCfg.type !== 'sharepoint' && (
+                    <a
+                      href={storageEdit.siteUrl
+                        ? `/api/storage/auth/microsoft-sharepoint?clienteId=${modalDetalle.id}&siteUrl=${encodeURIComponent(storageEdit.siteUrl)}`
+                        : '#'}
+                      onClick={e => { if (!storageEdit.siteUrl) { e.preventDefault(); alert('Ingresa primero la URL del sitio SharePoint') } }}
+                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(16,185,129,0.12)', color:'#34d399', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(16,185,129,0.25)' }}>
+                      Conectar SharePoint
+                    </a>
+                  )}
+                  {storageCfg.type !== 'local' && (
+                    <button onClick={desconectarStorage} disabled={storageSaving}
+                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(220,38,38,0.1)', color:'#f87171', padding:'0.4rem 0.9rem', borderRadius:'8px', border:'1px solid rgba(220,38,38,0.25)', cursor:'pointer', fontFamily:'inherit' }}>
+                      Desconectar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize:'0.78rem', color:'rgba(231,223,202,0.4)', marginTop:'0.5rem' }}>Cargando…</div>
+            )}
           </div>
 
           {/* Accesos rápidos */}
@@ -448,4 +615,10 @@ const inputStyle: React.CSSProperties = {
   background:'rgba(231,223,202,0.06)', border:'1px solid rgba(150,134,34,0.3)',
   borderRadius:'8px', padding:'0.65rem 0.9rem', color:'#e7dfca',
   fontSize:'0.88rem', fontFamily:'inherit', outline:'none',
+}
+
+const btnStyle: React.CSSProperties = {
+  background:'#968622', color:'#270205', border:'none', borderRadius:'8px',
+  padding:'0.65rem 1.1rem', fontSize:'0.7rem', fontWeight:700,
+  letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit',
 }

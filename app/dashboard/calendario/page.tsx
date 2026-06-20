@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { db } from '@/lib/db'
+import { queryOne, queryAll } from '@/lib/db'
 import CalendarioClient from './CalendarioClient'
 
 export default async function CalendarioPage({
@@ -17,16 +17,15 @@ export default async function CalendarioPage({
   let clienteId = params.clienteId ?? null
 
   if (user.role === 'cliente') {
-    const c = db.prepare('SELECT id FROM clientes WHERE user_id = ?').get(user.id) as any
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
     if (!c) redirect('/dashboard')
-    clienteId = c.id
+    clienteId = (c as any).id
   }
 
   const clientes = user.role === 'admin'
-    ? (db.prepare('SELECT id, razon_social, nit FROM clientes WHERE activo=1 ORDER BY razon_social').all() as any[])
+    ? (await queryAll('SELECT id, razon_social, nit FROM clientes WHERE activo=1 ORDER BY razon_social') as any[])
     : []
 
-  // Seleccionar primer cliente por defecto en admin
   const resolvedId = clienteId ?? clientes[0]?.id ?? null
 
   return (

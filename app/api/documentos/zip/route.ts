@@ -1,18 +1,12 @@
 /**
- * GET /api/documentos/zip?clienteId=xxx&anio=2026&trimestre=1
- *
- * Genera y descarga un ZIP con los documentos de acreditación.
- * Estructura interna del ZIP:
- *   {RazonSocial}_{Año}_Q{Trimestre}/
- *     {ASPECTO}/
- *       {Obligacion}/
- *         archivo.pdf
+ * GET /api/documentos/zip?clienteId=xxx&anio=2026&trimestre=1&oblIds=a,b,c
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
-import { documentosParaZip, rutaCompleta } from '@/lib/documentos'
+import { queryOne } from '@/lib/db'
+import { documentosParaZip } from '@/lib/documentos'
+import { getProvider, isCloudRef, localAbsPath } from '@/lib/storage'
 import * as archiver from 'archiver'
 import fs from 'fs'
 
@@ -26,29 +20,32 @@ export async function GET(req: NextRequest) {
   const trimStr = req.nextUrl.searchParams.get('trimestre')
   const trimestre = trimStr ? parseInt(trimStr) : null
 
-  // Cliente solo puede descargar sus propios docs
   if (user.role === 'cliente') {
-    const c = db.prepare('SELECT id FROM clientes WHERE user_id = ?').get(user.id) as any
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
     if (!c) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-    clienteId = c.id
+    clienteId = (c as any).id
   }
   if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
 
-  const cliente = db.prepare('SELECT razon_social FROM clientes WHERE id = ?').get(clienteId) as any
+  const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
   if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
-  const docs = documentosParaZip(clienteId, anio, trimestre)
-  if (docs.length === 0) {
-    return NextResponse.json({ error: 'No hay documentos para este período.' }, { status: 404 })
-  }
+  const oblIdsParam = req.nextUrl.searchParams.get('oblIds')
+  const oblIdsFiltro = oblIdsParam ? new Set(oblIdsParam.split(',').map(s => s.trim()).filter(Boolean)) : null
 
-  // Nombre de la carpeta raíz dentro del ZIP
-  const slug      = cliente.razon_social.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)
+  let docs = await documentosParaZip(clienteId, anio, trimestre)
+  if (oblIdsFiltro && oblIdsFiltro.size > 0)
+    docs = docs.filter(d => d.cliente_obl_id && oblIdsFiltro.has(d.cliente_obl_id))
+
+  if (docs.length === 0)
+    return NextResponse.json({ error: 'No hay documentos para este período.' }, { status: 404 })
+
+  const slug      = (cliente as any).razon_social.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)
   const periodo   = trimestre ? `${anio}_Q${trimestre}` : String(anio)
   const nombreZip = `${slug}_${periodo}.zip`
-  const carpetaRaiz = `${slug}_${periodo}`
+  const carpeta   = `${slug}_${periodo}`
 
-  // Construir ZIP en memoria
+  const provider = getProvider(clienteId)
   const chunks: Buffer[] = []
 
   await new Promise<void>((resolve, reject) => {
@@ -60,27 +57,32 @@ export async function GET(req: NextRequest) {
     archive.on('end',   resolve)
     archive.on('error', reject)
 
-    for (const doc of docs) {
-      const rutaFull = rutaCompleta(doc.ruta)
-      if (!fs.existsSync(rutaFull)) continue
-
-      // Ruta dentro del ZIP: CarpetaRaiz/ASPECTO/Obligacion/archivo.pdf
-      const rutaZip = [
-        carpetaRaiz,
-        doc.aspecto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim(),
-        doc.obligacion.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim().slice(0, 50),
-        doc.nombre_archivo,
-      ].join('/')
-
-      archive.file(rutaFull, { name: rutaZip })
-    }
-
-    archive.finalize()
+    ;(async () => {
+      for (const doc of docs) {
+        try {
+          let buffer: Buffer
+          if (isCloudRef(doc.ruta)) {
+            buffer = await provider.download(doc.ruta)
+          } else {
+            const fullPath = localAbsPath(clienteId!, doc.ruta)
+            if (!fs.existsSync(fullPath)) continue
+            buffer = fs.readFileSync(fullPath)
+          }
+          const rutaZip = [
+            carpeta,
+            doc.aspecto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim(),
+            doc.obligacion.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim().slice(0, 50),
+            doc.nombre_archivo,
+          ].join('/')
+          archive.append(buffer, { name: rutaZip })
+        } catch (e) { console.error(`Error incluyendo ${doc.nombre_archivo}:`, e) }
+      }
+      archive.finalize()
+    })().catch(reject)
   })
 
   const zipBuffer = Buffer.concat(chunks)
-
-  return new NextResponse(zipBuffer, {
+  return new NextResponse(zipBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
       'Content-Type':        'application/zip',

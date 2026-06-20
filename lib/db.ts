@@ -1,24 +1,45 @@
 /**
  * lib/db.ts
- * Conexión única a la base de datos SQLite.
- * Importar este módulo desde cualquier parte de la app para consultar datos.
+ * Cliente de base de datos — usa @libsql/client.
+ * - Desarrollo local: file:./data/owl.db
+ * - Producción:       libsql://<turso-url> con TURSO_AUTH_TOKEN
  */
 
-import Database from 'better-sqlite3'
+import { createClient, type Client } from '@libsql/client'
 import path from 'path'
 
-const DB_PATH = path.join(process.cwd(), 'data', 'owl.db')
-
-// En desarrollo reutilizamos la conexión entre hot-reloads de Next.js
-const globalDb = global as typeof globalThis & { __db?: Database.Database }
-
-function getDb(): Database.Database {
-  if (!globalDb.__db) {
-    globalDb.__db = new Database(DB_PATH)
-    globalDb.__db.pragma('journal_mode = WAL')
-    globalDb.__db.pragma('foreign_keys = ON')
-  }
-  return globalDb.__db
+function getUrl(): string {
+  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL
+  const filePath = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'owl.db')
+  return `file:${filePath.replace(/\\/g, '/')}`
 }
 
-export const db = getDb()
+const globalDb = global as typeof globalThis & { __db?: Client }
+
+if (!globalDb.__db) {
+  globalDb.__db = createClient({
+    url:       getUrl(),
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  })
+}
+
+export const db = globalDb.__db
+
+// ── Helpers de conveniencia ───────────────────────────────────────────────────
+
+/** Devuelve la primera fila o undefined */
+export async function queryOne<T = any>(sql: string, args: any[] = []): Promise<T | undefined> {
+  const r = await db.execute({ sql, args })
+  return r.rows[0] as T | undefined
+}
+
+/** Devuelve todas las filas */
+export async function queryAll<T = any>(sql: string, args: any[] = []): Promise<T[]> {
+  const r = await db.execute({ sql, args })
+  return r.rows as T[]
+}
+
+/** Ejecuta INSERT / UPDATE / DELETE */
+export async function execute(sql: string, args: any[] = []): Promise<void> {
+  await db.execute({ sql, args })
+}

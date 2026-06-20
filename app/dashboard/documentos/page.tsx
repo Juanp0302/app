@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { db } from '@/lib/db'
+import { queryOne, queryAll } from '@/lib/db'
 import DocumentosClient from './DocumentosClient'
 
 export default async function DocumentosPage({
@@ -16,31 +16,25 @@ export default async function DocumentosPage({
 
   let clienteId = params.clienteId ?? null
   if (user.role === 'cliente') {
-    const c = db.prepare('SELECT id FROM clientes WHERE user_id = ?').get(user.id) as any
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
     if (!c) redirect('/dashboard')
-    clienteId = c.id
+    clienteId = (c as any).id
   }
 
   const clientes = user.role === 'admin'
-    ? (db.prepare('SELECT id, razon_social FROM clientes WHERE activo=1 ORDER BY razon_social').all() as any[])
+    ? (await queryAll('SELECT id, razon_social FROM clientes WHERE activo=1 ORDER BY razon_social') as any[])
     : []
 
   const resolvedId = clienteId ?? clientes[0]?.id ?? null
 
-  // Obligaciones del cliente para el selector de subida
   const obligaciones = resolvedId
-    ? (db.prepare(`
-        SELECT DISTINCT
-          co.id   AS obl_id,
-          oc.aspecto,
-          oc.grupo,
-          oc.obligacion,
-          oc.periodicidad
+    ? (await queryAll(`
+        SELECT DISTINCT co.id AS obl_id, oc.aspecto, oc.grupo, oc.obligacion, oc.periodicidad
         FROM cliente_obligaciones co
         JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
         WHERE co.cliente_id = ?
         ORDER BY oc.aspecto, oc.obligacion
-      `).all(resolvedId) as any[])
+      `, [resolvedId]) as any[])
     : []
 
   return (
