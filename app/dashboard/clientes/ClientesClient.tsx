@@ -563,7 +563,7 @@ function Modal({ children, onClose, wide }: { children: React.ReactNode; onClose
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'1rem' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background:'#1a0204', border:'1px solid rgba(150,134,34,0.3)', borderRadius:'16px', padding:'2rem', width:'100%', maxWidth: wide ? '680px' : '500px', maxHeight:'92vh', overflowY:'auto', position:'relative' }}>
+      <div style={{ background:'#1a0204', border:'1px solid rgba(150,134,34,0.3)', borderRadius:'16px', padding:'2rem', width:'100%', maxWidth: wide ? '820px' : '720px', maxHeight:'92vh', overflowY:'auto', position:'relative' }}>
         <button onClick={onClose}
           style={{ position:'absolute', top:'1rem', right:'1rem', background:'rgba(231,223,202,0.08)', border:'none', color:'rgba(231,223,202,0.5)', borderRadius:'6px', padding:'0.3rem 0.6rem', cursor:'pointer', fontSize:'0.9rem', fontFamily:'inherit' }}>
           ✕
