@@ -63,14 +63,25 @@ export async function POST(req: NextRequest) {
   if (!clienteId || !aspecto || !obligacion || !anio || !archivo)
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
 
-  const tiposPermitidos = ['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/msword','image/jpeg','image/png']
-  if (!tiposPermitidos.includes(archivo.type))
+  const tiposPermitidos = ['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/msword','image/jpeg','image/png','application/octet-stream','']
+  const extensionesPermitidas: Record<string, string> = {
+    pdf: 'application/pdf', doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  }
+  const ext = archivo.name.split('.').pop()?.toLowerCase() ?? ''
+  const mimeEfectivo = (archivo.type && archivo.type !== 'application/octet-stream')
+    ? archivo.type
+    : extensionesPermitidas[ext] ?? archivo.type
+  if (!tiposPermitidos.includes(archivo.type) && !extensionesPermitidas[ext])
     return NextResponse.json({ error: 'Tipo de archivo no permitido. Use PDF, Word, Excel o imágenes.' }, { status: 400 })
   if (archivo.size > 20 * 1024 * 1024)
     return NextResponse.json({ error: 'El archivo no puede superar 20 MB.' }, { status: 400 })
 
   const buffer = Buffer.from(await archivo.arrayBuffer())
-  const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: archivo.type, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
+  const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
 
   return NextResponse.json({ ok: true, docId })
 }
