@@ -277,7 +277,7 @@ export default function DocumentosClient({
 
     setImportando(false)
     setImportDone(true)
-    if (errores > 0) setImportError(`${errores} archivo(s) no se pudieron subir.`)
+    if (errores > 0) setImportError(`${errores} no se pudo${errores === 1 ? '' : 'n'} subir (tipo de archivo no permitido o error de red).`)
     cargar(clienteId)
   }
 
@@ -504,8 +504,13 @@ export default function DocumentosClient({
                       </>
                     )}
                     {importDone && (
-                      <div style={{ fontSize:'0.82rem', color:'#6ee7b7' }}>
-                        Se subieron e importaron {importTotal - (importError ? parseInt(importError) : 0)} archivo{importTotal !== 1 ? 's' : ''} correctamente.
+                      <div style={{ fontSize:'0.82rem', color: importError && importTotal === parseInt(importError) ? '#f87171' : '#6ee7b7' }}>
+                        {(() => {
+                          const errCount = importError ? parseInt(importError) : 0
+                          const ok = importTotal - errCount
+                          if (ok > 0) return `${ok} archivo${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''} correctamente.`
+                          return 'No se pudo importar ningún archivo.'
+                        })()}
                         {importError && <span style={{ color:'#f87171', marginLeft:'0.5rem' }}>{importError}</span>}
                       </div>
                     )}
