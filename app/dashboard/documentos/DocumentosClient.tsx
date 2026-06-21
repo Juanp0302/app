@@ -102,7 +102,8 @@ export default function DocumentosClient({
   const [fileMap,       setFileMap]       = useState<Map<string, File>>(new Map())
   // Progreso de importación
   const [importTotal,   setImportTotal]   = useState(0)
-  const [importado,     setImportado]     = useState(0)
+  const [importado,     setImportado]     = useState(0)   // procesados (éxito + fallo)
+  const [importOk,      setImportOk]      = useState(0)   // solo éxitos
   const [importando,    setImportando]    = useState(false)
   const [importError,   setImportError]   = useState('')
   const [importDone,    setImportDone]    = useState(false)
@@ -253,6 +254,7 @@ export default function DocumentosClient({
     setImportando(true)
     setImportTotal(seleccionados.length)
     setImportado(0)
+    setImportOk(0)
     setImportError('')
     setImportDone(false)
 
@@ -270,14 +272,20 @@ export default function DocumentosClient({
         if (a.trimestre) fd.append('trimestre', String(a.trimestre))
         fd.append('archivo', file, a.nombre)
         const res = await fetch('/api/documentos', { method: 'POST', body: fd })
-        if (!res.ok) errores++
-      } catch { errores++ }
+        if (res.ok) {
+          setImportOk(n => n + 1)
+        } else {
+          const json = await res.json().catch(() => ({}))
+          errores++
+          console.error('Upload error:', res.status, json)
+        }
+      } catch (err) { errores++; console.error('Upload exception:', err) }
       setImportado(n => n + 1)
     }
 
     setImportando(false)
     setImportDone(true)
-    if (errores > 0) setImportError(`${errores} no se pudo${errores === 1 ? '' : 'n'} subir (tipo de archivo no permitido o error de red).`)
+    if (errores > 0) setImportError(`${errores} archivo${errores !== 1 ? 's' : ''} no se pudo${errores !== 1 ? 'n' : ''} subir.`)
     cargar(clienteId)
   }
 
@@ -495,8 +503,9 @@ export default function DocumentosClient({
                   <div style={{ background: importDone ? 'rgba(16,185,129,0.1)' : 'rgba(150,134,34,0.08)', border:`1px solid ${importDone ? 'rgba(16,185,129,0.3)' : 'rgba(150,134,34,0.2)'}`, borderRadius:'8px', padding:'1rem', marginBottom:'1rem' }}>
                     {importando && (
                       <>
-                        <div style={{ fontSize:'0.82rem', color:C.olivo, marginBottom:'0.6rem' }}>
-                          Subiendo {importado} de {importTotal}…
+                        <div style={{ fontSize:'0.82rem', color:C.olivo, marginBottom:'0.6rem', display:'flex', justifyContent:'space-between' }}>
+                          <span>Subiendo archivos…</span>
+                          <span>{importado} / {importTotal} procesados · {importOk} subidos</span>
                         </div>
                         <div style={{ background:'rgba(231,223,202,0.1)', borderRadius:'6px', overflow:'hidden', height:'8px' }}>
                           <div style={{ background:C.olivo, width:`${Math.round(importado / importTotal * 100)}%`, height:'100%', transition:'width 0.3s' }} />
@@ -504,13 +513,10 @@ export default function DocumentosClient({
                       </>
                     )}
                     {importDone && (
-                      <div style={{ fontSize:'0.82rem', color: importError && importTotal === parseInt(importError) ? '#f87171' : '#6ee7b7' }}>
-                        {(() => {
-                          const errCount = importError ? parseInt(importError) : 0
-                          const ok = importTotal - errCount
-                          if (ok > 0) return `${ok} archivo${ok !== 1 ? 's' : ''} importado${ok !== 1 ? 's' : ''} correctamente.`
-                          return 'No se pudo importar ningún archivo.'
-                        })()}
+                      <div style={{ fontSize:'0.82rem', color: importOk === 0 ? '#f87171' : '#6ee7b7' }}>
+                        {importOk > 0
+                          ? `${importOk} archivo${importOk !== 1 ? 's' : ''} importado${importOk !== 1 ? 's' : ''} correctamente.`
+                          : 'No se pudo importar ningún archivo.'}
                         {importError && <span style={{ color:'#f87171', marginLeft:'0.5rem' }}>{importError}</span>}
                       </div>
                     )}
