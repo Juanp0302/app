@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   if (oblIdsFiltro && oblIdsFiltro.size > 0)
     docs = docs.filter(d => d.cliente_obl_id && oblIdsFiltro.has(d.cliente_obl_id))
 
+  console.log(`[ZIP] cliente=${clienteId} anio=${anio} trimestre=${trimestre} docs=${docs.length}`)
   if (docs.length === 0)
     return NextResponse.json({ error: 'No hay documentos para este período.' }, { status: 404 })
 
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
             doc.nombre_archivo,
           ].join('/')
           archive.append(buffer, { name: rutaZip })
-        } catch (e) { console.error(`Error incluyendo ${doc.nombre_archivo}:`, e) }
+        } catch (e) { console.error(`[ZIP] Error incluyendo ${doc.nombre_archivo}:`, e) }
       }
       archive.finalize()
     })().catch(reject)
