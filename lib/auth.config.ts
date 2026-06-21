@@ -33,4 +33,5 @@ export const authConfig: NextAuthConfig = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET ?? 'owl_dev_secret_2026_change_in_prod',
+  trustHost: true,
 }
