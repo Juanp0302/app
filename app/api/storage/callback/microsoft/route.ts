@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const stateB64  = req.nextUrl.searchParams.get('state')
   const error     = req.nextUrl.searchParams.get('error')
 
-  const baseUrl   = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl   = (process.env.NEXTAUTH_URL ?? 'http://localhost:3000').replace(/\/$/, '')
   const redirectErr = `${baseUrl}/dashboard/clientes?storage=error`
 
   if (error || !code || !stateB64) return NextResponse.redirect(redirectErr)

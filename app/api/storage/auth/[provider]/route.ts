@@ -24,7 +24,7 @@ export async function GET(
   const siteUrl   = req.nextUrl.searchParams.get('siteUrl') ?? ''
   if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
 
-  const baseUrl  = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  const baseUrl  = (process.env.NEXTAUTH_URL ?? 'http://localhost:3000').replace(/\/$/, '')
   const state    = Buffer.from(JSON.stringify({ clienteId, provider, siteUrl })).toString('base64url')
 
   if (provider === 'google') {
