@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
+import { notificarAsignacion } from '@/lib/notificaciones'
 import crypto from 'crypto'
 
 const TIPOS = ['financiera','tecnica','juridica','transversal']
@@ -101,6 +102,19 @@ export async function POST(req: NextRequest) {
       `INSERT INTO conversaciones (id, cliente_id, admin_id, tipo, asunto) VALUES (?,?,?,?,?)`,
       [id, clienteId, adminId, tipo, asunto]
     )
+
+    // Notificar al responsable
+    const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
+    const adminInfo = adminId ? await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId]) : null
+    notificarAsignacion({
+      id, tipo_entidad: 'chat', especialidad: tipo, asunto,
+      cliente: (cliente as any)?.razon_social ?? '',
+      admin_nombre: (adminInfo as any)?.nombre,
+      admin_email:  (adminInfo as any)?.email,
+      estado: 'activa',
+      fecha: new Date().toLocaleString('es-CO'),
+    })
+
     return NextResponse.json({ ok: true, id, adminId })
   }
 
@@ -128,11 +142,22 @@ export async function POST(req: NextRequest) {
   // Reasignar
   if (body.accion === 'reasignar') {
     const { conversacionId, adminId, motivo } = body
-    const conv = await queryOne('SELECT admin_id FROM conversaciones WHERE id = ?', [conversacionId]) as any
+    const conv = await queryOne('SELECT * FROM conversaciones WHERE id = ?', [conversacionId]) as any
     if (!conv) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     await execute(`UPDATE conversaciones SET admin_id=?, updated_at=datetime('now') WHERE id=?`, [adminId, conversacionId])
     await execute(`INSERT INTO reasignaciones (id,entidad,entidad_id,de_admin_id,a_admin_id,motivo,user_id) VALUES (?,?,?,?,?,?,?)`,
       [crypto.randomUUID(), 'conversacion', conversacionId, conv.admin_id, adminId, motivo ?? null, user.id])
+
+    const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [conv.cliente_id])
+    const adminInfo = await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId])
+    notificarAsignacion({
+      id: conversacionId, tipo_entidad: 'chat', especialidad: conv.tipo, asunto: conv.asunto,
+      cliente: (cliente as any)?.razon_social ?? '',
+      admin_nombre: (adminInfo as any)?.nombre,
+      admin_email:  (adminInfo as any)?.email,
+      estado: 'reasignada',
+      fecha: new Date().toLocaleString('es-CO'),
+    })
     return NextResponse.json({ ok: true })
   }
 

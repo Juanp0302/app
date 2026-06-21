@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
+import { notificarAsignacion } from '@/lib/notificaciones'
 import crypto from 'crypto'
 
 const TIPOS      = ['financiera','tecnica','juridica','transversal']
@@ -109,6 +110,18 @@ export async function POST(req: NextRequest) {
       `INSERT INTO tickets (id,cliente_id,admin_id,tipo,asunto,descripcion,prioridad) VALUES (?,?,?,?,?,?,?)`,
       [id, clienteId, adminId, tipo, asunto, descripcion, prioridad]
     )
+
+    const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
+    const adminInfo = adminId ? await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId]) : null
+    notificarAsignacion({
+      id, tipo_entidad: 'ticket', especialidad: tipo, asunto,
+      cliente: (cliente as any)?.razon_social ?? '',
+      admin_nombre: (adminInfo as any)?.nombre,
+      admin_email:  (adminInfo as any)?.email,
+      estado: 'abierto',
+      fecha: new Date().toLocaleString('es-CO'),
+    })
+
     return NextResponse.json({ ok: true, id, adminId }, { status: 201 })
   }
 
@@ -136,11 +149,22 @@ export async function POST(req: NextRequest) {
   // Reasignar
   if (body.accion === 'reasignar') {
     const { ticketId, adminId, motivo } = body
-    const ticket = await queryOne('SELECT admin_id FROM tickets WHERE id = ?', [ticketId]) as any
+    const ticket = await queryOne('SELECT * FROM tickets WHERE id = ?', [ticketId]) as any
     if (!ticket) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     await execute(`UPDATE tickets SET admin_id=?, updated_at=datetime('now') WHERE id=?`, [adminId, ticketId])
     await execute(`INSERT INTO reasignaciones (id,entidad,entidad_id,de_admin_id,a_admin_id,motivo,user_id) VALUES (?,?,?,?,?,?,?)`,
       [crypto.randomUUID(), 'ticket', ticketId, ticket.admin_id, adminId, motivo ?? null, user.id])
+
+    const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [ticket.cliente_id])
+    const adminInfo = await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId])
+    notificarAsignacion({
+      id: ticketId, tipo_entidad: 'ticket', especialidad: ticket.tipo, asunto: ticket.asunto,
+      cliente: (cliente as any)?.razon_social ?? '',
+      admin_nombre: (adminInfo as any)?.nombre,
+      admin_email:  (adminInfo as any)?.email,
+      estado: 'reasignado',
+      fecha: new Date().toLocaleString('es-CO'),
+    })
     return NextResponse.json({ ok: true })
   }
 
