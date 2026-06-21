@@ -358,18 +358,6 @@ export default function ClientesClient({
             </div>
           </div>
 
-          {/* Servicios actuales */}
-          <div style={{ marginBottom:'1.5rem' }}>
-            <div style={labelStyle}>Servicios activos</div>
-            <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', marginTop:'0.4rem' }}>
-              {modalDetalle.servicios.map(s => (
-                <span key={s} style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(150,134,34,0.15)', color:C.olivo, padding:'0.25rem 0.7rem', borderRadius:'20px', border:'1px solid rgba(150,134,34,0.3)' }}>
-                  {s.replace(/_/g,' ')}
-                </span>
-              ))}
-            </div>
-          </div>
-
           {/* Agregar servicio */}
           <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
             <div style={labelStyle}>Agregar nuevo servicio</div>
