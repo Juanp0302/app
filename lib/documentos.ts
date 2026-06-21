@@ -87,7 +87,9 @@ export function rutaCompletaLocal(clienteId: string, ref: string): string | null
 }
 
 export async function documentosParaZip(clienteId: string, anio: number, trimestre: number | null) {
-  const cond   = trimestre != null ? 'AND d.trimestre = ?' : 'AND d.trimestre IS NULL'
+  // Si se pide un trimestre: incluir ese trimestre + permanentes (trimestre IS NULL)
+  // Si se pide el año completo: incluir todos (todos los trimestres + permanentes)
+  const cond   = trimestre != null ? 'AND (d.trimestre = ? OR d.trimestre IS NULL)' : ''
   const params = trimestre != null ? [clienteId, anio, trimestre] : [clienteId, anio]
   return queryAll(`
     SELECT d.id, d.nombre_archivo, d.ruta, d.anio, d.trimestre, d.cliente_id, d.cliente_obl_id,
