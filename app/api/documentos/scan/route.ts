@@ -96,17 +96,21 @@ export async function GET(req: NextRequest) {
 
   // Obtener acceso a archivos según proveedor
   let archivos
+  let infoProveedor: string
   try {
     if (config.type === 'local') {
       const basePath = config.basePath ?? path.join(process.cwd(), 'uploads', clienteId)
+      infoProveedor = `local:${basePath}`
       archivos = escanearLocal(basePath)
     } else if (config.type === 'googledrive') {
       if (!config.access_token && !config.refresh_token)
         return NextResponse.json({ error: 'Google Drive no autorizado' }, { status: 401 })
+      infoProveedor = `googledrive:${config.root_folder_id ?? 'buscando carpeta Owl Compliance...'}`
       const token = await refreshGoogleToken(config, clienteId)
       archivos = await escanearGoogleDrive(config, token)
     } else {
       if (!config.access_token) return NextResponse.json({ error: 'Microsoft no autorizado' }, { status: 401 })
+      infoProveedor = `${config.type}:${config.drive_id ?? 'me'}`
       archivos = await escanearMicrosoft(config, config.access_token)
     }
   } catch (e: any) {
@@ -174,10 +178,12 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    total:          archivos.length,
-    ya_registrados: refsRegistradas.size,
+    total:           archivos.length,
+    ya_registrados:  refsRegistradas.size,
+    sin_obligaciones: obligaciones.length === 0,
     reconocidos,
-    no_reconocidos: noReconocidos,
+    no_reconocidos:  noReconocidos,
+    _debug: { proveedor: infoProveedor!, obligaciones_configuradas: obligaciones.length },
   })
 }
 

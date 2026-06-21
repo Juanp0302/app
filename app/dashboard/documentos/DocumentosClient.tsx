@@ -88,8 +88,9 @@ export default function DocumentosClient({
   const [scanOpen,        setScanOpen]        = useState(false)
   const [scanning,        setScanning]        = useState(false)
   const [scanResult,      setScanResult]      = useState<null | {
-    total: number; ya_registrados: number
+    total: number; ya_registrados: number; sin_obligaciones?: boolean
     reconocidos: ArchivoReconocido[]; no_reconocidos: ArchivoNoReconocido[]
+    _debug?: { proveedor: string; obligaciones_configuradas: number }
   }>(null)
   const [scanError,       setScanError]       = useState('')
   const [scanSeleccion,   setScanSeleccion]   = useState<Set<string>>(new Set())
@@ -419,6 +420,20 @@ export default function DocumentosClient({
             {/* Resultado del scan */}
             {!scanning && scanResult && (
               <>
+                {/* Info proveedor */}
+                {scanResult._debug && (
+                  <div style={{ fontSize:'0.68rem', color:'rgba(231,223,202,0.35)', marginBottom:'1rem', wordBreak:'break-all' }}>
+                    Escaneando: {scanResult._debug.proveedor} · {scanResult._debug.obligaciones_configuradas} obligaciones configuradas
+                  </div>
+                )}
+
+                {/* Sin obligaciones */}
+                {scanResult.sin_obligaciones && (
+                  <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:'8px', padding:'1rem', fontSize:'0.82rem', color:'#fcd34d', marginBottom:'1rem' }}>
+                    Este cliente no tiene obligaciones configuradas en su matriz. Los archivos encontrados no pueden cruzarse con obligaciones.
+                  </div>
+                )}
+
                 {/* Resumen */}
                 <div style={{ display:'flex', gap:'1.5rem', marginBottom:'1.5rem', flexWrap:'wrap' }}>
                   {[
