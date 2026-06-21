@@ -234,8 +234,11 @@ export default function ClientesClient({
         {/* ── ESTADÍSTICAS GLOBALES ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:'1rem', marginBottom:'2.5rem' }}>
           {[
-            { label:'Clientes activos',    val: stats.total,       color: C.marfil },
-            { label:'Cumplimiento global', val: `${pctGlobal}%`,   color: pctColor(pctGlobal), big: true },
+            { label:'Clientes activos',     val: stats.total,        color: C.marfil },
+            { label:'Cumplimiento global',  val: `${pctGlobal}%`,    color: pctColor(pctGlobal), big: true },
+            { label:'Obligaciones totales', val: stats.total_obl,    color: 'rgba(231,223,202,0.7)' },
+            { label:'Cumplidas',            val: stats.cumplidas,    color: '#16a34a' },
+            { label:'Vencidas',             val: stats.vencidas,     color: '#dc2626' },
           ].map(s => (
             <div key={s.label} style={{ background:'rgba(231,223,202,0.05)', border:'1px solid rgba(150,134,34,0.2)', borderRadius:'12px', padding:'1.2rem 1.4rem' }}>
               <div style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:'rgba(231,223,202,0.45)', marginBottom:'0.4rem' }}>{s.label}</div>
@@ -281,6 +284,10 @@ export default function ClientesClient({
                     {!c.activo && <span style={{ fontSize:'0.6rem', fontWeight:700, background:'rgba(220,38,38,0.15)', color:'#dc2626', padding:'0.15rem 0.5rem', borderRadius:'8px' }}>INACTIVO</span>}
                   </div>
                   {c.nit && <div style={{ fontSize:'0.72rem', color:'rgba(231,223,202,0.45)' }}>NIT {c.nit}</div>}
+                  <div style={{ display:'flex', gap:'1.5rem', flexWrap:'wrap', marginTop:'0.4rem' }}>
+                    {c.email && <span style={{ fontSize:'0.72rem', color:'rgba(231,223,202,0.5)' }}>{c.email}</span>}
+                    {c.contacto && <span style={{ fontSize:'0.72rem', color:'rgba(231,223,202,0.5)' }}>{c.contacto}</span>}
+                  </div>
                 </div>
 
                 {/* Gráfica de cumplimiento */}
