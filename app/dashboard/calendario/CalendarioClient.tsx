@@ -124,7 +124,7 @@ export default function CalendarioClient({
           <span style={{ color:'rgba(231,223,202,0.3)' }}>›</span>
           <span style={{ fontSize:'0.72rem', fontWeight:600, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo }}>Calendario de Obligaciones</span>
         </div>
-        <a href="/api/auth/signout" style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:'rgba(231,223,202,0.5)', textDecoration:'none' }}>Salir</a>
+        <a href="/signout" style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:'rgba(231,223,202,0.5)', textDecoration:'none' }}>Salir</a>
       </nav>
 
       <main style={{ maxWidth:'1300px', margin:'0 auto', padding:'2rem', display:'grid', gridTemplateColumns:'1fr 360px', gap:'2rem', alignItems:'start' }}>

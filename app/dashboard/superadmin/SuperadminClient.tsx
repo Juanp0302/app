@@ -66,7 +66,7 @@ export default function SuperadminClient() {
             border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem' }}>
             Ver tickets
           </a>
-          <a href="/api/auth/signout" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.15em',
+          <a href="/signout" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.15em',
             textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>
             Salir
           </a>

@@ -235,7 +235,7 @@ export default function MapaClient({
           <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
           <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo }}>Mapa de Cumplimiento</span>
         </div>
-        <a href="/api/auth/signout" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>Salir</a>
+        <a href="/signout" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>Salir</a>
       </nav>
 
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>

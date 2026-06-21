@@ -44,7 +44,7 @@ export default function DashboardClient({
           <span style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.6)' }}>
             {userName} · {isAdmin ? 'Administrador' : 'Cliente'}
           </span>
-          <a href="/api/auth/signout" style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo, textDecoration: 'none' }}>
+          <a href="/signout" style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo, textDecoration: 'none' }}>
             Salir
           </a>
         </div>
