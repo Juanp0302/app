@@ -107,6 +107,7 @@ export default function DocumentosClient({
   const [importando,    setImportando]    = useState(false)
   const [importError,   setImportError]   = useState('')
   const [importDone,    setImportDone]    = useState(false)
+  const [importFallas,  setImportFallas]  = useState<{nombre: string; error: string}[]>([])
 
   const fileRef   = useRef<HTMLInputElement>(null)
   const folderRef = useRef<HTMLInputElement>(null)
@@ -193,6 +194,7 @@ export default function DocumentosClient({
     setImportDone(false)
     setImportando(false)
     setImportError('')
+    setImportFallas([])
     // Trigger folder input
     folderRef.current?.click()
   }
@@ -257,32 +259,55 @@ export default function DocumentosClient({
     setImportOk(0)
     setImportError('')
     setImportDone(false)
+    setImportFallas([])
 
     let errores = 0
+    const fallas: {nombre: string; error: string}[] = []
+
     for (const a of seleccionados) {
       const file = fileMap.get(a.ruta)
-      if (!file) { errores++; setImportado(n => n + 1); continue }
-      try {
-        const fd = new FormData()
-        fd.append('clienteId',    clienteId)
-        fd.append('clienteOblId', a.cliente_obl_id ?? '')
-        fd.append('aspecto',      a.aspecto)
-        fd.append('obligacion',   a.obligacion)
-        fd.append('anio',         String(a.anio))
-        if (a.trimestre) fd.append('trimestre', String(a.trimestre))
-        fd.append('archivo', file, a.nombre)
-        const res = await fetch('/api/documentos', { method: 'POST', body: fd })
-        if (res.ok) {
-          setImportOk(n => n + 1)
-        } else {
-          const json = await res.json().catch(() => ({}))
-          errores++
-          console.error('Upload error:', res.status, json)
+      if (!file) {
+        errores++
+        fallas.push({ nombre: a.nombre, error: 'Archivo no encontrado en el mapa local (ruta: ' + a.ruta + ')' })
+        setImportado(n => n + 1)
+        continue
+      }
+      let intentos = 0
+      let ok = false
+      while (intentos < 2 && !ok) {
+        intentos++
+        try {
+          const fd = new FormData()
+          fd.append('clienteId',    clienteId)
+          fd.append('clienteOblId', a.cliente_obl_id ?? '')
+          fd.append('aspecto',      a.aspecto)
+          fd.append('obligacion',   a.obligacion)
+          fd.append('anio',         String(a.anio))
+          if (a.trimestre) fd.append('trimestre', String(a.trimestre))
+          fd.append('archivo', file, a.nombre)
+          const res = await fetch('/api/documentos', { method: 'POST', body: fd })
+          if (res.ok) {
+            ok = true
+            setImportOk(n => n + 1)
+          } else {
+            const json = await res.json().catch(() => ({}))
+            if (intentos >= 2) {
+              errores++
+              fallas.push({ nombre: a.nombre, error: `HTTP ${res.status}: ${json.error ?? JSON.stringify(json)}` })
+            }
+          }
+        } catch (err: any) {
+          if (intentos >= 2) {
+            errores++
+            fallas.push({ nombre: a.nombre, error: err?.message ?? 'Error de red' })
+          }
         }
-      } catch (err) { errores++; console.error('Upload exception:', err) }
+        if (!ok && intentos < 2) await new Promise(r => setTimeout(r, 800))
+      }
       setImportado(n => n + 1)
     }
 
+    setImportFallas(fallas)
     setImportando(false)
     setImportDone(true)
     if (errores > 0) setImportError(`${errores} archivo${errores !== 1 ? 's' : ''} no se pudo${errores !== 1 ? 'n' : ''} subir.`)
@@ -513,11 +538,28 @@ export default function DocumentosClient({
                       </>
                     )}
                     {importDone && (
-                      <div style={{ fontSize:'0.82rem', color: importOk === 0 ? '#f87171' : '#6ee7b7' }}>
-                        {importOk > 0
-                          ? `${importOk} archivo${importOk !== 1 ? 's' : ''} importado${importOk !== 1 ? 's' : ''} correctamente.`
-                          : 'No se pudo importar ningún archivo.'}
-                        {importError && <span style={{ color:'#f87171', marginLeft:'0.5rem' }}>{importError}</span>}
+                      <div>
+                        <div style={{ fontSize:'0.82rem', color: importOk === 0 ? '#f87171' : '#6ee7b7' }}>
+                          {importOk > 0
+                            ? `${importOk} archivo${importOk !== 1 ? 's' : ''} importado${importOk !== 1 ? 's' : ''} correctamente.`
+                            : 'No se pudo importar ningún archivo.'}
+                          {importError && <span style={{ color:'#f87171', marginLeft:'0.5rem' }}>{importError}</span>}
+                        </div>
+                        {importFallas.length > 0 && (
+                          <details style={{ marginTop:'0.75rem' }}>
+                            <summary style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'#f87171', cursor:'pointer' }}>
+                              Ver errores ({importFallas.length})
+                            </summary>
+                            <div style={{ marginTop:'0.5rem', maxHeight:'160px', overflowY:'auto', borderRadius:'6px', border:'1px solid rgba(220,38,38,0.2)', background:'rgba(220,38,38,0.05)' }}>
+                              {importFallas.map((f, i) => (
+                                <div key={i} style={{ padding:'0.5rem 0.75rem', borderBottom:'1px solid rgba(220,38,38,0.1)', fontSize:'0.72rem' }}>
+                                  <span style={{ color:'rgba(231,223,202,0.7)', fontWeight:600 }}>{f.nombre}</span>
+                                  <span style={{ color:'#f87171', marginLeft:'0.5rem' }}>— {f.error}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )}
                   </div>
