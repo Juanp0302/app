@@ -59,8 +59,10 @@ export async function GET(req: NextRequest) {
         if (!fs.existsSync(fullPath)) continue
         buffer = fs.readFileSync(fullPath)
       }
+      const periodoDoc = doc.trimestre ? `T${doc.trimestre}` : 'Permanente'
       const rutaZip = [
         carpeta,
+        periodoDoc,
         doc.aspecto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim(),
         doc.obligacion.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim().slice(0, 50),
         doc.nombre_archivo,
