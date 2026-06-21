@@ -7,7 +7,7 @@ import { auth } from '@/lib/auth'
 import { queryOne } from '@/lib/db'
 import { documentosParaZip } from '@/lib/documentos'
 import { getProvider, isCloudRef, localAbsPath } from '@/lib/storage'
-import * as archiver from 'archiver'
+import JSZip from 'jszip'
 import fs from 'fs'
 
 export async function GET(req: NextRequest) {
@@ -47,42 +47,30 @@ export async function GET(req: NextRequest) {
   const carpeta   = `${slug}_${periodo}`
 
   const provider = getProvider(clienteId)
-  const chunks: Buffer[] = []
+  const zip = new JSZip()
 
-  await new Promise<void>((resolve, reject) => {
-    const archive = (archiver as any).default
-      ? (archiver as any).default('zip', { zlib: { level: 6 } })
-      : (archiver as any)('zip', { zlib: { level: 6 } })
-
-    archive.on('data',  (chunk: Buffer) => chunks.push(chunk))
-    archive.on('end',   resolve)
-    archive.on('error', reject)
-
-    ;(async () => {
-      for (const doc of docs) {
-        try {
-          let buffer: Buffer
-          if (isCloudRef(doc.ruta)) {
-            buffer = await provider.download(doc.ruta)
-          } else {
-            const fullPath = localAbsPath(clienteId!, doc.ruta)
-            if (!fs.existsSync(fullPath)) continue
-            buffer = fs.readFileSync(fullPath)
-          }
-          const rutaZip = [
-            carpeta,
-            doc.aspecto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim(),
-            doc.obligacion.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim().slice(0, 50),
-            doc.nombre_archivo,
-          ].join('/')
-          archive.append(buffer, { name: rutaZip })
-        } catch (e) { console.error(`[ZIP] Error incluyendo ${doc.nombre_archivo}:`, e) }
+  for (const doc of docs) {
+    try {
+      let buffer: Buffer
+      if (isCloudRef(doc.ruta)) {
+        buffer = await provider.download(doc.ruta)
+      } else {
+        const fullPath = localAbsPath(clienteId!, doc.ruta)
+        if (!fs.existsSync(fullPath)) continue
+        buffer = fs.readFileSync(fullPath)
       }
-      archive.finalize()
-    })().catch(reject)
-  })
+      const rutaZip = [
+        carpeta,
+        doc.aspecto.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim(),
+        doc.obligacion.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').trim().slice(0, 50),
+        doc.nombre_archivo,
+      ].join('/')
+      zip.file(rutaZip, buffer)
+    } catch (e) { console.error(`[ZIP] Error incluyendo ${doc.nombre_archivo}:`, e) }
+  }
 
-  const zipBuffer = Buffer.concat(chunks)
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+
   return new NextResponse(zipBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
