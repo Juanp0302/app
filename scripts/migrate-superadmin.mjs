@@ -51,35 +51,34 @@ async function run() {
     return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
   }
 
-  const existing_sa = await db.execute("SELECT id FROM users WHERE rol = 'superadmin' LIMIT 1")
+  // La contraseña del superadmin se lee de la variable de entorno SUPERADMIN_PASSWORD
+  // o se pasa como argumento: node migrate-superadmin.mjs <password>
+  const superadminPassword = process.argv[2] || process.env.SUPERADMIN_PASSWORD
+  if (!superadminPassword) {
+    console.error('ERROR: debes pasar la contraseña como argumento o en SUPERADMIN_PASSWORD=...')
+    console.error('Uso: node scripts/migrate-superadmin.mjs <contraseña>')
+    process.exit(1)
+  }
+
+  const existing_sa = await db.execute("SELECT id FROM users WHERE email = 'superadmin@owlcompliance.co' LIMIT 1")
   if (existing_sa.rows.length === 0) {
     const id = crypto.randomUUID()
-    // Intentar insertar con el rol superadmin
     try {
       await db.execute(
-        `INSERT INTO users (id, email, password, nombre, rol, activo) VALUES (?, ?, ?, ?, 'superadmin', 1)`,
-        [id, 'superadmin@owlcompliance.co', hashPwd('SuperOwl2026!'), 'Super Administrador']
+        `INSERT INTO users (id, email, password, nombre, rol, activo) VALUES (?, ?, ?, ?, 'admin', 1)`,
+        [id, 'superadmin@owlcompliance.co', hashPwd(superadminPassword), 'SUPERADMIN']
       )
-      console.log('✓ Usuario superadmin creado: superadmin@owlcompliance.co / SuperOwl2026!')
-    } catch (e) {
-      // Si el CHECK constraint falla, recrear la tabla no es trivial en Turso.
-      // Usamos un workaround: bypass via raw SQL trick no funciona.
-      // En cambio, usaremos 'admin' como rol base y un flag separado o campo extra.
-      console.log('  CHECK constraint impide superadmin rol:', e.message)
-      console.log('  Creando con rol admin + nombre identificable…')
-      try {
-        await db.execute(
-          `INSERT INTO users (id, email, password, nombre, rol, activo) VALUES (?, ?, ?, ?, 'admin', 1)`,
-          [id, 'superadmin@owlcompliance.co', hashPwd('SuperOwl2026!'), 'SUPERADMIN']
-        )
-        console.log('✓ Superadmin creado con rol=admin (identificado por nombre SUPERADMIN)')
-        console.log('  Email: superadmin@owlcompliance.co  /  Password: SuperOwl2026!')
-      } catch (e2) {
-        console.log('  Error:', e2.message)
-      }
+      console.log('✓ Superadmin creado: superadmin@owlcompliance.co')
+    } catch (e2) {
+      console.log('  Error:', e2.message)
     }
   } else {
-    console.log('  Superadmin ya existe, OK')
+    // Actualizar contraseña si ya existe
+    await db.execute(
+      `UPDATE users SET password = ? WHERE email = 'superadmin@owlcompliance.co'`,
+      [hashPwd(superadminPassword)]
+    )
+    console.log('✓ Contraseña de superadmin actualizada')
   }
 
   // 4. Agregar columna is_superadmin a users si no existe
