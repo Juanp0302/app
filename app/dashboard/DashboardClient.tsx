@@ -13,8 +13,9 @@ export default function DashboardClient({
 
   const cards = [
     ...(isAdmin ? [
-      { titulo: 'Clientes',      desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
-      { titulo: 'Recordatorios', desc: 'Configurar y ejecutar alertas de vencimientos por email',       href: '/dashboard/recordatorios', icono: '🔔' },
+      { titulo: 'Clientes',          desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
+      { titulo: 'Recordatorios',    desc: 'Configurar y ejecutar alertas de vencimientos por email',       href: '/dashboard/recordatorios', icono: '🔔' },
+      { titulo: 'Administradores',  desc: 'Gestionar perfiles con acceso total a la plataforma',           href: '/dashboard/admins',        icono: '🛡️' },
     ] : []),
     { titulo: 'Mapa de Cumplimiento', desc: 'Matriz de obligaciones regulatorias y estados de cumplimiento', href: '/dashboard/mapa',        icono: '📋' },
     { titulo: 'Calendario',           desc: 'Vencimientos del mes y próximos recordatorios',               href: '/dashboard/calendario',  icono: '📅' },
