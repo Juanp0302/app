@@ -4,6 +4,26 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
+interface ArchivoReconocido {
+  ref:            string
+  ruta:           string
+  nombre:         string
+  anio:           number
+  trimestre:      number | null
+  aspecto:        string
+  obligacion:     string
+  sub_titulo?:    string
+  periodicidad?:  string
+  cliente_obl_id: string | null
+}
+
+interface ArchivoNoReconocido {
+  ref:    string
+  ruta:   string
+  nombre: string
+  razon?: string
+}
+
 const ASPECTO_COLOR: Record<string, string> = {
   FINANCIERO: '#f59e0b', JURÍDICO: '#8b5cf6', TÉCNICO: '#3b82f6',
   TRANSVERSAL: '#10b981', ADMINISTRATIVO: '#ec4899',
@@ -64,6 +84,18 @@ export default function DocumentosClient({
   const [zipTrim,      setZipTrim]      = useState<number | null>(null)
   const [zipping,      setZipping]      = useState(false)
 
+  // Scanner
+  const [scanOpen,        setScanOpen]        = useState(false)
+  const [scanning,        setScanning]        = useState(false)
+  const [scanResult,      setScanResult]      = useState<null | {
+    total: number; ya_registrados: number
+    reconocidos: ArchivoReconocido[]; no_reconocidos: ArchivoNoReconocido[]
+  }>(null)
+  const [scanError,       setScanError]       = useState('')
+  const [scanSeleccion,   setScanSeleccion]   = useState<Set<string>>(new Set())
+  const [importando,      setImportando]      = useState(false)
+  const [importResult,    setImportResult]    = useState<null | { importados: number }>(null)
+
   const fileRef = useRef<HTMLInputElement>(null)
 
   const cargar = useCallback(async (cid: string) => {
@@ -118,6 +150,51 @@ export default function DocumentosClient({
     if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return
     await fetch(`/api/documentos?docId=${docId}`, { method: 'DELETE' })
     if (clienteId) cargar(clienteId)
+  }
+
+  async function iniciarScan() {
+    if (!clienteId) return
+    setScanning(true); setScanError(''); setScanResult(null); setImportResult(null)
+    setScanSeleccion(new Set())
+    try {
+      const res  = await fetch(`/api/documentos/scan?clienteId=${clienteId}`)
+      const json = await res.json()
+      if (!res.ok) { setScanError(json.error ?? 'Error al escanear'); return }
+      setScanResult(json)
+      // Pre-seleccionar todos los reconocidos
+      setScanSeleccion(new Set(json.reconocidos.map((a: ArchivoReconocido) => a.ref)))
+    } catch (e: any) {
+      setScanError(e.message)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  async function importarSeleccionados() {
+    if (!clienteId || !scanResult) return
+    const seleccionados = scanResult.reconocidos.filter(a => scanSeleccion.has(a.ref))
+    if (seleccionados.length === 0) return
+    setImportando(true)
+    try {
+      const res  = await fetch('/api/documentos/scan', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ clienteId, archivos: seleccionados }),
+      })
+      const json = await res.json()
+      setImportResult({ importados: json.importados })
+      cargar(clienteId)
+    } finally {
+      setImportando(false)
+    }
+  }
+
+  function toggleScanItem(ref: string) {
+    setScanSeleccion(prev => {
+      const n = new Set(prev)
+      n.has(ref) ? n.delete(ref) : n.add(ref)
+      return n
+    })
   }
 
   async function descargarZip() {
@@ -197,6 +274,11 @@ export default function DocumentosClient({
             </div>
           </div>
           <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap' }}>
+            <button onClick={() => { setScanOpen(true); iniciarScan() }}
+              disabled={!clienteId}
+              style={{ background:'rgba(150,134,34,0.15)', color:C.olivo, border:`1px solid ${C.olivo}`, borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor: clienteId ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+              Escanear carpeta
+            </button>
             <button onClick={() => setUploadOpen(true)}
               style={{ background:C.olivo, color:C.vino, border:'none', borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit' }}>
               + Subir documento
@@ -298,6 +380,137 @@ export default function DocumentosClient({
           )
         })}
       </main>
+
+      {/* ── MODAL SCANNER ── */}
+      {scanOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'1rem' }}>
+          <div style={{ background:'#1a0204', border:'1px solid rgba(150,134,34,0.3)', borderRadius:'16px', padding:'2rem', width:'100%', maxWidth:'760px', maxHeight:'90vh', overflowY:'auto' }}>
+
+            {/* Título */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
+              <div style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.3rem', fontWeight:700 }}>Escanear carpeta del proveedor</div>
+              <button onClick={() => { setScanOpen(false); setScanResult(null); setImportResult(null) }}
+                style={{ background:'none', border:'none', color:'rgba(231,223,202,0.5)', fontSize:'1.2rem', cursor:'pointer', fontFamily:'inherit' }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Estado: escaneando */}
+            {scanning && (
+              <div style={{ textAlign:'center', padding:'3rem', color:'rgba(231,223,202,0.5)', fontSize:'0.85rem' }}>
+                Escaneando carpeta…
+              </div>
+            )}
+
+            {/* Error */}
+            {scanError && (
+              <div style={{ background:'rgba(220,38,38,0.1)', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'8px', padding:'1rem', fontSize:'0.82rem', color:'#f87171' }}>
+                {scanError}
+              </div>
+            )}
+
+            {/* Resultado importación */}
+            {importResult && (
+              <div style={{ background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'8px', padding:'1rem', fontSize:'0.82rem', color:'#6ee7b7', marginBottom:'1rem' }}>
+                Se importaron {importResult.importados} documento{importResult.importados !== 1 ? 's' : ''} correctamente.
+              </div>
+            )}
+
+            {/* Resultado del scan */}
+            {!scanning && scanResult && (
+              <>
+                {/* Resumen */}
+                <div style={{ display:'flex', gap:'1.5rem', marginBottom:'1.5rem', flexWrap:'wrap' }}>
+                  {[
+                    { label: 'Total encontrados', val: scanResult.total },
+                    { label: 'Ya registrados',    val: scanResult.ya_registrados },
+                    { label: 'Por importar',       val: scanResult.reconocidos.length },
+                    { label: 'No reconocidos',     val: scanResult.no_reconocidos.length },
+                  ].map(stat => (
+                    <div key={stat.label} style={{ background:'rgba(231,223,202,0.05)', border:'1px solid rgba(150,134,34,0.2)', borderRadius:'10px', padding:'0.8rem 1.2rem', minWidth:'120px' }}>
+                      <div style={{ fontSize:'1.4rem', fontWeight:700, color:C.olivo }}>{stat.val}</div>
+                      <div style={{ fontSize:'0.65rem', fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(231,223,202,0.45)', marginTop:'0.2rem' }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Lista reconocidos */}
+                {scanResult.reconocidos.length > 0 && (
+                  <>
+                    <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'0.8rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <span>Archivos reconocidos ({scanResult.reconocidos.length})</span>
+                      <div style={{ display:'flex', gap:'0.5rem' }}>
+                        <button onClick={() => setScanSeleccion(new Set(scanResult.reconocidos.map(a => a.ref)))}
+                          style={{ fontSize:'0.62rem', background:'none', border:'1px solid rgba(150,134,34,0.4)', color:C.olivo, borderRadius:'6px', padding:'0.25rem 0.6rem', cursor:'pointer', fontFamily:'inherit' }}>
+                          Seleccionar todo
+                        </button>
+                        <button onClick={() => setScanSeleccion(new Set())}
+                          style={{ fontSize:'0.62rem', background:'none', border:'1px solid rgba(231,223,202,0.2)', color:'rgba(231,223,202,0.5)', borderRadius:'6px', padding:'0.25rem 0.6rem', cursor:'pointer', fontFamily:'inherit' }}>
+                          Ninguno
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ maxHeight:'280px', overflowY:'auto', marginBottom:'1.5rem', borderRadius:'8px', border:'1px solid rgba(150,134,34,0.15)' }}>
+                      {scanResult.reconocidos.map(a => (
+                        <label key={a.ref} style={{ display:'flex', alignItems:'center', gap:'0.9rem', padding:'0.75rem 1rem', cursor:'pointer', borderBottom:'1px solid rgba(150,134,34,0.08)', background: scanSeleccion.has(a.ref) ? 'rgba(150,134,34,0.07)' : 'transparent' }}>
+                          <input type="checkbox" checked={scanSeleccion.has(a.ref)}
+                            onChange={() => toggleScanItem(a.ref)}
+                            style={{ accentColor: C.olivo, width:'16px', height:'16px', flexShrink:0 }} />
+                          <span style={{ fontSize:'1rem', flexShrink:0 }}>{iconoPorNombre(a.nombre)}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:'0.82rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                              {a.nombre}
+                            </div>
+                            <div style={{ fontSize:'0.65rem', color:'rgba(231,223,202,0.4)', marginTop:'0.15rem' }}>
+                              {a.aspecto} › {a.obligacion} · {a.anio}{a.trimestre ? ` Q${a.trimestre}` : ' · Permanente'}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* No reconocidos */}
+                {scanResult.no_reconocidos.length > 0 && (
+                  <details style={{ marginBottom:'1.5rem' }}>
+                    <summary style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:'rgba(231,223,202,0.35)', cursor:'pointer' }}>
+                      Archivos no reconocidos ({scanResult.no_reconocidos.length}) — fuera de estructura esperada
+                    </summary>
+                    <div style={{ marginTop:'0.6rem', maxHeight:'180px', overflowY:'auto', borderRadius:'8px', border:'1px solid rgba(231,223,202,0.08)' }}>
+                      {scanResult.no_reconocidos.map(a => (
+                        <div key={a.ref} style={{ padding:'0.6rem 1rem', borderBottom:'1px solid rgba(231,223,202,0.05)', fontSize:'0.75rem', color:'rgba(231,223,202,0.4)' }}>
+                          <span style={{ fontWeight:600 }}>{a.nombre}</span>
+                          {a.razon && <span style={{ marginLeft:'0.5rem', fontSize:'0.65rem' }}>— {a.razon}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {scanResult.reconocidos.length === 0 && scanResult.no_reconocidos.length === 0 && (
+                  <div style={{ textAlign:'center', padding:'2rem', color:'rgba(231,223,202,0.3)', fontSize:'0.85rem' }}>
+                    No se encontraron archivos nuevos en la carpeta.
+                  </div>
+                )}
+
+                {/* Acciones */}
+                <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end', marginTop:'0.5rem' }}>
+                  <button onClick={iniciarScan} disabled={scanning}
+                    style={{ background:'rgba(231,223,202,0.08)', color:C.marfil, border:'1px solid rgba(231,223,202,0.15)', borderRadius:'8px', padding:'0.7rem 1.2rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit' }}>
+                    Volver a escanear
+                  </button>
+                  <button onClick={importarSeleccionados}
+                    disabled={importando || scanSeleccion.size === 0}
+                    style={{ background: (importando || scanSeleccion.size === 0) ? 'rgba(150,134,34,0.4)' : C.olivo, color:C.vino, border:'none', borderRadius:'8px', padding:'0.7rem 1.5rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor: (importando || scanSeleccion.size === 0) ? 'not-allowed' : 'pointer', fontFamily:'inherit' }}>
+                    {importando ? 'Importando…' : `Importar ${scanSeleccion.size > 0 ? scanSeleccion.size + ' archivo' + (scanSeleccion.size !== 1 ? 's' : '') : ''}`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL SUBIR ARCHIVO ── */}
       {uploadOpen && (
