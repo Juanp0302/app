@@ -19,15 +19,17 @@ export const authConfig: NextAuthConfig = {
     },
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role
-        token.id   = user.id
+        token.role          = (user as any).role
+        token.id            = user.id
+        token.is_superadmin = (user as any).is_superadmin ?? false
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        ;(session.user as any).role = token.role
-        ;(session.user as any).id   = token.id
+        ;(session.user as any).role          = token.role
+        ;(session.user as any).id            = token.id
+        ;(session.user as any).is_superadmin = token.is_superadmin ?? false
       }
       return session
     },

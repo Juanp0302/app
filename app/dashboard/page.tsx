@@ -7,5 +7,5 @@ export default async function DashboardPage() {
   if (!session) redirect('/login')
 
   const user = session.user as any
-  return <DashboardClient userName={user?.name ?? ''} userRole={user?.role ?? ''} />
+  return <DashboardClient userName={user?.name ?? ''} userRole={user?.role ?? ''} isSuperadmin={!!user?.is_superadmin} />
 }

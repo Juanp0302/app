@@ -26,10 +26,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user) return null
         if (hashPassword(credentials.password as string) !== (user as any).password) return null
         return {
-          id:    (user as any).id,
-          email: (user as any).email,
-          name:  (user as any).nombre,
-          role:  (user as any).rol,
+          id:            (user as any).id,
+          email:         (user as any).email,
+          name:          (user as any).nombre,
+          role:          (user as any).rol,
+          is_superadmin: (user as any).is_superadmin === 1,
         }
       },
     }),

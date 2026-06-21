@@ -15,5 +15,5 @@ export default async function TicketsPage() {
     clienteId = (c as any).id
   }
 
-  return <TicketsClient userRole={user.role} userId={user.id} clienteId={clienteId} />
+  return <TicketsClient userRole={user.role} userId={user.id} clienteId={clienteId} isSuperadmin={!!user.is_superadmin} />
 }

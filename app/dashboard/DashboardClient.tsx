@@ -5,13 +5,20 @@ const C = { vino: '#270205', olivo: '#968622', marfil: '#e7dfca' }
 export default function DashboardClient({
   userName,
   userRole,
+  isSuperadmin,
 }: {
   userName: string
   userRole: string
+  isSuperadmin?: boolean
 }) {
   const isAdmin = userRole === 'admin'
 
-  const cards = [
+  const cards = isSuperadmin ? [
+    { titulo: 'Vista Global',     desc: 'Tickets y chats asignados a cada administrador', href: '/dashboard/superadmin', icono: '🔭' },
+    { titulo: 'Tickets',          desc: 'Todos los tickets del sistema',                   href: '/dashboard/tickets',    icono: '🎫' },
+    { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes',              href: '/dashboard/clientes',   icono: '👥' },
+    { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',             href: '/dashboard/admins',     icono: '🛡️' },
+  ] : [
     ...(isAdmin ? [
       { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
       { titulo: 'Recordatorios',    desc: 'Configurar y ejecutar alertas de vencimientos por email',       href: '/dashboard/recordatorios', icono: '🔔' },
