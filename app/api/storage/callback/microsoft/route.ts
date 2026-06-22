@@ -17,18 +17,19 @@ export async function GET(req: NextRequest) {
 
   if (error || !code || !stateB64) return NextResponse.redirect(redirectErr)
 
-  let clienteId: string, provider: string, siteUrl: string
+  let clienteId: string, provider: string, siteUrl: string, returnPath: string
   try {
     const state = JSON.parse(Buffer.from(stateB64, 'base64url').toString())
     clienteId   = state.clienteId
-    provider    = state.provider   // 'microsoft-onedrive' | 'microsoft-sharepoint'
+    provider    = state.provider
     siteUrl     = state.siteUrl ?? ''
+    returnPath  = state.returnPath ?? '/dashboard/clientes'
   } catch {
     return NextResponse.redirect(redirectErr)
   }
 
   const storageType = provider === 'microsoft-sharepoint' ? 'sharepoint' : 'onedrive'
-  const redirectOk  = `${baseUrl}/dashboard/clientes?storage=ok&provider=${storageType}`
+  const redirectOk  = `${baseUrl}${returnPath}?storage=ok&provider=${storageType}`
 
   // Intercambiar código por tokens
   const callbackUrl = `${baseUrl}/api/storage/callback/microsoft`

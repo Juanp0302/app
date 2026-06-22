@@ -526,14 +526,12 @@ export default function ClientesClient({
             </div>
           </div>
 
-          {/* ── ALMACENAMIENTO ── */}
+          {/* ── ALMACENAMIENTO (solo lectura para admin) ── */}
           <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
             <div style={labelStyle}>Almacenamiento de documentos</div>
-
-            {storageCfg ? (
-              <div style={{ marginTop:'0.8rem' }}>
-                {/* Badge tipo actual */}
-                <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'1rem' }}>
+            <div style={{ marginTop:'0.75rem', display:'flex', alignItems:'center', gap:'0.75rem', flexWrap:'wrap' }}>
+              {storageCfg ? (
+                <>
                   <span style={{
                     fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase',
                     padding:'0.25rem 0.75rem', borderRadius:'20px', border:'1px solid',
@@ -543,82 +541,26 @@ export default function ClientesClient({
                       ? { background:'rgba(59,130,246,0.15)', color:'#60a5fa', borderColor:'rgba(59,130,246,0.3)' }
                       : storageCfg.type === 'onedrive'
                       ? { background:'rgba(37,99,235,0.15)', color:'#818cf8', borderColor:'rgba(37,99,235,0.3)' }
-                      : { background:'rgba(16,185,129,0.15)', color:'#34d399', borderColor:'rgba(16,185,129,0.3)' }
-                    ),
+                      : { background:'rgba(16,185,129,0.15)', color:'#34d399', borderColor:'rgba(16,185,129,0.3)' }),
                   }}>
-                    {storageCfg.type === 'local' ? 'Carpeta local'
-                      : storageCfg.type === 'googledrive' ? 'Google Drive'
-                      : storageCfg.type === 'onedrive' ? 'OneDrive'
-                      : 'SharePoint'}
+                    {storageCfg.type === 'local' ? 'Servidor local'
+                      : storageCfg.type === 'googledrive' ? '🟡 Google Drive'
+                      : storageCfg.type === 'onedrive' ? '🔵 OneDrive'
+                      : '🟢 SharePoint'}
                   </span>
-                  {storageCfg.connected && storageCfg.type !== 'local' && (
-                    <span style={{ fontSize:'0.65rem', color:'#16a34a' }}>● Conectado</span>
-                  )}
-                </div>
-
-                {/* Local: ruta */}
-                {storageCfg.type === 'local' && (
-                  <div style={{ display:'flex', gap:'0.6rem' }}>
-                    <input
-                      value={storageEdit.basePath}
-                      onChange={e => setStorageEdit(s => ({ ...s, basePath: e.target.value }))}
-                      placeholder="C:\Clientes\ISP_Demo\Cumplimiento (vacío = carpeta uploads del servidor)"
-                      style={{ ...inputStyle, flex:1, fontSize:'0.78rem' }}
-                    />
-                    <button onClick={guardarLocalPath} disabled={storageSaving}
-                      style={{ ...btnStyle, flexShrink:0 }}>Guardar</button>
-                  </div>
-                )}
-
-                {/* SharePoint: URL del sitio */}
-                {storageCfg.type === 'sharepoint' && (
-                  <div style={{ display:'flex', gap:'0.6rem', marginBottom:'0.6rem' }}>
-                    <input
-                      value={storageEdit.siteUrl}
-                      onChange={e => setStorageEdit(s => ({ ...s, siteUrl: e.target.value }))}
-                      placeholder="https://empresa.sharepoint.com/sites/cumplimiento"
-                      style={{ ...inputStyle, flex:1, fontSize:'0.78rem' }}
-                    />
-                    <button onClick={guardarSharePointUrl} disabled={storageSaving}
-                      style={{ ...btnStyle, flexShrink:0 }}>Guardar URL</button>
-                  </div>
-                )}
-
-                {/* Botones de conexión cloud */}
-                <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', marginTop:'0.5rem' }}>
-                  {storageCfg.type !== 'googledrive' && (
-                    <a href={`/api/storage/auth/google?clienteId=${modalDetalle.id}`}
-                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(59,130,246,0.12)', color:'#60a5fa', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(59,130,246,0.25)' }}>
-                      Conectar Google Drive
-                    </a>
-                  )}
-                  {storageCfg.type !== 'onedrive' && (
-                    <a href={`/api/storage/auth/microsoft-onedrive?clienteId=${modalDetalle.id}`}
-                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(99,102,241,0.12)', color:'#818cf8', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(99,102,241,0.25)' }}>
-                      Conectar OneDrive
-                    </a>
-                  )}
-                  {storageCfg.type !== 'sharepoint' && (
-                    <a
-                      href={storageEdit.siteUrl
-                        ? `/api/storage/auth/microsoft-sharepoint?clienteId=${modalDetalle.id}&siteUrl=${encodeURIComponent(storageEdit.siteUrl)}`
-                        : '#'}
-                      onClick={e => { if (!storageEdit.siteUrl) { e.preventDefault(); alert('Ingresa primero la URL del sitio SharePoint') } }}
-                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(16,185,129,0.12)', color:'#34d399', padding:'0.4rem 0.9rem', borderRadius:'8px', textDecoration:'none', border:'1px solid rgba(16,185,129,0.25)' }}>
-                      Conectar SharePoint
-                    </a>
-                  )}
-                  {storageCfg.type !== 'local' && (
-                    <button onClick={desconectarStorage} disabled={storageSaving}
-                      style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(220,38,38,0.1)', color:'#f87171', padding:'0.4rem 0.9rem', borderRadius:'8px', border:'1px solid rgba(220,38,38,0.25)', cursor:'pointer', fontFamily:'inherit' }}>
-                      Desconectar
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize:'0.78rem', color:'rgba(231,223,202,0.4)', marginTop:'0.5rem' }}>Cargando…</div>
-            )}
+                  {storageCfg.connected && storageCfg.type !== 'local'
+                    ? <span style={{ fontSize:'0.7rem', color:'#34d399' }}>● Conectado</span>
+                    : storageCfg.type !== 'local'
+                    ? <span style={{ fontSize:'0.7rem', color:'#f87171' }}>● Sin autorización</span>
+                    : null}
+                  <span style={{ fontSize:'0.68rem', color:'rgba(231,223,202,0.35)', fontStyle:'italic' }}>
+                    El cliente configura su almacenamiento desde su cuenta
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize:'0.78rem', color:'rgba(231,223,202,0.4)' }}>Cargando…</span>
+              )}
+            </div>
           </div>
 
           {/* Accesos rápidos */}

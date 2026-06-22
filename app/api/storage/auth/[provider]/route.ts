@@ -17,15 +17,26 @@ export async function GET(
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const user = session.user as any
-  if (user.role !== 'admin') return NextResponse.json({ error: 'Solo admin' }, { status: 403 })
 
   const { provider } = await params
-  const clienteId = req.nextUrl.searchParams.get('clienteId')
-  const siteUrl   = req.nextUrl.searchParams.get('siteUrl') ?? ''
-  if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
+  const siteUrl = req.nextUrl.searchParams.get('siteUrl') ?? ''
+
+  // Cliente: deduce su propio clienteId. Admin: lo recibe como parámetro.
+  let clienteId: string | null = null
+  if (user.role === 'cliente') {
+    const { queryOne } = await import('@/lib/db')
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
+    clienteId = c ? (c as any).id : null
+  } else if (user.role === 'admin' || user.is_superadmin) {
+    clienteId = req.nextUrl.searchParams.get('clienteId')
+  }
+  if (!clienteId) return NextResponse.json({ error: 'clienteId no resuelto' }, { status: 400 })
+
+  // La URL de retorno depende de quién inició el flujo
+  const returnPath = user.role === 'cliente' ? '/dashboard/almacenamiento' : '/dashboard/clientes'
 
   const baseUrl  = (process.env.NEXTAUTH_URL ?? 'http://localhost:3000').replace(/\/$/, '')
-  const state    = Buffer.from(JSON.stringify({ clienteId, provider, siteUrl })).toString('base64url')
+  const state    = Buffer.from(JSON.stringify({ clienteId, provider, siteUrl, returnPath })).toString('base64url')
 
   if (provider === 'google') {
     const callbackUrl = `${baseUrl}/api/storage/callback/google`

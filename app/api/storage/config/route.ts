@@ -7,19 +7,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, execute } from '@/lib/db'
 
-async function requireAdmin() {
+/** Resuelve el clienteId: admin lo pasa como param, cliente lo deduce de su sesión. */
+async function resolveClienteId(req: NextRequest): Promise<{ clienteId: string | null; error?: string }> {
   const session = await auth()
-  if (!session?.user) return null
+  if (!session?.user) return { clienteId: null, error: 'No autorizado' }
   const user = session.user as any
-  return user.role === 'admin' ? user : null
+
+  if (user.role === 'cliente') {
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
+    if (!c) return { clienteId: null, error: 'Cliente no encontrado' }
+    return { clienteId: (c as any).id }
+  }
+  if (user.role === 'admin' || user.is_superadmin) {
+    const clienteId = req.nextUrl.searchParams.get('clienteId')
+    if (!clienteId) return { clienteId: null, error: 'clienteId requerido' }
+    return { clienteId }
+  }
+  return { clienteId: null, error: 'Sin permiso' }
 }
 
 export async function GET(req: NextRequest) {
-  const user = await requireAdmin()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
-  const clienteId = req.nextUrl.searchParams.get('clienteId')
-  if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
+  const { clienteId, error } = await resolveClienteId(req)
+  if (!clienteId) return NextResponse.json({ error }, { status: 401 })
 
   const row = await queryOne('SELECT storage_type, storage_config FROM clientes WHERE id = ?', [clienteId])
   if (!row) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -36,12 +45,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const user = await requireAdmin()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const { clienteId, error } = await resolveClienteId(req)
+  if (!clienteId) return NextResponse.json({ error }, { status: 401 })
 
   const body = await req.json()
-  const { clienteId, type, basePath, site_url } = body
-  if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
+  const { type, basePath, site_url } = body
 
   if (type === 'local') {
     const config = JSON.stringify({ type: 'local', basePath: basePath ?? null })

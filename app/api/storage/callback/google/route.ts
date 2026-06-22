@@ -12,18 +12,19 @@ export async function GET(req: NextRequest) {
   const error     = req.nextUrl.searchParams.get('error')
 
   const baseUrl   = (process.env.NEXTAUTH_URL ?? 'http://localhost:3000').replace(/\/$/, '')
-  const redirectOk  = `${baseUrl}/dashboard/clientes?storage=ok&provider=googledrive`
   const redirectErr = `${baseUrl}/dashboard/clientes?storage=error`
 
   if (error || !code || !stateB64) return NextResponse.redirect(redirectErr)
 
-  let clienteId: string
+  let clienteId: string, returnPath: string
   try {
     const state = JSON.parse(Buffer.from(stateB64, 'base64url').toString())
     clienteId   = state.clienteId
+    returnPath  = state.returnPath ?? '/dashboard/clientes'
   } catch {
     return NextResponse.redirect(redirectErr)
   }
+  const redirectOk = `${baseUrl}${returnPath}?storage=ok&provider=googledrive`
 
   // Intercambiar código por tokens
   const callbackUrl = `${baseUrl}/api/storage/callback/google`
