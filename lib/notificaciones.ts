@@ -40,6 +40,27 @@ export async function notificarAsignacion(params: NotificacionParams): Promise<v
   return enviar(params)
 }
 
+export async function notificarSinAsignar(params: {
+  tipo:       'ticket' | 'chat' | 'documento'
+  id:         string
+  asunto:     string
+  cliente:    string
+  especialidad: string
+  fecha:      string
+}): Promise<void> {
+  const superadminEmail = process.env.SUPERADMIN_EMAIL ?? 'owlcompliance2026@gmail.com'
+  return enviar({
+    id:           params.id,
+    tipo_entidad: params.tipo as any,
+    especialidad: params.especialidad,
+    asunto:       `SIN ASIGNAR: ${params.asunto}`,
+    cliente:      params.cliente,
+    admin_email:  superadminEmail,
+    estado:       'sin_asignar',
+    fecha:        params.fecha,
+  })
+}
+
 export async function notificarDocumentoSubido(params: {
   docId:        string
   cliente:      string

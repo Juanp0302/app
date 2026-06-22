@@ -40,12 +40,69 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 }
 
 export default function SuperadminClient() {
-  const [data,    setData]    = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [data,       setData]       = useState<any>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [asignando,  setAsignando]  = useState<string | null>(null)   // id del item que se está asignando
+  const [selAdmin,   setSelAdmin]   = useState<Record<string, string>>({})  // itemId → adminId elegido
 
-  useEffect(() => {
-    fetch('/api/superadmin').then(r => r.json()).then(d => { setData(d); setLoading(false) })
-  }, [])
+  async function cargar() {
+    const d = await fetch('/api/superadmin').then(r => r.json())
+    setData(d)
+    setLoading(false)
+  }
+
+  useEffect(() => { cargar() }, [])
+
+  async function reasignar(tipo: string, id: string) {
+    const adminId = selAdmin[id]
+    if (!adminId) return
+    setAsignando(id)
+    try {
+      await fetch('/api/superadmin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo, id, adminId }),
+      })
+      await cargar()
+      setSelAdmin(s => { const n = { ...s }; delete n[id]; return n })
+    } finally {
+      setAsignando(null)
+    }
+  }
+
+  function SelectorAdmin({ tipo, id }: { tipo: string; id: string }) {
+    const admins: any[] = data?.porAdmin ?? []
+    const busy = asignando === id
+    return (
+      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 }}>
+        <select
+          value={selAdmin[id] ?? ''}
+          onChange={e => setSelAdmin(s => ({ ...s, [id]: e.target.value }))}
+          disabled={busy}
+          style={{ background: 'rgba(231,223,202,0.07)', border: '1px solid rgba(150,134,34,0.35)',
+            borderRadius: 6, padding: '0.25rem 0.5rem', color: C.marfil, fontSize: '0.72rem',
+            fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}
+        >
+          <option value=''>— Asignar a… —</option>
+          {admins.map((a: any) => (
+            <option key={a.id} value={a.id}>{a.nombre}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => reasignar(tipo, id)}
+          disabled={!selAdmin[id] || busy}
+          style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            background: selAdmin[id] ? 'rgba(150,134,34,0.2)' : 'rgba(150,134,34,0.06)',
+            color: selAdmin[id] ? C.olivo : 'rgba(150,134,34,0.35)',
+            border: '1px solid rgba(150,134,34,0.3)', borderRadius: 6,
+            padding: '0.25rem 0.7rem', cursor: selAdmin[id] ? 'pointer' : 'default',
+            fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+        >
+          {busy ? '…' : 'Asignar'}
+        </button>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: C.vino, display: 'flex', alignItems: 'center',
@@ -54,7 +111,8 @@ export default function SuperadminClient() {
     </div>
   )
 
-  const { porAdmin = [], sinAsignar = [], urgentes = [] } = data ?? {}
+  const { porAdmin = [], sinAsignar = [], chatsSinAsignar = [], docsSinAsignar = [], urgentes = [] } = data ?? {}
+  const totalSinAsignar = sinAsignar.length + chatsSinAsignar.length + docsSinAsignar.length
 
   return (
     <div style={{ minHeight: '100vh', background: C.vino, fontFamily: "'Josefin Sans', sans-serif", color: C.marfil }}>
@@ -113,7 +171,7 @@ export default function SuperadminClient() {
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem,2.5vw,1.9rem)',
               fontWeight: 700, marginBottom: '0.3rem' }}>Vista General de Operaciones</div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
-              color: C.olivo }}>Tickets y chats por administrador</div>
+              color: C.olivo }}>Tickets, chats y documentos por administrador</div>
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
             <a href="/api/superadmin/exportar?tipo=clientes" download
@@ -159,35 +217,84 @@ export default function SuperadminClient() {
           </div>
         )}
 
-        {/* Tickets sin asignar */}
-        {sinAsignar.length > 0 && (
-          <div style={{ marginBottom: '2rem' }}>
+        {/* Sin asignar */}
+        {totalSinAsignar > 0 && (
+          <div style={{ marginBottom: '2rem', background: 'rgba(245,158,11,0.04)',
+            border: '1px solid rgba(245,158,11,0.15)', borderRadius: 12, padding: '1.25rem 1.5rem' }}>
             <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: '#f59e0b', marginBottom: '0.8rem' }}>
-              Sin asignar ({sinAsignar.length})
+              color: '#f59e0b', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              ⚠ Sin asignar
+              <span style={{ background: 'rgba(245,158,11,0.15)', padding: '1px 10px', borderRadius: 20, fontSize: '0.6rem' }}>
+                {totalSinAsignar}
+              </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {sinAsignar.map((t: any) => (
-                <div key={t.id} style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)',
-                  borderRadius: 10, padding: '0.7rem 1.1rem', display: 'flex', alignItems: 'center',
-                  gap: '1rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: C.olivo }}>{numTicket(t.numero)}</span>
-                  <span style={{ fontSize: 13, flex: 1 }}>{t.asunto}</span>
-                  <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.5)' }}>{t.razon_social}</span>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                    background: (PRIORIDAD_COLOR[t.prioridad] ?? '#888') + '20',
-                    color: PRIORIDAD_COLOR[t.prioridad] ?? '#888',
-                    border: `1px solid ${(PRIORIDAD_COLOR[t.prioridad] ?? '#888')}40` }}>
-                    {t.prioridad}
-                  </span>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                    background: (TIPO_COLOR[t.tipo] ?? '#888') + '20',
-                    color: TIPO_COLOR[t.tipo] ?? '#888' }}>
-                    {t.tipo}
-                  </span>
+
+            {/* Tickets */}
+            {sinAsignar.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: 'rgba(231,223,202,0.4)', marginBottom: '0.5rem' }}>Tickets ({sinAsignar.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {sinAsignar.map((t: any) => (
+                    <div key={t.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '0.65rem 1rem',
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: C.olivo }}>{numTicket(t.numero)}</span>
+                      <span style={{ fontSize: 13, flex: 1 }}>{t.asunto}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.45)' }}>{t.razon_social}</span>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                        background: (PRIORIDAD_COLOR[t.prioridad] ?? '#888') + '20',
+                        color: PRIORIDAD_COLOR[t.prioridad] ?? '#888' }}>{t.prioridad}</span>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                        background: (TIPO_COLOR[t.tipo] ?? '#888') + '20',
+                        color: TIPO_COLOR[t.tipo] ?? '#888' }}>{t.tipo}</span>
+                      <SelectorAdmin tipo="ticket" id={t.id} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Chats */}
+            {chatsSinAsignar.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: 'rgba(231,223,202,0.4)', marginBottom: '0.5rem' }}>Chats ({chatsSinAsignar.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {chatsSinAsignar.map((cv: any) => (
+                    <div key={cv.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '0.65rem 1rem',
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, flex: 1 }}>Chat {cv.tipo}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.45)' }}>{cv.razon_social}</span>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                        background: (TIPO_COLOR[cv.tipo] ?? '#888') + '20',
+                        color: TIPO_COLOR[cv.tipo] ?? '#888' }}>{cv.tipo}</span>
+                      <SelectorAdmin tipo="chat" id={cv.id} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Documentos */}
+            {docsSinAsignar.length > 0 && (
+              <div>
+                <div style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: 'rgba(231,223,202,0.4)', marginBottom: '0.5rem' }}>Documentos pendientes de revisión ({docsSinAsignar.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {docsSinAsignar.map((d: any) => (
+                    <div key={d.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '0.65rem 1rem',
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, flex: 1 }}>{d.nombre_archivo}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.45)' }}>{d.razon_social}</span>
+                      {d.aspecto && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                        background: (TIPO_COLOR[d.aspecto?.toLowerCase()] ?? '#888') + '20',
+                        color: TIPO_COLOR[d.aspecto?.toLowerCase()] ?? 'rgba(231,223,202,0.5)' }}>{d.aspecto}</span>}
+                      <SelectorAdmin tipo="documento" id={d.id} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

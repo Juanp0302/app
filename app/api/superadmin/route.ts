@@ -1,16 +1,21 @@
 /**
- * GET /api/superadmin
- * Vista global para el super administrador: resumen de tickets y chats por admin.
+ * GET   /api/superadmin          → resumen de tickets, chats y docs por admin
+ * PATCH /api/superadmin          → reasignar ticket, chat o documento a un admin
  */
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { queryAll } from '@/lib/db'
+import { queryAll, queryOne, execute } from '@/lib/db'
+import { notificarAsignacion } from '@/lib/notificaciones'
 
-export async function GET() {
+async function requireSuperadmin() {
   const session = await auth()
   const user = session?.user as any
-  if (!user || !user.is_superadmin)
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  return user?.is_superadmin ? user : null
+}
+
+export async function GET() {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   // Admins activos
   const admins = await queryAll(
@@ -93,10 +98,29 @@ export async function GET() {
 
   // Tickets sin asignar
   const sinAsignar = await queryAll(
-    `SELECT t.id, t.numero, t.asunto, t.tipo, t.prioridad, t.estado, t.created_at, c.razon_social
+    `SELECT t.id, t.numero, t.asunto, t.tipo, t.prioridad, t.estado, t.created_at, c.razon_social, c.id AS cliente_id
      FROM tickets t JOIN clientes c ON c.id = t.cliente_id
      WHERE t.admin_id IS NULL AND t.estado != 'cerrado'
      ORDER BY CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 ELSE 2 END`
+  ) as any[]
+
+  // Chats sin asignar
+  const chatsSinAsignar = await queryAll(
+    `SELECT cv.id, cv.tipo, cv.estado, cv.created_at, c.razon_social, c.id AS cliente_id
+     FROM conversaciones cv JOIN clientes c ON c.id = cv.cliente_id
+     WHERE cv.admin_id IS NULL AND cv.estado != 'cerrada'
+     ORDER BY cv.created_at ASC`
+  ) as any[]
+
+  // Documentos sin asignar (pendientes y sin revisor asignado al cliente)
+  const docsSinAsignar = await queryAll(
+    `SELECT d.id, d.nombre_archivo, d.aspecto, d.obligacion, d.uploaded_at,
+            c.razon_social, c.id AS cliente_id
+     FROM documentos d
+     JOIN clientes c ON c.id = d.cliente_id
+     WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+       AND c.admin_revision_id IS NULL
+     ORDER BY d.uploaded_at ASC`
   ) as any[]
 
   // Últimos tickets urgentes abiertos
@@ -141,5 +165,62 @@ export async function GET() {
     },
   }))
 
-  return NextResponse.json({ porAdmin, sinAsignar, urgentes })
+  return NextResponse.json({ porAdmin, sinAsignar, chatsSinAsignar, docsSinAsignar, urgentes })
+}
+
+/**
+ * PATCH /api/superadmin
+ * body: { tipo: 'ticket'|'chat'|'documento', id, adminId }
+ * Reasigna cualquier entidad a un admin específico.
+ */
+export async function PATCH(req: NextRequest) {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const { tipo, id, adminId } = await req.json()
+  if (!tipo || !id || !adminId)
+    return NextResponse.json({ error: 'tipo, id y adminId requeridos' }, { status: 400 })
+
+  const admin = await queryOne('SELECT id, nombre, email FROM users WHERE id = ? AND rol = ? AND activo = 1',
+    [adminId, 'admin']) as any
+  if (!admin) return NextResponse.json({ error: 'Admin no encontrado' }, { status: 404 })
+
+  const fecha = new Date().toLocaleString('es-CO')
+
+  if (tipo === 'ticket') {
+    const t = await queryOne(
+      `SELECT t.*, c.razon_social FROM tickets t JOIN clientes c ON c.id = t.cliente_id WHERE t.id = ?`, [id]
+    ) as any
+    if (!t) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 })
+    await execute(`UPDATE tickets SET admin_id = ?, updated_at = datetime('now') WHERE id = ?`, [adminId, id])
+    notificarAsignacion({
+      id, tipo_entidad: 'ticket', especialidad: t.tipo,
+      asunto: t.asunto, cliente: t.razon_social,
+      admin_nombre: admin.nombre, admin_email: admin.email,
+      estado: t.estado, fecha,
+    })
+  } else if (tipo === 'chat') {
+    const cv = await queryOne(
+      `SELECT cv.*, c.razon_social FROM conversaciones cv JOIN clientes c ON c.id = cv.cliente_id WHERE cv.id = ?`, [id]
+    ) as any
+    if (!cv) return NextResponse.json({ error: 'Chat no encontrado' }, { status: 404 })
+    await execute(`UPDATE conversaciones SET admin_id = ?, updated_at = datetime('now') WHERE id = ?`, [adminId, id])
+    notificarAsignacion({
+      id, tipo_entidad: 'chat', especialidad: cv.tipo,
+      asunto: `Chat ${cv.tipo}`, cliente: cv.razon_social,
+      admin_nombre: admin.nombre, admin_email: admin.email,
+      estado: cv.estado, fecha,
+    })
+  } else if (tipo === 'documento') {
+    // Para documentos: asignar el admin como revisor del cliente
+    const d = await queryOne(
+      `SELECT d.*, c.razon_social, c.id AS cliente_id FROM documentos d JOIN clientes c ON c.id = d.cliente_id WHERE d.id = ?`, [id]
+    ) as any
+    if (!d) return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 })
+    await execute(`UPDATE clientes SET admin_revision_id = ? WHERE id = ?`, [adminId, d.cliente_id])
+  } else {
+    return NextResponse.json({ error: 'tipo inválido' }, { status: 400 })
+  }
+
+  return NextResponse.json({ ok: true })
 }

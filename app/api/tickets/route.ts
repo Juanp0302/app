@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
-import { notificarAsignacion } from '@/lib/notificaciones'
+import { notificarAsignacion, notificarSinAsignar } from '@/lib/notificaciones'
 import { adminParaAsignacion } from '@/lib/asignacion'
 import crypto from 'crypto'
 
@@ -134,15 +134,18 @@ export async function POST(req: NextRequest) {
     )
 
     const cliente   = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
-    const adminInfo = adminId ? await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId]) : null
-    notificarAsignacion({
-      id, tipo_entidad: 'ticket', especialidad: tipo, asunto,
-      cliente:      (cliente as any)?.razon_social ?? '',
-      admin_nombre: (adminInfo as any)?.nombre,
-      admin_email:  (adminInfo as any)?.email,
-      estado: 'abierto',
-      fecha: new Date().toLocaleString('es-CO'),
-    })
+    const razonSocial = (cliente as any)?.razon_social ?? ''
+    const fecha = new Date().toLocaleString('es-CO')
+    if (adminId) {
+      const adminInfo = await queryOne('SELECT nombre, email FROM users WHERE id = ?', [adminId]) as any
+      notificarAsignacion({
+        id, tipo_entidad: 'ticket', especialidad: tipo, asunto,
+        cliente: razonSocial, admin_nombre: adminInfo?.nombre,
+        admin_email: adminInfo?.email, estado: 'abierto', fecha,
+      })
+    } else {
+      notificarSinAsignar({ tipo: 'ticket', id, asunto, cliente: razonSocial, especialidad: tipo, fecha })
+    }
 
     return NextResponse.json({ ok: true, id, adminId }, { status: 201 })
   }

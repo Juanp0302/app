@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryAll, queryOne } from '@/lib/db'
 import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
-import { notificarDocumentoSubido, notificarRevisionDocumento } from '@/lib/notificaciones'
+import { notificarDocumentoSubido, notificarRevisionDocumento, notificarSinAsignar } from '@/lib/notificaciones'
 import { adminParaAsignacion, aspectoAEspecialidad } from '@/lib/asignacion'
 
 export async function GET(req: NextRequest) {
@@ -117,6 +117,10 @@ export async function POST(req: NextRequest) {
       // Fallback: notificar a todos los admins activos
       const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
       adminEmails = (admins as any[]).map(a => a.email).filter(Boolean)
+      if (adminEmails.length === 0) {
+        notificarSinAsignar({ tipo: 'documento', id: docId, asunto: `${obligacion} — ${archivo.name}`,
+          cliente: clienteRow?.razon_social ?? '', especialidad: aspectoAEspecialidad(aspecto), fecha: new Date().toLocaleString('es-CO') })
+      }
     }
   }
 
