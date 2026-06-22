@@ -42,8 +42,9 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 export default function SuperadminClient() {
   const [data,       setData]       = useState<any>(null)
   const [loading,    setLoading]    = useState(true)
-  const [asignando,  setAsignando]  = useState<string | null>(null)   // id del item que se está asignando
-  const [selAdmin,   setSelAdmin]   = useState<Record<string, string>>({})  // itemId → adminId elegido
+  const [asignando,  setAsignando]  = useState<string | null>(null)
+  const [selAdmin,   setSelAdmin]   = useState<Record<string, string>>({})
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
 
   async function cargar() {
     const d = await fetch('/api/superadmin').then(r => r.json())
@@ -380,6 +381,67 @@ export default function SuperadminClient() {
                   </div>
                 </div>
               </div>
+
+              {/* Botón expandir tickets/chats activos */}
+              {(a.ticketsActivos?.length > 0 || a.chatsActivos?.length > 0) && (
+                <div style={{ borderTop: '1px solid rgba(150,134,34,0.12)', marginTop: '1rem', paddingTop: '0.85rem' }}>
+                  <button
+                    onClick={() => setExpandidos(s => { const n = new Set(s); n.has(a.id) ? n.delete(a.id) : n.add(a.id); return n })}
+                    style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                      background: 'none', border: '1px solid rgba(150,134,34,0.3)', borderRadius: 6,
+                      color: C.olivo, padding: '0.3rem 0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {expandidos.has(a.id) ? '▲ Ocultar' : '▼ Ver y reasignar'} tickets y chats activos
+                    ({(a.ticketsActivos?.length ?? 0) + (a.chatsActivos?.length ?? 0)})
+                  </button>
+
+                  {expandidos.has(a.id) && (
+                    <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+
+                      {/* Tickets activos */}
+                      {a.ticketsActivos?.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '0.55rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                            color: 'rgba(231,223,202,0.35)', marginBottom: '0.2rem' }}>Tickets activos</div>
+                          {a.ticketsActivos.map((t: any) => (
+                            <div key={t.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8,
+                              padding: '0.6rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: C.olivo }}>{numTicket(t.numero)}</span>
+                              <span style={{ fontSize: 12, flex: 1 }}>{t.asunto}</span>
+                              <span style={{ fontSize: 10, color: 'rgba(231,223,202,0.4)' }}>{t.razon_social}</span>
+                              <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                                background: (PRIORIDAD_COLOR[t.prioridad] ?? '#888') + '20',
+                                color: PRIORIDAD_COLOR[t.prioridad] ?? '#888' }}>{t.prioridad}</span>
+                              <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                                background: (ESTADO_COLOR[t.estado] ?? '#888') + '20',
+                                color: ESTADO_COLOR[t.estado] ?? '#888' }}>{t.estado.replace('_',' ')}</span>
+                              <SelectorAdmin tipo="ticket" id={t.id} />
+                            </div>
+                          ))}
+                        </>
+                      )}
+
+                      {/* Chats activos */}
+                      {a.chatsActivos?.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '0.55rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+                            color: 'rgba(231,223,202,0.35)', margin: '0.4rem 0 0.2rem' }}>Chats activos</div>
+                          {a.chatsActivos.map((cv: any) => (
+                            <div key={cv.id} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8,
+                              padding: '0.6rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, flex: 1 }}>{cv.asunto || `Chat ${cv.tipo}`}</span>
+                              <span style={{ fontSize: 10, color: 'rgba(231,223,202,0.4)' }}>{cv.razon_social}</span>
+                              <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                                background: (TIPO_COLOR[cv.tipo] ?? '#888') + '20',
+                                color: TIPO_COLOR[cv.tipo] ?? '#888' }}>{cv.tipo}</span>
+                              <SelectorAdmin tipo="chat" id={cv.id} />
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           {porAdmin.length === 0 && (

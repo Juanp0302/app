@@ -99,6 +99,24 @@ export async function GET() {
     ) as any[]
   } catch { docPendientes = [] }
 
+  // Tickets activos por admin (para reasignación)
+  const ticketsActivos = await queryAll(
+    `SELECT t.id, t.numero, t.asunto, t.tipo, t.prioridad, t.estado, t.created_at,
+            t.admin_id, c.razon_social
+     FROM tickets t JOIN clientes c ON c.id = t.cliente_id
+     WHERE t.admin_id IS NOT NULL AND t.estado NOT IN ('cerrado','resuelto')
+     ORDER BY CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 ELSE 2 END, t.created_at ASC`
+  ) as any[]
+
+  // Chats activos por admin
+  const chatsActivos = await queryAll(
+    `SELECT cv.id, cv.tipo, cv.asunto, cv.estado, cv.created_at,
+            cv.admin_id, c.razon_social
+     FROM conversaciones cv JOIN clientes c ON c.id = cv.cliente_id
+     WHERE cv.admin_id IS NOT NULL AND cv.estado = 'activa'
+     ORDER BY cv.created_at ASC`
+  ) as any[]
+
   // Tickets sin asignar
   const sinAsignar = await queryAll(
     `SELECT t.id, t.numero, t.asunto, t.tipo, t.prioridad, t.estado, t.created_at, c.razon_social, c.id AS cliente_id
@@ -154,6 +172,11 @@ export async function GET() {
   const ctMap: Record<string, number | null> = {}
   for (const r of chatTiempoResp)   ctMap[r.admin_id ?? ''] = r.avg_horas
 
+  const taMap: Record<string, any[]> = {}
+  for (const t of ticketsActivos) { if (!taMap[t.admin_id]) taMap[t.admin_id] = []; taMap[t.admin_id].push(t) }
+  const caMap: Record<string, any[]> = {}
+  for (const c of chatsActivos)   { if (!caMap[c.admin_id]) caMap[c.admin_id] = []; caMap[c.admin_id].push(c) }
+
   const porAdmin = admins.map(a => ({
     ...a,
     tickets: {
@@ -170,6 +193,8 @@ export async function GET() {
       aprobados:  (dMap[a.id]?.aprobados  ?? 0),
       rechazados: (dMap[a.id]?.rechazados ?? 0),
     },
+    ticketsActivos: taMap[a.id] ?? [],
+    chatsActivos:   caMap[a.id] ?? [],
   }))
 
   return NextResponse.json({ porAdmin, sinAsignar, chatsSinAsignar, docsSinAsignar, urgentes })
