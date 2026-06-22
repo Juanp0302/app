@@ -70,6 +70,27 @@ export async function GET() {
      GROUP BY c.admin_id`
   ) as any[]
 
+  // Documentos por admin revisor
+  const docStats = await queryAll(
+    `SELECT d.revisado_por AS admin_id,
+            COUNT(*) AS revisados,
+            SUM(CASE WHEN d.estado_revision = 'aprobado'  THEN 1 ELSE 0 END) AS aprobados,
+            SUM(CASE WHEN d.estado_revision = 'rechazado' THEN 1 ELSE 0 END) AS rechazados
+     FROM documentos d
+     WHERE d.revisado_por IS NOT NULL
+     GROUP BY d.revisado_por`
+  ) as any[]
+
+  // Documentos pendientes asignados a cada admin (revisor del cliente)
+  const docPendientes = await queryAll(
+    `SELECT c.admin_revision_id AS admin_id, COUNT(*) AS pendientes
+     FROM documentos d
+     JOIN clientes c ON c.id = d.cliente_id
+     WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+       AND c.admin_revision_id IS NOT NULL
+     GROUP BY c.admin_revision_id`
+  ) as any[]
+
   // Tickets sin asignar
   const sinAsignar = await queryAll(
     `SELECT t.id, t.numero, t.asunto, t.tipo, t.prioridad, t.estado, t.created_at, c.razon_social
@@ -93,6 +114,10 @@ export async function GET() {
   for (const r of ticketStats)    tMap[r.admin_id  ?? '__none__'] = r
   const cMap:  Record<string, any> = {}
   for (const r of chatStats)      cMap[r.admin_id  ?? '__none__'] = r
+  const dMap:  Record<string, any> = {}
+  for (const r of docStats)       dMap[r.admin_id  ?? '']        = r
+  const dpMap: Record<string, number> = {}
+  for (const r of docPendientes)  dpMap[r.admin_id ?? '']        = r.pendientes
   const ttMap: Record<string, number | null> = {}
   for (const r of ticketTiempoResp) ttMap[r.admin_id ?? ''] = r.avg_horas
   const ctMap: Record<string, number | null> = {}
@@ -107,6 +132,12 @@ export async function GET() {
     chats: {
       ...(cMap[a.id] ?? { total:0, activas:0, cerradas:0 }),
       avg_horas_respuesta: ctMap[a.id] ?? null,
+    },
+    documentos: {
+      pendientes: dpMap[a.id] ?? 0,
+      revisados:  (dMap[a.id]?.revisados  ?? 0),
+      aprobados:  (dMap[a.id]?.aprobados  ?? 0),
+      rechazados: (dMap[a.id]?.rechazados ?? 0),
     },
   }))
 

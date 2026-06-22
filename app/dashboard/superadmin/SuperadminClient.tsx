@@ -258,6 +258,20 @@ export default function SuperadminClient() {
                     </div>
                   </div>
                 </div>
+
+                {/* Documentos */}
+                <div style={{ minWidth: 200 }}>
+                  <div style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '0.6rem' }}>
+                    Documentos
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <StatCard label="Pendientes" value={a.documentos?.pendientes ?? 0} color={a.documentos?.pendientes > 0 ? '#f59e0b' : undefined} />
+                    <StatCard label="Revisados"  value={a.documentos?.revisados  ?? 0} />
+                    <StatCard label="Aprobados"  value={a.documentos?.aprobados  ?? 0} color="#16a34a" />
+                    <StatCard label="Rechazados" value={a.documentos?.rechazados ?? 0} color={a.documentos?.rechazados > 0 ? '#dc2626' : undefined} />
+                  </div>
+                </div>
               </div>
             </div>
           ))}

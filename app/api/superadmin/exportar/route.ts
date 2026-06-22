@@ -97,10 +97,33 @@ export async function GET(req: NextRequest) {
        GROUP BY c.admin_id`
     ) as any[]
 
+    const docStats = await queryAll(
+      `SELECT d.revisado_por AS admin_id,
+              COUNT(*) AS revisados,
+              SUM(CASE WHEN d.estado_revision = 'aprobado'  THEN 1 ELSE 0 END) AS aprobados,
+              SUM(CASE WHEN d.estado_revision = 'rechazado' THEN 1 ELSE 0 END) AS rechazados
+       FROM documentos d
+       WHERE d.revisado_por IS NOT NULL
+       GROUP BY d.revisado_por`
+    ) as any[]
+
+    const docPendientes = await queryAll(
+      `SELECT c.admin_revision_id AS admin_id, COUNT(*) AS pendientes
+       FROM documentos d
+       JOIN clientes c ON c.id = d.cliente_id
+       WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND c.admin_revision_id IS NOT NULL
+       GROUP BY c.admin_revision_id`
+    ) as any[]
+
     const tMap:  Record<string, any> = {}
     for (const r of ticketStats)   tMap[r.admin_id ?? '']  = r
     const cMap:  Record<string, any> = {}
     for (const r of chatStats)     cMap[r.admin_id ?? '']  = r
+    const dMap:  Record<string, any> = {}
+    for (const r of docStats)      dMap[r.admin_id ?? '']  = r
+    const dpMap: Record<string, number> = {}
+    for (const r of docPendientes) dpMap[r.admin_id ?? ''] = r.pendientes
     const ttMap: Record<string, number | null> = {}
     for (const r of ticketTiempos) ttMap[r.admin_id ?? ''] = r.avg_horas
     const ctMap: Record<string, number | null> = {}
@@ -113,18 +136,21 @@ export async function GET(req: NextRequest) {
       'Tiempo resp. tickets (promedio)',
       'Chats total', 'Chats activos', 'Chats cerrados',
       'Tiempo resp. chats (promedio)',
+      'Docs pendientes', 'Docs revisados', 'Docs aprobados', 'Docs rechazados',
     ]
     const rows = [header.join(SEP)]
 
     for (const a of admins) {
       const t = tMap[a.id] ?? { total:0, abiertos:0, en_progreso:0, resueltos:0, cerrados:0, urgentes:0 }
       const c = cMap[a.id] ?? { total:0, activas:0, cerradas:0 }
+      const d = dMap[a.id] ?? { revisados:0, aprobados:0, rechazados:0 }
       rows.push(toRow([
         a.nombre, a.email,
         t.total, t.abiertos, t.en_progreso, t.resueltos, t.cerrados, t.urgentes,
         fmtHoras(ttMap[a.id]),
         c.total, c.activas, c.cerradas,
         fmtHoras(ctMap[a.id]),
+        dpMap[a.id] ?? 0, d.revisados, d.aprobados, d.rechazados,
       ]))
     }
     csv = rows.join('\r\n')
