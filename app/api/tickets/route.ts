@@ -60,6 +60,17 @@ export async function GET(req: NextRequest) {
     ) as any
     if (!ticket) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
+    // Control de acceso: cliente solo ve sus propios tickets; admin solo los asignados a él o sin asignar
+    if (user.role === 'cliente') {
+      const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id]) as any
+      if (!c || ticket.cliente_id !== c.id)
+        return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    } else if (user.role === 'admin') {
+      if (ticket.admin_id && ticket.admin_id !== user.id)
+        return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    }
+    // superadmin: acceso total
+
     const respuestas = await queryAll(
       `SELECT r.*, u.nombre AS autor_nombre, u.rol AS autor_rol
        FROM ticket_respuestas r JOIN users u ON u.id = r.user_id

@@ -42,7 +42,11 @@ export async function GET(req: NextRequest) {
     if (user.role === 'cliente') {
       const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id]) as any
       if (!c || c.id !== conv.cliente_id) return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    } else if (user.role === 'admin') {
+      if (conv.admin_id && conv.admin_id !== user.id)
+        return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
     }
+    // superadmin: acceso total
     const mensajes = await queryAll(
       `SELECT m.*, u.nombre AS autor_nombre, u.rol AS autor_rol
        FROM mensajes m JOIN users u ON u.id = m.user_id

@@ -87,14 +87,17 @@ export async function GET() {
   ) as any[]
 
   // Documentos pendientes asignados a cada admin (revisor del cliente)
-  const docPendientes = await queryAll(
-    `SELECT c.admin_revision_id AS admin_id, COUNT(*) AS pendientes
-     FROM documentos d
-     JOIN clientes c ON c.id = d.cliente_id
-     WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
-       AND c.admin_revision_id IS NOT NULL
-     GROUP BY c.admin_revision_id`
-  ) as any[]
+  let docPendientes: any[] = []
+  try {
+    docPendientes = await queryAll(
+      `SELECT c.admin_revision_id AS admin_id, COUNT(*) AS pendientes
+       FROM documentos d
+       JOIN clientes c ON c.id = d.cliente_id
+       WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND c.admin_revision_id IS NOT NULL
+       GROUP BY c.admin_revision_id`
+    ) as any[]
+  } catch { docPendientes = [] }
 
   // Tickets sin asignar
   const sinAsignar = await queryAll(
@@ -113,15 +116,19 @@ export async function GET() {
   ) as any[]
 
   // Documentos sin asignar (pendientes y sin revisor asignado al cliente)
-  const docsSinAsignar = await queryAll(
-    `SELECT d.id, d.nombre_archivo, d.aspecto, d.obligacion, d.uploaded_at,
-            c.razon_social, c.id AS cliente_id
-     FROM documentos d
-     JOIN clientes c ON c.id = d.cliente_id
-     WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
-       AND c.admin_revision_id IS NULL
-     ORDER BY d.uploaded_at ASC`
-  ) as any[]
+  // Usamos LEFT JOIN con subquery para no fallar si admin_revision_id no existe aún
+  let docsSinAsignar: any[] = []
+  try {
+    docsSinAsignar = await queryAll(
+      `SELECT d.id, d.nombre_archivo, d.aspecto, d.obligacion, d.uploaded_at,
+              c.razon_social, c.id AS cliente_id
+       FROM documentos d
+       JOIN clientes c ON c.id = d.cliente_id
+       WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND (c.admin_revision_id IS NULL OR c.admin_revision_id = '')
+       ORDER BY d.uploaded_at ASC`
+    ) as any[]
+  } catch { docsSinAsignar = [] }
 
   // Últimos tickets urgentes abiertos
   const urgentes = await queryAll(
