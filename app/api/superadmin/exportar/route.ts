@@ -6,23 +6,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryAll } from '@/lib/db'
 
+const SEP = ';'
+
 function escapeCsv(val: any): string {
   if (val === null || val === undefined) return ''
   const s = String(val)
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+  // Escapar si contiene el separador, comillas o saltos de línea
+  if (s.includes(SEP) || s.includes('"') || s.includes('\n')) {
     return `"${s.replace(/"/g, '""')}"`
   }
   return s
 }
 
 function toRow(cols: any[]): string {
-  return cols.map(escapeCsv).join(',')
+  return cols.map(escapeCsv).join(SEP)
 }
 
 function fmtHoras(h: number | null | undefined): string {
-  if (h === null || h === undefined || isNaN(Number(h))) return '—'
+  if (h === null || h === undefined || isNaN(Number(h))) return 'Sin datos'
   const n = Number(h)
-  if (n < 1)  return `${Math.round(n * 60)} min`
+  if (n < 1/60) return '< 1 min'
+  if (n < 1)    return `${Math.round(n * 60)} min`
   if (n < 24) return `${Math.round(n)} h`
   return `${(n / 24).toFixed(1)} días`
 }
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
       'Chats total', 'Chats activos', 'Chats cerrados',
       'Tiempo resp. chats (promedio)',
     ]
-    const rows = [header.join(',')]
+    const rows = [header.join(SEP)]
 
     for (const a of admins) {
       const t = tMap[a.id] ?? { total:0, abiertos:0, en_progreso:0, resueltos:0, cerrados:0, urgentes:0 }
@@ -185,7 +189,7 @@ export async function GET(req: NextRequest) {
       '% Cumplimiento',
       'Tiempo resp. tickets (promedio)', 'Tiempo resp. chats (promedio)',
     ]
-    const rows = [header.join(',')]
+    const rows = [header.join(SEP)]
 
     for (const c of clientes) {
       const pct = c.total_obl > 0 ? Math.round((c.cumplidas / c.total_obl) * 100) : 0

@@ -52,8 +52,9 @@ interface Cliente {
 function formatHoras(h: number | null | undefined): string {
   if (h === null || h === undefined || isNaN(Number(h))) return '—'
   const n = Number(h)
-  if (n < 1)  return `${Math.round(n * 60)} min`
-  if (n < 24) return `${Math.round(n)} h`
+  if (n < 1/60) return '< 1 min'
+  if (n < 1)    return `${Math.round(n * 60)} min`
+  if (n < 24)   return `${Math.round(n)} h`
   return `${(n / 24).toFixed(1)} días`
 }
 
