@@ -71,6 +71,10 @@ export default function ClientesClient({
   const [storageCfg,  setStorageCfg]  = useState<{ type: string; basePath: string | null; site_url: string | null; connected: boolean } | null>(null)
   const [storageEdit, setStorageEdit] = useState({ basePath: '', siteUrl: '' })
   const [storageSaving, setStorageSaving] = useState(false)
+  const [editCliente, setEditCliente] = useState<Cliente | null>(null)
+  const [editForm,    setEditForm]    = useState({ razon_social:'', nit:'', contacto:'', email:'', telefono:'', user_nombre:'', user_email:'', user_password:'' })
+  const [editSaving,  setEditSaving]  = useState(false)
+  const [editError,   setEditError]   = useState('')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -198,6 +202,51 @@ export default function ClientesClient({
     }
   }
 
+  function abrirEditarCliente(c: Cliente) {
+    setEditCliente(c)
+    setEditForm({
+      razon_social: c.razon_social ?? '',
+      nit:          c.nit         ?? '',
+      contacto:     c.contacto    ?? '',
+      email:        c.email       ?? '',
+      telefono:     c.telefono    ?? '',
+      user_nombre:  c.user_nombre ?? '',
+      user_email:   c.user_email  ?? '',
+      user_password: '',
+    })
+    setEditError('')
+  }
+
+  async function guardarEdicionCliente(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editCliente) return
+    setEditError('')
+    if (editForm.user_password && editForm.user_password.length < 8) { setEditError('La contraseña debe tener al menos 8 caracteres'); return }
+    setEditSaving(true)
+    try {
+      const datos: any = {
+        razon_social: editForm.razon_social,
+        nit:          editForm.nit      || null,
+        contacto:     editForm.contacto || null,
+        email:        editForm.email    || null,
+        telefono:     editForm.telefono || null,
+        user_nombre:  editForm.user_nombre  || undefined,
+        user_email:   editForm.user_email   || undefined,
+        user_password: editForm.user_password || undefined,
+      }
+      const res = await fetch(`/api/clientes?id=${editCliente.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ datos }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setEditError(json.error ?? 'Error al guardar'); return }
+      setEditCliente(null)
+      cargar()
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   function toggleServicio(slug: string) {
     setForm(f => ({
       ...f,
@@ -311,8 +360,14 @@ export default function ClientesClient({
       {/* ── MODAL DETALLE CLIENTE ── */}
       {modalDetalle && (
         <Modal onClose={() => { setModalDetalle(null); setNuevoServ('') }}>
-          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.4rem', fontWeight:700, marginBottom:'0.3rem' }}>
-            {modalDetalle.razon_social}
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem', marginBottom:'0.3rem' }}>
+            <div style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.4rem', fontWeight:700 }}>
+              {modalDetalle.razon_social}
+            </div>
+            <button onClick={() => abrirEditarCliente(modalDetalle)}
+              style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(150,134,34,0.12)', color:C.olivo, padding:'0.4rem 0.9rem', borderRadius:'8px', border:'1px solid rgba(150,134,34,0.3)', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+              Editar datos
+            </button>
           </div>
           {modalDetalle.nit && <div style={{ fontSize:'0.72rem', color:'rgba(231,223,202,0.5)', marginBottom:'1.5rem' }}>NIT {modalDetalle.nit}</div>}
 
@@ -485,6 +540,56 @@ export default function ClientesClient({
               </a>
             ))}
           </div>
+        </Modal>
+      )}
+
+      {/* ── MODAL EDITAR CLIENTE ── */}
+      {editCliente && (
+        <Modal onClose={() => setEditCliente(null)} wide>
+          <div style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.4rem', fontWeight:700, marginBottom:'1.5rem' }}>
+            Editar cliente
+          </div>
+          <form onSubmit={guardarEdicionCliente}>
+            <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'0.8rem' }}>Datos de la empresa</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1.5rem' }}>
+              <Field label="Razón social *" required value={editForm.razon_social} onChange={v => setEditForm(f => ({...f, razon_social:v}))} />
+              <Field label="NIT"            value={editForm.nit}       onChange={v => setEditForm(f => ({...f, nit:v}))} />
+              <Field label="Contacto"       value={editForm.contacto}  onChange={v => setEditForm(f => ({...f, contacto:v}))} />
+              <Field label="Email empresa"  type="email" value={editForm.email}  onChange={v => setEditForm(f => ({...f, email:v}))} />
+              <Field label="Teléfono"       value={editForm.telefono}  onChange={v => setEditForm(f => ({...f, telefono:v}))} />
+            </div>
+
+            <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.2rem', marginBottom:'1.5rem' }}>
+              <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'0.8rem' }}>Acceso del cliente</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+                <Field label="Nombre completo" value={editForm.user_nombre} onChange={v => setEditForm(f => ({...f, user_nombre:v}))} />
+                <Field label="Email de acceso" type="email" value={editForm.user_email} onChange={v => setEditForm(f => ({...f, user_email:v}))} />
+                <div>
+                  <label style={labelStyle}>Nueva contraseña <span style={{ fontWeight:400, color:'rgba(231,223,202,0.35)' }}>(vacío = sin cambio)</span></label>
+                  <input type="password" value={editForm.user_password}
+                    onChange={e => setEditForm(f => ({...f, user_password:e.target.value}))}
+                    style={{ ...inputStyle, width:'100%' }} />
+                </div>
+              </div>
+            </div>
+
+            {editError && (
+              <div style={{ background:'rgba(220,38,38,0.1)', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'8px', padding:'0.7rem 1rem', fontSize:'0.8rem', color:'#f87171', marginBottom:'1rem' }}>
+                {editError}
+              </div>
+            )}
+
+            <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+              <button type="button" onClick={() => setEditCliente(null)}
+                style={{ background:'rgba(231,223,202,0.08)', color:C.marfil, border:'1px solid rgba(231,223,202,0.15)', borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button type="submit" disabled={editSaving}
+                style={{ background: editSaving ? 'rgba(150,134,34,0.5)' : C.olivo, color:C.vino, border:'none', borderRadius:'8px', padding:'0.7rem 1.5rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor: editSaving ? 'not-allowed' : 'pointer', fontFamily:'inherit' }}>
+                {editSaving ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 

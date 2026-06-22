@@ -52,7 +52,35 @@ export async function PATCH(req: NextRequest) {
   // No permitir desactivarse a sí mismo
   if (id === user.id) return NextResponse.json({ error: 'No puedes modificar tu propia cuenta' }, { status: 400 })
 
-  const { activo } = await req.json()
-  await execute(`UPDATE users SET activo = ? WHERE id = ? AND rol = 'admin'`, [activo ? 1 : 0, id])
+  const body = await req.json()
+
+  // Toggle activo
+  if (typeof body.activo !== 'undefined') {
+    await execute(`UPDATE users SET activo = ? WHERE id = ? AND rol = 'admin'`, [body.activo ? 1 : 0, id])
+    return NextResponse.json({ ok: true })
+  }
+
+  // Editar datos del administrador
+  const { nombre, email, password } = body
+  if (!nombre || !email)
+    return NextResponse.json({ error: 'Nombre y email son requeridos' }, { status: 400 })
+
+  // Verificar que el email no esté en uso por otro usuario
+  const ocupado = await queryOne('SELECT id FROM users WHERE email = ? AND id != ?', [email, id])
+  if (ocupado) return NextResponse.json({ error: 'Ese email ya está registrado por otro usuario' }, { status: 409 })
+
+  if (password) {
+    if (password.length < 8)
+      return NextResponse.json({ error: 'La contraseña debe tener al menos 8 caracteres' }, { status: 400 })
+    await execute(
+      `UPDATE users SET nombre = ?, email = ?, password = ? WHERE id = ? AND rol = 'admin'`,
+      [nombre, email, hashPassword(password), id]
+    )
+  } else {
+    await execute(
+      `UPDATE users SET nombre = ?, email = ? WHERE id = ? AND rol = 'admin'`,
+      [nombre, email, id]
+    )
+  }
   return NextResponse.json({ ok: true })
 }

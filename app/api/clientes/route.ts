@@ -88,9 +88,31 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json()
 
   if (body.datos) {
-    const { razon_social, nit, contacto, email, telefono } = body.datos
+    const { razon_social, nit, contacto, email, telefono, user_nombre, user_email, user_password } = body.datos
     await execute(`UPDATE clientes SET razon_social=?, nit=?, contacto=?, email=?, telefono=?, updated_at=datetime('now') WHERE id=?`,
       [razon_social, nit ?? null, contacto ?? null, email ?? null, telefono ?? null, clienteId])
+
+    // Actualizar datos del usuario asociado si se proporcionan
+    if (user_nombre || user_email || user_password) {
+      const cliente = await queryOne('SELECT user_id FROM clientes WHERE id = ?', [clienteId])
+      if (cliente) {
+        const userId = (cliente as any).user_id
+        if (user_email) {
+          const ocupado = await queryOne('SELECT id FROM users WHERE email = ? AND id != ?', [user_email, userId])
+          if (ocupado) return NextResponse.json({ error: 'Ese email de usuario ya está registrado' }, { status: 409 })
+        }
+        if (user_password && user_password.length < 8)
+          return NextResponse.json({ error: 'La contraseña debe tener al menos 8 caracteres' }, { status: 400 })
+
+        const sets: string[] = []
+        const vals: any[]    = []
+        if (user_nombre)   { sets.push('nombre = ?');   vals.push(user_nombre) }
+        if (user_email)    { sets.push('email = ?');    vals.push(user_email) }
+        if (user_password) { sets.push('password = ?'); vals.push(hashPassword(user_password)) }
+        if (sets.length)
+          await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...vals, userId])
+      }
+    }
   }
 
   if (body.nuevo_servicio) {

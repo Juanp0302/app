@@ -19,7 +19,8 @@ interface Admin {
   created_at: string
 }
 
-const FORM_INIT = { email: '', nombre: '', password: '', confirmar: '' }
+const FORM_INIT      = { email: '', nombre: '', password: '', confirmar: '' }
+const EDIT_FORM_INIT = { nombre: '', email: '', password: '', confirmar: '' }
 
 export default function AdminsClient({ currentUserId }: { currentUserId: string }) {
   const [admins,        setAdmins]        = useState<Admin[]>([])
@@ -29,6 +30,10 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
   const [form,          setForm]          = useState(FORM_INIT)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState('')
+  const [editAdmin,     setEditAdmin]     = useState<Admin | null>(null)
+  const [editForm,      setEditForm]      = useState(EDIT_FORM_INIT)
+  const [editSaving,    setEditSaving]    = useState(false)
+  const [editError,     setEditError]     = useState('')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -59,6 +64,30 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
       if (!res.ok) { setError(json.error ?? 'Error al crear'); return }
       setModalNuevo(false); setForm(FORM_INIT); cargar()
     } finally { setSaving(false) }
+  }
+
+  function abrirEditar(a: Admin) {
+    setEditAdmin(a)
+    setEditForm({ nombre: a.nombre, email: a.email, password: '', confirmar: '' })
+    setEditError('')
+  }
+
+  async function guardarEdicion(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editAdmin) return
+    setEditError('')
+    if (editForm.password && editForm.password !== editForm.confirmar) { setEditError('Las contraseñas no coinciden'); return }
+    if (editForm.password && editForm.password.length < 8) { setEditError('Mínimo 8 caracteres'); return }
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/admins?id=${editAdmin.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: editForm.nombre, email: editForm.email, password: editForm.password || undefined }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setEditError(json.error ?? 'Error al guardar'); return }
+      setEditAdmin(null); cargar()
+    } finally { setEditSaving(false) }
   }
 
   async function toggleActivo(admin: Admin) {
@@ -123,6 +152,9 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
                     <span style={{ fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: a.activo ? '#dcfce7' : '#fee2e2', color: a.activo ? '#16a34a' : '#dc2626' }}>
                       {a.activo ? 'Activo' : 'Inactivo'}
                     </span>
+                    <button onClick={() => abrirEditar(a)} style={btn('#f3f0ff', C.bordo)}>
+                      Editar
+                    </button>
                     {a.id !== currentUserId && (
                       <button onClick={() => toggleActivo(a)} style={btn(a.activo ? '#fee2e2' : '#dcfce7', a.activo ? '#dc2626' : '#16a34a')}>
                         {a.activo ? 'Desactivar' : 'Activar'}
@@ -158,6 +190,41 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal editar */}
+      {editAdmin && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h2 style={{ margin: '0 0 1.5rem', color: C.vino, fontSize: 20 }}>Editar administrador</h2>
+            <form onSubmit={guardarEdicion} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[['Nombre completo','nombre','text'],['Email','email','email']].map(([label, key, type]) => (
+                <div key={key}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>{label}</label>
+                  <input style={inp} type={type} required value={(editForm as any)[key]}
+                    onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Nueva contraseña <span style={{ fontWeight: 400, color: '#999' }}>(dejar vacío para no cambiar)</span></label>
+                <input style={inp} type="password" value={editForm.password}
+                  onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} />
+              </div>
+              {editForm.password && (
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Confirmar contraseña</label>
+                  <input style={inp} type="password" value={editForm.confirmar}
+                    onChange={e => setEditForm(f => ({ ...f, confirmar: e.target.value }))} />
+                </div>
+              )}
+              {editError && <p style={{ color: '#dc2626', fontSize: 13, margin: 0 }}>{editError}</p>}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button type="button" style={btn('#f0f0f0', '#333')} onClick={() => setEditAdmin(null)}>Cancelar</button>
+                <button type="submit" style={btn(C.bordo)} disabled={editSaving}>{editSaving ? 'Guardando...' : 'Guardar cambios'}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
