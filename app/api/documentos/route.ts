@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne } from '@/lib/db'
-import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, type BorradoScope } from '@/lib/documentos'
+import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -39,6 +39,10 @@ export async function GET(req: NextRequest) {
       cliente_obl_id: (d as any).cliente_obl_id, uploaded_at: (d as any).uploaded_at,
       subido_por: (d as any).subido_por_nombre, subido_por_email: (d as any).subido_por_email,
       periodicidad: (d as any).periodicidad,
+      estado_revision:      (d as any).estado_revision      ?? 'pendiente',
+      revision_comentario:  (d as any).revision_comentario  ?? null,
+      revisado_por_nombre:  (d as any).revisado_por_nombre  ?? null,
+      revisado_at:          (d as any).revisado_at          ?? null,
     })
   }
 
@@ -131,4 +135,25 @@ export async function DELETE(req: NextRequest) {
     clienteId, scope, filtros, user.id ?? '', user.email ?? ''
   )
   return NextResponse.json({ ok: true, eliminados })
+}
+
+/**
+ * PATCH /api/documentos
+ * body: { docId, aprobado: boolean, comentario?: string }
+ * Solo admins y superadmin pueden revisar.
+ */
+export async function PATCH(req: NextRequest) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = session.user as any
+  if (user.role === 'cliente') return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+
+  const { docId, aprobado, comentario } = await req.json()
+  if (!docId || typeof aprobado !== 'boolean')
+    return NextResponse.json({ error: 'docId y aprobado requeridos' }, { status: 400 })
+  if (!aprobado && !comentario?.trim())
+    return NextResponse.json({ error: 'El motivo de rechazo es obligatorio' }, { status: 400 })
+
+  await revisarDocumento(docId, user.id ?? '', user.email ?? '', aprobado, comentario ?? '')
+  return NextResponse.json({ ok: true })
 }

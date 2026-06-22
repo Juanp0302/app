@@ -33,10 +33,23 @@ export async function GET(req: NextRequest) {
 
   if (isCloudRef((doc as any).ruta)) {
     // Siempre descargamos server-side usando el token OAuth del servidor.
-    // No redirigimos al usuario a Google/OneDrive porque esas URLs requieren
-    // autenticación de Google y dan 403 si el archivo no es público.
-    const result = await descargarDocumento(docId)
+    let result: { buffer: Buffer; nombre: string } | null = null
+    try {
+      result = await descargarDocumento(docId)
+    } catch (e: any) {
+      console.error('[archivo] Error descargando de proveedor cloud:', e?.message)
+      return NextResponse.json({ error: `Error al descargar del proveedor: ${e?.message}` }, { status: 502 })
+    }
     if (!result) return NextResponse.json({ error: 'No se pudo obtener el archivo' }, { status: 500 })
+
+    // Validar que el buffer no sea una respuesta de error de Google (HTML/JSON)
+    const inicio = result.buffer.slice(0, 5).toString('utf8')
+    if (inicio === '<' || inicio.startsWith('{')) {
+      const preview = result.buffer.slice(0, 300).toString('utf8')
+      console.error('[archivo] Proveedor devolvió contenido no válido:', preview)
+      return NextResponse.json({ error: 'El proveedor devolvió un error. El token puede haber expirado — reconecta Google Drive desde Configuración.' }, { status: 502 })
+    }
+
     const ext = path.extname(result.nombre).toLowerCase()
     return new NextResponse(result.buffer as unknown as BodyInit, {
       status: 200,

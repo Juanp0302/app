@@ -21,15 +21,37 @@ export interface GuardarParams {
   mimeType: string; userId: string; userEmail: string
 }
 
+/** Agrega columnas de revisión si aún no existen (migración segura). */
+async function ensureRevisionColumns(): Promise<void> {
+  const cols = ['estado_revision', 'revision_comentario', 'revisado_por', 'revisado_at']
+  for (const col of cols) {
+    try {
+      let defaultVal = ''
+      if (col === 'estado_revision') defaultVal = `DEFAULT 'pendiente'`
+      await execute(`ALTER TABLE documentos ADD COLUMN ${col} TEXT ${defaultVal}`)
+    } catch {
+      // La columna ya existe — ignorar
+    }
+  }
+}
+
+let _migrationDone = false
+async function migrateOnce(): Promise<void> {
+  if (_migrationDone) return
+  await ensureRevisionColumns()
+  _migrationDone = true
+}
+
 export async function guardarDocumento(p: GuardarParams): Promise<string> {
+  await migrateOnce()
   const provider    = getProvider(p.clienteId)
   const lPath       = logicalPath(p.aspecto, p.obligacion, p.anio, p.trimestre)
   const storageFile = await provider.upload(lPath, p.nombreArchivo, p.buffer, p.mimeType)
   const docId       = crypto.randomUUID()
 
   await execute(
-    `INSERT INTO documentos (id, cliente_id, cliente_obl_id, nombre_archivo, ruta, anio, trimestre, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO documentos (id, cliente_id, cliente_obl_id, nombre_archivo, ruta, anio, trimestre, uploaded_by, estado_revision)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
     [docId, p.clienteId, p.clienteOblId ?? null, p.nombreArchivo, storageFile.ref, p.anio, p.trimestre ?? null, p.userId]
   )
   await execute(
@@ -54,16 +76,82 @@ export async function eliminarDocumento(docId: string, userId: string, userEmail
 }
 
 export async function listarDocumentos(clienteId: string) {
+  await migrateOnce()
   return queryAll(`
-    SELECT d.*, u.nombre AS subido_por_nombre, u.email AS subido_por_email,
+    SELECT d.*,
+           u.nombre  AS subido_por_nombre,
+           u.email   AS subido_por_email,
+           rv.nombre AS revisado_por_nombre,
            oc.aspecto, oc.obligacion, oc.sub_titulo, oc.periodicidad, oc.servicio
     FROM documentos d
     JOIN users u ON u.id = d.uploaded_by
+    LEFT JOIN users rv ON rv.id = d.revisado_por
     LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
     LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
     WHERE d.cliente_id = ?
     ORDER BY oc.servicio, oc.aspecto, oc.obligacion, d.anio DESC, d.trimestre DESC
   `, [clienteId])
+}
+
+/** Lista documentos pendientes de revisión (para la cola del admin). */
+export async function listarPendientesRevision(clienteId?: string) {
+  await migrateOnce()
+  const where = clienteId
+    ? `WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL) AND d.cliente_id = ?`
+    : `WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)`
+  const args = clienteId ? [clienteId] : []
+  return queryAll(`
+    SELECT d.*,
+           u.nombre        AS subido_por_nombre,
+           u.email         AS subido_por_email,
+           c.razon_social,
+           oc.aspecto, oc.obligacion, oc.sub_titulo, oc.periodicidad, oc.servicio
+    FROM documentos d
+    JOIN users u ON u.id = d.uploaded_by
+    JOIN clientes c ON c.id = d.cliente_id
+    LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+    LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
+    ${where}
+    ORDER BY d.uploaded_at ASC
+  `, args)
+}
+
+/** Aprueba o rechaza un documento. Si se aprueba y tiene obligación vinculada, la marca como cumplida. */
+export async function revisarDocumento(
+  docId: string,
+  adminId: string,
+  adminEmail: string,
+  aprobado: boolean,
+  comentario: string
+): Promise<void> {
+  await migrateOnce()
+  const doc = await queryOne('SELECT * FROM documentos WHERE id = ?', [docId])
+  if (!doc) throw new Error('Documento no encontrado')
+
+  const estado = aprobado ? 'aprobado' : 'rechazado'
+  await execute(
+    `UPDATE documentos
+     SET estado_revision = ?, revision_comentario = ?, revisado_por = ?, revisado_at = datetime('now')
+     WHERE id = ?`,
+    [estado, comentario || null, adminId, docId]
+  )
+
+  // Si se aprueba y hay obligación vinculada → marcarla como cumplida
+  if (aprobado && (doc as any).cliente_obl_id) {
+    await execute(
+      `UPDATE cliente_obligaciones SET estado = 'cumplida', updated_by = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      [adminId, (doc as any).cliente_obl_id]
+    )
+  }
+
+  await execute(
+    `INSERT INTO audit_log (id, user_id, user_email, accion, entidad, entidad_id, detalle) VALUES (?, ?, ?, ?, 'documento', ?, ?)`,
+    [crypto.randomUUID(), adminId, adminEmail,
+      aprobado ? 'documento_aprobado' : 'documento_rechazado',
+      docId,
+      JSON.stringify({ estado, comentario: comentario || null })]
+  )
 }
 
 export type BorradoScope = 'todo' | 'servicio' | 'aspecto' | 'obligacion'

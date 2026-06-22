@@ -154,7 +154,17 @@ export class GoogleDriveProvider implements IStorageProvider {
     const fileId = ref.replace('gdrive:', '')
     const auth   = await this.authHeader()
     const res    = await fetch(`${DRIVE_API}/files/${fileId}?alt=media`, { headers: auth })
-    if (!res.ok) throw new Error(`Google Drive download failed: ${res.status}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Google Drive download failed (${res.status}): ${body.slice(0, 200)}`)
+    }
+    // Verificar que la respuesta sea el archivo y no un redirect a una página de confirmación
+    const contentType = res.headers.get('content-type') ?? ''
+    if (contentType.includes('text/html')) {
+      // Google a veces redirige a una página de "descarga de archivo grande con virus scan"
+      // En ese caso hay que seguir la URL de exportación manualmente
+      throw new Error('Google Drive devolvió una página HTML en lugar del archivo. El archivo puede requerir confirmación de descarga.')
+    }
     return Buffer.from(await res.arrayBuffer())
   }
 

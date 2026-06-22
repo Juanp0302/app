@@ -54,11 +54,15 @@ const TRIMESTRES = [
 ]
 
 interface Archivo {
-  id:               string
-  nombre_archivo:   string
-  uploaded_at:      string
-  subido_por:       string
-  subido_por_email: string
+  id:                   string
+  nombre_archivo:       string
+  uploaded_at:          string
+  subido_por:           string
+  subido_por_email:     string
+  estado_revision:      'pendiente' | 'aprobado' | 'rechazado'
+  revision_comentario:  string | null
+  revisado_por_nombre:  string | null
+  revisado_at:          string | null
 }
 
 interface Grupo {
@@ -109,6 +113,11 @@ export default function DocumentosClient({
   const [borrarObl,     setBorrarObl]     = useState('')
   const [borrando,      setBorrando]      = useState(false)
   const [borrarResult,  setBorrarResult]  = useState<string | null>(null)
+
+  // Revisión de documentos (para admins)
+  const [revExpandidos,  setRevExpandidos]  = useState<Set<string>>(new Set())
+  const [revComentarios, setRevComentarios] = useState<Record<string, string>>({})
+  const [revisando,      setRevisando]      = useState<string | null>(null)
 
   // Scanner
   const [scanOpen,      setScanOpen]      = useState(false)
@@ -174,6 +183,32 @@ export default function DocumentosClient({
     } finally {
       setUploading(false)
     }
+  }
+
+  function toggleRevision(docId: string) {
+    setRevExpandidos(prev => {
+      const s = new Set(prev)
+      s.has(docId) ? s.delete(docId) : s.add(docId)
+      return s
+    })
+  }
+
+  async function revisarDoc(docId: string, aprobado: boolean) {
+    const comentario = revComentarios[docId] ?? ''
+    if (!aprobado && !comentario.trim()) {
+      alert('Escribe el motivo del rechazo antes de continuar.')
+      return
+    }
+    setRevisando(docId)
+    try {
+      const res = await fetch('/api/documentos', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId, aprobado, comentario }),
+      })
+      if (!res.ok) { const j = await res.json(); alert(j.error ?? 'Error'); return }
+      if (clienteId) cargar(clienteId)
+      setRevExpandidos(prev => { const s = new Set(prev); s.delete(docId); return s })
+    } finally { setRevisando(null) }
   }
 
   async function eliminar(docId: string) {
@@ -519,27 +554,97 @@ export default function DocumentosClient({
               </button>
               {isOpen && (
                 <div style={{ borderTop:'1px solid rgba(150,134,34,0.12)', padding:'0.5rem' }}>
-                  {grupo.archivos.map(arch => (
-                    <div key={arch.id} style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'0.7rem 0.8rem', borderRadius:'8px', background:'rgba(0,0,0,0.15)', marginBottom:'0.4rem' }}>
-                      <span style={{ fontSize:'1.3rem' }}>{iconoPorNombre(arch.nombre_archivo)}</span>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:'0.82rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{arch.nombre_archivo}</div>
-                        <div style={{ fontSize:'0.65rem', color:'rgba(231,223,202,0.45)', marginTop:'0.2rem' }}>
-                          Subido por {arch.subido_por} · {formatFecha(arch.uploaded_at)}
+                  {grupo.archivos.map(arch => {
+                    const rev    = arch.estado_revision ?? 'pendiente'
+                    const revBg  = rev === 'aprobado'  ? 'rgba(22,163,74,0.08)'  : rev === 'rechazado' ? 'rgba(220,38,38,0.08)'  : 'rgba(0,0,0,0.15)'
+                    const revBdr = rev === 'aprobado'  ? '1px solid rgba(22,163,74,0.2)' : rev === 'rechazado' ? '1px solid rgba(220,38,38,0.2)' : 'none'
+                    const isRevExp = revExpandidos.has(arch.id)
+                    const isBusy   = revisando === arch.id
+                    return (
+                      <div key={arch.id} style={{ borderRadius:'8px', background: revBg, border: revBdr, marginBottom:'0.4rem', overflow:'hidden' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'1rem', padding:'0.7rem 0.8rem' }}>
+                          <span style={{ fontSize:'1.3rem' }}>{iconoPorNombre(arch.nombre_archivo)}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:'0.82rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{arch.nombre_archivo}</div>
+                            <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginTop:'0.2rem', flexWrap:'wrap' }}>
+                              <span style={{ fontSize:'0.65rem', color:'rgba(231,223,202,0.45)' }}>
+                                Subido por {arch.subido_por} · {formatFecha(arch.uploaded_at)}
+                              </span>
+                              {/* Badge de estado */}
+                              <span style={{
+                                fontSize:'0.58rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase',
+                                padding:'1px 7px', borderRadius:10,
+                                background: rev === 'aprobado' ? 'rgba(22,163,74,0.2)' : rev === 'rechazado' ? 'rgba(220,38,38,0.2)' : 'rgba(245,158,11,0.15)',
+                                color:      rev === 'aprobado' ? '#16a34a'              : rev === 'rechazado' ? '#dc2626'              : '#f59e0b',
+                              }}>
+                                {rev === 'aprobado' ? '✓ Aprobado' : rev === 'rechazado' ? '✕ Rechazado' : '● Pendiente revisión'}
+                              </span>
+                              {rev !== 'pendiente' && arch.revisado_por_nombre && (
+                                <span style={{ fontSize:'0.58rem', color:'rgba(231,223,202,0.35)' }}>
+                                  por {arch.revisado_por_nombre}
+                                </span>
+                              )}
+                            </div>
+                            {/* Comentario de rechazo visible al cliente */}
+                            {rev === 'rechazado' && arch.revision_comentario && (
+                              <div style={{ fontSize:'0.72rem', color:'#fca5a5', marginTop:'0.35rem',
+                                background:'rgba(220,38,38,0.08)', borderRadius:6, padding:'0.35rem 0.6rem' }}>
+                                Motivo: {arch.revision_comentario}
+                              </div>
+                            )}
+                            {rev === 'aprobado' && arch.revision_comentario && (
+                              <div style={{ fontSize:'0.72rem', color:'#86efac', marginTop:'0.35rem',
+                                background:'rgba(22,163,74,0.08)', borderRadius:6, padding:'0.35rem 0.6rem' }}>
+                                Nota: {arch.revision_comentario}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display:'flex', gap:'0.4rem', flexShrink:0, flexWrap:'wrap' }}>
+                            <a href={`/api/documentos/archivo?docId=${arch.id}`} target="_blank"
+                              style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:C.olivo, textDecoration:'none', background:'rgba(150,134,34,0.12)', padding:'0.3rem 0.7rem', borderRadius:'6px', whiteSpace:'nowrap' }}>
+                              Ver
+                            </a>
+                            {/* Botón de revisión solo para admins */}
+                            {userRole === 'admin' && (
+                              <button onClick={() => toggleRevision(arch.id)}
+                                style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase',
+                                  color: isRevExp ? C.marfil : C.olivo, background: isRevExp ? 'rgba(150,134,34,0.25)' : 'transparent',
+                                  border:'1px solid rgba(150,134,34,0.35)', padding:'0.3rem 0.7rem', borderRadius:'6px', cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                                {isRevExp ? 'Cerrar' : 'Revisar'}
+                              </button>
+                            )}
+                            <button onClick={() => eliminar(arch.id)}
+                              style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'#dc2626', background:'rgba(220,38,38,0.1)', border:'none', padding:'0.3rem 0.7rem', borderRadius:'6px', cursor:'pointer', fontFamily:'inherit' }}>
+                              Eliminar
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Panel de revisión inline (solo admin) */}
+                        {userRole === 'admin' && isRevExp && (
+                          <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', padding:'0.85rem 1rem', background:'rgba(0,0,0,0.2)' }}>
+                            <textarea
+                              rows={2}
+                              value={revComentarios[arch.id] ?? ''}
+                              onChange={e => setRevComentarios(c => ({ ...c, [arch.id]: e.target.value }))}
+                              placeholder="Comentario (obligatorio al rechazar, opcional al aprobar)…"
+                              style={{ width:'100%', background:'rgba(231,223,202,0.06)', border:'1px solid rgba(150,134,34,0.3)', borderRadius:6, padding:'0.5rem 0.75rem', color:C.marfil, fontSize:'0.8rem', fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box', marginBottom:'0.6rem' }}
+                            />
+                            <div style={{ display:'flex', gap:'0.5rem', justifyContent:'flex-end' }}>
+                              <button onClick={() => revisarDoc(arch.id, false)} disabled={isBusy}
+                                style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(220,38,38,0.12)', color:'#f87171', border:'1px solid rgba(220,38,38,0.3)', borderRadius:6, padding:'0.35rem 0.85rem', cursor:isBusy ? 'wait' : 'pointer', fontFamily:'inherit' }}>
+                                {isBusy ? '…' : 'Rechazar'}
+                              </button>
+                              <button onClick={() => revisarDoc(arch.id, true)} disabled={isBusy}
+                                style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', background:'rgba(22,163,74,0.15)', color:'#34d399', border:'1px solid rgba(22,163,74,0.3)', borderRadius:6, padding:'0.35rem 0.85rem', cursor:isBusy ? 'wait' : 'pointer', fontFamily:'inherit' }}>
+                                {isBusy ? '…' : 'Aprobar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display:'flex', gap:'0.5rem', flexShrink:0 }}>
-                        <a href={`/api/documentos/archivo?docId=${arch.id}`} target="_blank"
-                          style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:C.olivo, textDecoration:'none', background:'rgba(150,134,34,0.12)', padding:'0.3rem 0.7rem', borderRadius:'6px' }}>
-                          Ver
-                        </a>
-                        <button onClick={() => eliminar(arch.id)}
-                          style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'#dc2626', background:'rgba(220,38,38,0.1)', border:'none', padding:'0.3rem 0.7rem', borderRadius:'6px', cursor:'pointer', fontFamily:'inherit' }}>
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
