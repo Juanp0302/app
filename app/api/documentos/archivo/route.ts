@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne } from '@/lib/db'
 import { isCloudRef } from '@/lib/storage'
-import { descargarDocumento, getDownloadUrl } from '@/lib/documentos'
+import { descargarDocumento } from '@/lib/documentos'
 import path from 'path'
 
 const MIME: Record<string, string> = {
@@ -32,14 +32,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
 
   if (isCloudRef((doc as any).ruta)) {
-    const url = await getDownloadUrl(docId)
-    if (url) return NextResponse.redirect(url)
+    // Siempre descargamos server-side usando el token OAuth del servidor.
+    // No redirigimos al usuario a Google/OneDrive porque esas URLs requieren
+    // autenticación de Google y dan 403 si el archivo no es público.
     const result = await descargarDocumento(docId)
     if (!result) return NextResponse.json({ error: 'No se pudo obtener el archivo' }, { status: 500 })
     const ext = path.extname(result.nombre).toLowerCase()
     return new NextResponse(result.buffer as unknown as BodyInit, {
       status: 200,
-      headers: { 'Content-Type': MIME[ext] ?? 'application/octet-stream', 'Content-Disposition': `inline; filename="${result.nombre}"` },
+      headers: {
+        'Content-Type':        MIME[ext] ?? 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${result.nombre}"`,
+        'Cache-Control':       'private, max-age=300',
+      },
     })
   }
 

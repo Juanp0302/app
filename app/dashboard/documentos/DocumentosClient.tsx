@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
+interface MatchInfo {
+  cliente_obl_id: string | null
+  sub_titulo?:    string
+  servicio?:      string
+}
+
 interface ArchivoReconocido {
   ref:            string
   ruta:           string
@@ -14,7 +20,9 @@ interface ArchivoReconocido {
   obligacion:     string
   sub_titulo?:    string
   periodicidad?:  string
+  servicio?:      string
   cliente_obl_id: string | null
+  matches?:       MatchInfo[]
 }
 
 interface ArchivoNoReconocido {
@@ -54,6 +62,7 @@ interface Archivo {
 }
 
 interface Grupo {
+  servicio:   string
   aspecto:    string
   obligacion: string
   anio:       number
@@ -91,6 +100,15 @@ export default function DocumentosClient({
   const [zipAnio,  setZipAnio]  = useState(anioActual)
   const [zipTrim,  setZipTrim]  = useState<number | null>(null)
   const [zipping,  setZipping]  = useState(false)
+
+  // Eliminación masiva
+  const [borrarOpen,    setBorrarOpen]    = useState(false)
+  const [borrarScope,   setBorrarScope]   = useState<'todo'|'servicio'|'aspecto'|'obligacion'>('todo')
+  const [borrarServ,    setBorrarServ]    = useState('')
+  const [borrarAsp,     setBorrarAsp]     = useState('')
+  const [borrarObl,     setBorrarObl]     = useState('')
+  const [borrando,      setBorrando]      = useState(false)
+  const [borrarResult,  setBorrarResult]  = useState<string | null>(null)
 
   // Scanner
   const [scanOpen,      setScanOpen]      = useState(false)
@@ -162,6 +180,33 @@ export default function DocumentosClient({
     if (!confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')) return
     await fetch(`/api/documentos?docId=${docId}`, { method: 'DELETE' })
     if (clienteId) cargar(clienteId)
+  }
+
+  async function ejecutarBorradoMasivo() {
+    if (!clienteId) return
+    let label = ''
+    if (borrarScope === 'todo')       label = 'TODOS los documentos'
+    if (borrarScope === 'servicio')   label = `todos los documentos del servicio "${borrarServ}"`
+    if (borrarScope === 'aspecto')    label = `todos los documentos del aspecto "${borrarAsp}"`
+    if (borrarScope === 'obligacion') label = `todos los documentos de "${borrarObl}"`
+    if (!confirm(`¿Eliminar ${label}? Esta acción no se puede deshacer.`)) return
+    setBorrando(true); setBorrarResult(null)
+    try {
+      const params = new URLSearchParams({ clienteId, scope: borrarScope })
+      if (borrarScope === 'servicio')   params.set('servicio',   borrarServ)
+      if (borrarScope === 'aspecto')    params.set('aspecto',    borrarAsp)
+      if (borrarScope === 'obligacion') { params.set('aspecto', borrarAsp); params.set('obligacion', borrarObl) }
+      const res  = await fetch(`/api/documentos?${params}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (res.ok) {
+        setBorrarResult(`${json.eliminados} documento${json.eliminados !== 1 ? 's' : ''} eliminado${json.eliminados !== 1 ? 's' : ''}.`)
+        cargar(clienteId)
+      } else {
+        setBorrarResult(`Error: ${json.error}`)
+      }
+    } finally {
+      setBorrando(false)
+    }
   }
 
   // ── ZIP ──────────────────────────────────────────────────────────────────────
@@ -264,47 +309,64 @@ export default function DocumentosClient({
     let errores = 0
     const fallas: {nombre: string; error: string}[] = []
 
+    // Total de subidas = suma de matches por archivo (cada match = un registro en BD)
+    const totalSubidas = seleccionados.reduce((sum, a) => {
+      const m = a.matches
+      return sum + (m && m.length > 0 ? m.length : 1)
+    }, 0)
+    setImportTotal(totalSubidas)
+
     for (const a of seleccionados) {
       const file = fileMap.get(a.ruta)
       if (!file) {
-        errores++
+        const targets = a.matches && a.matches.length > 0 ? a.matches : [null]
+        errores += targets.length
         fallas.push({ nombre: a.nombre, error: 'Archivo no encontrado en el mapa local (ruta: ' + a.ruta + ')' })
-        setImportado(n => n + 1)
+        setImportado(n => n + targets.length)
         continue
       }
-      let intentos = 0
-      let ok = false
-      while (intentos < 2 && !ok) {
-        intentos++
-        try {
-          const fd = new FormData()
-          fd.append('clienteId',    clienteId)
-          fd.append('clienteOblId', a.cliente_obl_id ?? '')
-          fd.append('aspecto',      a.aspecto)
-          fd.append('obligacion',   a.obligacion)
-          fd.append('anio',         String(a.anio))
-          if (a.trimestre) fd.append('trimestre', String(a.trimestre))
-          fd.append('archivo', file, a.nombre)
-          const res = await fetch('/api/documentos', { method: 'POST', body: fd })
-          if (res.ok) {
-            ok = true
-            setImportOk(n => n + 1)
-          } else {
-            const json = await res.json().catch(() => ({}))
+
+      // Subir una vez por cada sub-obligación que debe recibir este documento
+      const targets: MatchInfo[] =
+        a.matches && a.matches.length > 0
+          ? a.matches
+          : [{ cliente_obl_id: a.cliente_obl_id }]
+
+      for (const target of targets) {
+        let intentos = 0
+        let ok = false
+        while (intentos < 2 && !ok) {
+          intentos++
+          try {
+            const fd = new FormData()
+            fd.append('clienteId',    clienteId)
+            fd.append('clienteOblId', target.cliente_obl_id ?? '')
+            fd.append('aspecto',      a.aspecto)
+            fd.append('obligacion',   a.obligacion)
+            fd.append('anio',         String(a.anio))
+            if (a.trimestre) fd.append('trimestre', String(a.trimestre))
+            fd.append('archivo', file, a.nombre)
+            const res = await fetch('/api/documentos', { method: 'POST', body: fd })
+            if (res.ok) {
+              ok = true
+              setImportOk(n => n + 1)
+            } else {
+              const json = await res.json().catch(() => ({}))
+              if (intentos >= 2) {
+                errores++
+                fallas.push({ nombre: a.nombre, error: `HTTP ${res.status}: ${json.error ?? JSON.stringify(json)}` })
+              }
+            }
+          } catch (err: any) {
             if (intentos >= 2) {
               errores++
-              fallas.push({ nombre: a.nombre, error: `HTTP ${res.status}: ${json.error ?? JSON.stringify(json)}` })
+              fallas.push({ nombre: a.nombre, error: err?.message ?? 'Error de red' })
             }
           }
-        } catch (err: any) {
-          if (intentos >= 2) {
-            errores++
-            fallas.push({ nombre: a.nombre, error: err?.message ?? 'Error de red' })
-          }
+          if (!ok && intentos < 2) await new Promise(r => setTimeout(r, 800))
         }
-        if (!ok && intentos < 2) await new Promise(r => setTimeout(r, 800))
+        setImportado(n => n + 1)
       }
-      setImportado(n => n + 1)
     }
 
     setImportFallas(fallas)
@@ -320,8 +382,16 @@ export default function DocumentosClient({
   }
 
   function grupoKey(g: Grupo) {
-    return `${g.aspecto}||${g.obligacion}||${g.anio}||${g.trimestre ?? 0}`
+    return `${g.servicio}||${g.aspecto}||${g.obligacion}||${g.anio}||${g.trimestre ?? 0}`
   }
+
+  // Listas únicas para los selectores del borrador masivo
+  const serviciosUnicos  = [...new Set(grupos.map(g => g.servicio).filter(Boolean))].sort()
+  const aspectosUnicos   = [...new Set(grupos.map(g => g.aspecto).filter(Boolean))].sort()
+  const obligsByAspecto  = grupos
+    .filter(g => !borrarAsp || g.aspecto === borrarAsp)
+    .reduce((acc: string[], g) => acc.includes(g.obligacion) ? acc : [...acc, g.obligacion], [])
+    .sort()
 
   function formatFecha(iso: string) {
     return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
@@ -382,6 +452,10 @@ export default function DocumentosClient({
               style={{ background:'rgba(150,134,34,0.15)', color:C.olivo, border:`1px solid ${C.olivo}`, borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor:clienteId ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
               Escanear carpeta
             </button>
+            <button onClick={() => { setBorrarOpen(true); setBorrarResult(null) }} disabled={!clienteId}
+              style={{ background:'rgba(220,38,38,0.12)', color:'#f87171', border:'1px solid rgba(220,38,38,0.4)', borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor:clienteId ? 'pointer' : 'not-allowed', fontFamily:'inherit' }}>
+              Borrar documentos
+            </button>
             <button onClick={() => setUploadOpen(true)}
               style={{ background:C.olivo, color:C.vino, border:'none', borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit' }}>
               + Subir documento
@@ -427,10 +501,13 @@ export default function DocumentosClient({
             <div key={key} style={{ marginBottom:'0.75rem', border:'1px solid rgba(150,134,34,0.2)', borderRadius:'10px', overflow:'hidden' }}>
               <button onClick={() => toggleGrupo(key)}
                 style={{ width:'100%', background:'rgba(231,223,202,0.04)', border:'none', cursor:'pointer', padding:'1rem 1.3rem', display:'flex', alignItems:'center', justifyContent:'space-between', color:C.marfil, fontFamily:'inherit' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'0.8rem' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'0.8rem', flexWrap:'wrap' }}>
                   <span style={{ width:'8px', height:'8px', borderRadius:'50%', background:color, flexShrink:0 }} />
                   <span style={{ fontSize:'0.82rem', fontWeight:600 }}>{grupo.obligacion}</span>
                   <span style={{ fontSize:'0.65rem', background:`${color}22`, color, padding:'0.15rem 0.6rem', borderRadius:'8px', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>{grupo.aspecto}</span>
+                  {grupo.servicio && (
+                    <span style={{ fontSize:'0.65rem', background:'rgba(150,134,34,0.08)', color:'rgba(150,134,34,0.8)', padding:'0.15rem 0.6rem', borderRadius:'8px', fontWeight:600 }}>{grupo.servicio}</span>
+                  )}
                   <span style={{ fontSize:'0.65rem', background:'rgba(150,134,34,0.12)', color:C.olivo, padding:'0.15rem 0.6rem', borderRadius:'8px', fontWeight:700 }}>
                     {grupo.anio}{grupo.trimestre ? ` · Q${grupo.trimestre}` : ''}
                   </span>
@@ -496,7 +573,7 @@ export default function DocumentosClient({
                   Selecciona la carpeta que contiene tus evidencias.<br/>
                   Debe respetar la estructura:<br/>
                   <code style={{ fontSize:'0.75rem', background:'rgba(231,223,202,0.08)', padding:'0.2rem 0.5rem', borderRadius:'4px' }}>
-                    aspecto / obligacion / año / Q1…Q4 o permanente / archivo
+                    servicio / aspecto / obligacion / sub-obligacion / año / Q1…Q4 o permanente / archivo
                   </code>
                 </div>
                 <button onClick={() => folderRef.current?.click()}
@@ -605,7 +682,10 @@ export default function DocumentosClient({
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ fontSize:'0.82rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.nombre}</div>
                             <div style={{ fontSize:'0.65rem', color:'rgba(231,223,202,0.4)', marginTop:'0.15rem' }}>
-                              {a.aspecto} › {a.obligacion} · {a.anio}{a.trimestre ? ` Q${a.trimestre}` : ' · Permanente'}
+                              {a.aspecto} › {a.obligacion}
+                              {a.servicio && <span style={{ marginLeft:4, color:'rgba(231,223,202,0.55)' }}>({a.servicio})</span>}
+                              {a.sub_titulo && <span style={{ marginLeft:4, color:'rgba(231,223,202,0.35)', fontStyle:'italic' }}>— {a.sub_titulo.slice(0,60)}{a.sub_titulo.length > 60 ? '…' : ''}</span>}
+                              <span style={{ marginLeft:4 }}>· {a.anio}{a.trimestre ? ` Q${a.trimestre}` : ' · Permanente'}</span>
                             </div>
                           </div>
                         </label>
@@ -661,6 +741,100 @@ export default function DocumentosClient({
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL BORRAR DOCUMENTOS ── */}
+      {borrarOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:'1rem' }}>
+          <div style={{ background:'#1a0204', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'16px', padding:'2rem', width:'100%', maxWidth:'520px' }}>
+
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.5rem' }}>
+              <div style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.3rem', fontWeight:700 }}>Borrar documentos</div>
+              <button onClick={() => setBorrarOpen(false)} style={{ background:'none', border:'none', color:'rgba(231,223,202,0.5)', fontSize:'1.2rem', cursor:'pointer' }}>✕</button>
+            </div>
+
+            {/* Selector de alcance */}
+            <div style={{ marginBottom:'1.3rem' }}>
+              <label style={labelStyle}>¿Qué deseas borrar?</label>
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem', marginTop:'0.4rem' }}>
+                {([
+                  { key:'todo',       label:'Todos los documentos' },
+                  { key:'servicio',   label:'Por servicio' },
+                  { key:'aspecto',    label:'Por aspecto regulatorio' },
+                  { key:'obligacion', label:'Por obligación específica' },
+                ] as const).map(op => (
+                  <label key={op.key} style={{ display:'flex', alignItems:'center', gap:'0.75rem', cursor:'pointer', padding:'0.6rem 0.9rem', borderRadius:'8px', background: borrarScope === op.key ? 'rgba(220,38,38,0.1)' : 'rgba(231,223,202,0.04)', border:`1px solid ${borrarScope === op.key ? 'rgba(220,38,38,0.3)' : 'rgba(231,223,202,0.08)'}` }}>
+                    <input type="radio" name="scope" value={op.key} checked={borrarScope === op.key}
+                      onChange={() => { setBorrarScope(op.key); setBorrarServ(''); setBorrarAsp(''); setBorrarObl(''); setBorrarResult(null) }}
+                      style={{ accentColor:'#dc2626' }} />
+                    <span style={{ fontSize:'0.85rem' }}>{op.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Selector de servicio */}
+            {borrarScope === 'servicio' && (
+              <div style={{ marginBottom:'1.3rem' }}>
+                <label style={labelStyle}>Servicio</label>
+                <select value={borrarServ} onChange={e => setBorrarServ(e.target.value)} style={{ ...inputStyle, width:'100%' }}>
+                  <option value="">Selecciona un servicio…</option>
+                  {serviciosUnicos.map(s => <option key={s} value={s} style={{ background:C.vino }}>{s}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Selector de aspecto */}
+            {(borrarScope === 'aspecto' || borrarScope === 'obligacion') && (
+              <div style={{ marginBottom:'1rem' }}>
+                <label style={labelStyle}>Aspecto regulatorio</label>
+                <select value={borrarAsp} onChange={e => { setBorrarAsp(e.target.value); setBorrarObl('') }} style={{ ...inputStyle, width:'100%' }}>
+                  <option value="">Selecciona un aspecto…</option>
+                  {aspectosUnicos.map(a => <option key={a} value={a} style={{ background:C.vino }}>{a}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Selector de obligación */}
+            {borrarScope === 'obligacion' && (
+              <div style={{ marginBottom:'1.3rem' }}>
+                <label style={labelStyle}>Obligación</label>
+                <select value={borrarObl} onChange={e => setBorrarObl(e.target.value)} disabled={!borrarAsp} style={{ ...inputStyle, width:'100%', opacity: borrarAsp ? 1 : 0.5 }}>
+                  <option value="">Selecciona una obligación…</option>
+                  {obligsByAspecto.map(o => <option key={o} value={o} style={{ background:C.vino }}>{o}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Resultado */}
+            {borrarResult && (
+              <div style={{ background: borrarResult.startsWith('Error') ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', border:`1px solid ${borrarResult.startsWith('Error') ? 'rgba(220,38,38,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius:'8px', padding:'0.75rem 1rem', fontSize:'0.82rem', color: borrarResult.startsWith('Error') ? '#f87171' : '#6ee7b7', marginBottom:'1rem' }}>
+                {borrarResult}
+              </div>
+            )}
+
+            {/* Aviso de irreversibilidad */}
+            <div style={{ fontSize:'0.7rem', color:'rgba(220,38,38,0.7)', marginBottom:'1.3rem', fontStyle:'italic' }}>
+              Esta acción es permanente y no se puede deshacer.
+            </div>
+
+            <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
+              <button onClick={() => setBorrarOpen(false)}
+                style={{ background:'rgba(231,223,202,0.08)', color:C.marfil, border:'1px solid rgba(231,223,202,0.15)', borderRadius:'8px', padding:'0.7rem 1.3rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={ejecutarBorradoMasivo} disabled={
+                borrando ||
+                (borrarScope === 'servicio'   && !borrarServ) ||
+                (borrarScope === 'aspecto'    && !borrarAsp)  ||
+                (borrarScope === 'obligacion' && (!borrarAsp || !borrarObl))
+              }
+                style={{ background: borrando ? 'rgba(220,38,38,0.4)' : '#dc2626', color:'white', border:'none', borderRadius:'8px', padding:'0.7rem 1.5rem', fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', cursor:'pointer', fontFamily:'inherit', opacity: (borrando || (borrarScope==='servicio'&&!borrarServ)||(borrarScope==='aspecto'&&!borrarAsp)||(borrarScope==='obligacion'&&(!borrarAsp||!borrarObl))) ? 0.5 : 1 }}>
+                {borrando ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

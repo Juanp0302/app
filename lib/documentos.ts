@@ -56,14 +56,60 @@ export async function eliminarDocumento(docId: string, userId: string, userEmail
 export async function listarDocumentos(clienteId: string) {
   return queryAll(`
     SELECT d.*, u.nombre AS subido_por_nombre, u.email AS subido_por_email,
-           oc.aspecto, oc.obligacion, oc.sub_titulo, oc.periodicidad
+           oc.aspecto, oc.obligacion, oc.sub_titulo, oc.periodicidad, oc.servicio
     FROM documentos d
     JOIN users u ON u.id = d.uploaded_by
     LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
     LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
     WHERE d.cliente_id = ?
-    ORDER BY d.anio DESC, d.trimestre DESC, d.uploaded_at DESC
+    ORDER BY oc.servicio, oc.aspecto, oc.obligacion, d.anio DESC, d.trimestre DESC
   `, [clienteId])
+}
+
+export type BorradoScope = 'todo' | 'servicio' | 'aspecto' | 'obligacion'
+
+export async function eliminarDocumentosMasivo(
+  clienteId: string,
+  scope: BorradoScope,
+  filtros: { servicio?: string; aspecto?: string; obligacion?: string },
+  userId: string,
+  userEmail: string
+): Promise<number> {
+  // Obtener IDs de los documentos que coinciden con el scope
+  let docs: any[]
+  if (scope === 'todo') {
+    docs = await queryAll(
+      'SELECT id FROM documentos WHERE cliente_id = ?',
+      [clienteId]
+    ) as any[]
+  } else if (scope === 'servicio') {
+    docs = await queryAll(`
+      SELECT d.id FROM documentos d
+      LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+      LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
+      WHERE d.cliente_id = ? AND oc.servicio = ?
+    `, [clienteId, filtros.servicio]) as any[]
+  } else if (scope === 'aspecto') {
+    docs = await queryAll(`
+      SELECT d.id FROM documentos d
+      LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+      LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
+      WHERE d.cliente_id = ? AND oc.aspecto = ?
+    `, [clienteId, filtros.aspecto]) as any[]
+  } else {
+    // scope === 'obligacion'
+    docs = await queryAll(`
+      SELECT d.id FROM documentos d
+      LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+      LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
+      WHERE d.cliente_id = ? AND oc.aspecto = ? AND oc.obligacion = ?
+    `, [clienteId, filtros.aspecto, filtros.obligacion]) as any[]
+  }
+
+  for (const doc of docs) {
+    await eliminarDocumento((doc as any).id, userId, userEmail)
+  }
+  return docs.length
 }
 
 export async function descargarDocumento(docId: string): Promise<{ buffer: Buffer; nombre: string } | null> {

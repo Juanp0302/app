@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne } from '@/lib/db'
-import { guardarDocumento, eliminarDocumento, listarDocumentos } from '@/lib/documentos'
+import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, type BorradoScope } from '@/lib/documentos'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -26,14 +26,19 @@ export async function GET(req: NextRequest) {
 
   const arbol: Record<string, any> = {}
   for (const d of docs) {
-    const asp = d.aspecto ?? 'Sin categoría'
-    const obl = d.obligacion ?? 'General'
-    const key = `${asp}||${obl}||${d.anio}||${d.trimestre ?? 0}`
-    if (!arbol[key]) arbol[key] = { aspecto: asp, obligacion: obl, anio: d.anio, trimestre: d.trimestre, archivos: [] }
+    const serv = (d as any).servicio ?? ''
+    const asp  = (d as any).aspecto  ?? 'Sin categoría'
+    const obl  = (d as any).obligacion ?? 'General'
+    const key  = `${serv}||${asp}||${obl}||${d.anio}||${(d as any).trimestre ?? 0}`
+    if (!arbol[key]) arbol[key] = {
+      servicio: serv, aspecto: asp, obligacion: obl,
+      anio: d.anio, trimestre: (d as any).trimestre, archivos: [],
+    }
     arbol[key].archivos.push({
-      id: d.id, nombre_archivo: d.nombre_archivo, ruta: d.ruta,
-      cliente_obl_id: d.cliente_obl_id, uploaded_at: d.uploaded_at,
-      subido_por: d.subido_por_nombre, subido_por_email: d.subido_por_email, periodicidad: d.periodicidad,
+      id: d.id, nombre_archivo: (d as any).nombre_archivo, ruta: (d as any).ruta,
+      cliente_obl_id: (d as any).cliente_obl_id, uploaded_at: (d as any).uploaded_at,
+      subido_por: (d as any).subido_por_nombre, subido_por_email: (d as any).subido_por_email,
+      periodicidad: (d as any).periodicidad,
     })
   }
 
@@ -91,14 +96,39 @@ export async function DELETE(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const user = session.user as any
 
-  const docId = req.nextUrl.searchParams.get('docId')
-  if (!docId) return NextResponse.json({ error: 'docId requerido' }, { status: 400 })
+  const params   = req.nextUrl.searchParams
+  const docId    = params.get('docId')
+  const scope    = params.get('scope') as BorradoScope | null
+  let   clienteId = params.get('clienteId')
 
-  const doc = await queryOne('SELECT d.*, c.user_id FROM documentos d JOIN clientes c ON c.id = d.cliente_id WHERE d.id = ?', [docId])
-  if (!doc) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  if (user.role === 'cliente' && (doc as any).user_id !== user.id)
-    return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+  // ── Eliminación individual ──────────────────────────────────────────────────
+  if (docId) {
+    const doc = await queryOne('SELECT d.*, c.user_id FROM documentos d JOIN clientes c ON c.id = d.cliente_id WHERE d.id = ?', [docId])
+    if (!doc) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    if (user.role === 'cliente' && (doc as any).user_id !== user.id)
+      return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    await eliminarDocumento(docId, user.id ?? '', user.email ?? '')
+    return NextResponse.json({ ok: true })
+  }
 
-  await eliminarDocumento(docId, user.id ?? '', user.email ?? '')
-  return NextResponse.json({ ok: true })
+  // ── Eliminación masiva ──────────────────────────────────────────────────────
+  if (!scope) return NextResponse.json({ error: 'docId o scope requerido' }, { status: 400 })
+
+  if (user.role === 'cliente') {
+    const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id])
+    if (!c) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+    clienteId = (c as any).id
+  }
+  if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
+
+  const filtros = {
+    servicio:   params.get('servicio')   ?? undefined,
+    aspecto:    params.get('aspecto')    ?? undefined,
+    obligacion: params.get('obligacion') ?? undefined,
+  }
+
+  const eliminados = await eliminarDocumentosMasivo(
+    clienteId, scope, filtros, user.id ?? '', user.email ?? ''
+  )
+  return NextResponse.json({ ok: true, eliminados })
 }
