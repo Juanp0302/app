@@ -93,16 +93,27 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await archivo.arrayBuffer())
   const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
 
-  // Notificar a todos los admins activos
-  const clienteRow = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
-  const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
+  // Notificar al admin revisor asignado, o a todos si no hay uno específico
+  const clienteRow = await queryOne(`
+    SELECT c.razon_social, u.email AS admin_revision_email
+    FROM clientes c
+    LEFT JOIN users u ON u.id = c.admin_revision_id AND u.activo = 1
+    WHERE c.id = ?
+  `, [clienteId]) as any
+  let adminEmails: string[]
+  if (clienteRow?.admin_revision_email) {
+    adminEmails = [clienteRow.admin_revision_email]
+  } else {
+    const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
+    adminEmails = (admins as any[]).map(a => a.email).filter(Boolean)
+  }
   notificarDocumentoSubido({
     docId,
-    cliente:       (clienteRow as any)?.razon_social ?? '',
+    cliente:       clienteRow?.razon_social ?? '',
     aspecto,
     obligacion,
     nombreArchivo: archivo.name,
-    adminEmails:   (admins as any[]).map(a => a.email).filter(Boolean),
+    adminEmails,
     fecha:         new Date().toLocaleString('es-CO'),
   })
 

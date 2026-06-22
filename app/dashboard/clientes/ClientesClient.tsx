@@ -27,26 +27,35 @@ function pctColor(pct: number) {
   return '#dc2626'
 }
 
+interface AdminSimple {
+  id:     string
+  nombre: string
+  email:  string
+}
+
 interface Cliente {
-  id:                string
-  razon_social:      string
-  nit:               string
-  contacto:          string
-  email:             string
-  telefono:          string
-  user_email:        string
-  user_nombre:       string
-  activo:            number
-  servicios:         string[]
-  total_obl:         number
-  cumplidas:         number
-  en_progreso:       number
-  vencidas:          number
-  pendientes:        number
-  pct:               number
-  created_at:        string
-  avg_horas_ticket:  number | null
-  avg_horas_chat:    number | null
+  id:                     string
+  razon_social:           string
+  nit:                    string
+  contacto:               string
+  email:                  string
+  telefono:               string
+  user_email:             string
+  user_nombre:            string
+  activo:                 number
+  servicios:              string[]
+  total_obl:              number
+  cumplidas:              number
+  en_progreso:            number
+  vencidas:               number
+  pendientes:             number
+  pct:                    number
+  created_at:             string
+  avg_horas_ticket:       number | null
+  avg_horas_chat:         number | null
+  admin_revision_id:      string | null
+  admin_revision_nombre:  string | null
+  admin_revision_email:   string | null
 }
 
 function formatHoras(h: number | null | undefined): string {
@@ -86,12 +95,19 @@ export default function ClientesClient({
   const [editForm,    setEditForm]    = useState({ razon_social:'', nit:'', contacto:'', email:'', telefono:'', user_nombre:'', user_email:'', user_password:'' })
   const [editSaving,  setEditSaving]  = useState(false)
   const [editError,   setEditError]   = useState('')
+  const [admins,      setAdmins]      = useState<AdminSimple[]>([])
+  const [asignandoRev, setAsignandoRev] = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/clientes')
-      setClientes(await res.json())
+      const [resClientes, resAdmins] = await Promise.all([
+        fetch('/api/clientes'),
+        fetch('/api/admins'),
+      ])
+      setClientes(await resClientes.json())
+      const adminsData = await resAdmins.json()
+      setAdmins((adminsData as any[]).filter(a => a.activo).map((a: any) => ({ id: a.id, nombre: a.nombre, email: a.email })))
     } finally {
       setLoading(false)
     }
@@ -226,6 +242,25 @@ export default function ClientesClient({
       user_password: '',
     })
     setEditError('')
+  }
+
+  async function asignarAdminRevision(clienteId: string, adminId: string | null) {
+    setAsignandoRev(true)
+    try {
+      await fetch(`/api/clientes?id=${clienteId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_revision_id: adminId }),
+      })
+      await cargar()
+      // Actualizar modal si está abierto
+      setModalDetalle(prev => {
+        if (!prev || prev.id !== clienteId) return prev
+        const admin = admins.find(a => a.id === adminId)
+        return { ...prev, admin_revision_id: adminId, admin_revision_nombre: admin?.nombre ?? null, admin_revision_email: admin?.email ?? null }
+      })
+    } finally {
+      setAsignandoRev(false)
+    }
   }
 
   async function guardarEdicionCliente(e: React.FormEvent) {
@@ -408,6 +443,40 @@ export default function ClientesClient({
                 <div style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.35)', marginTop:'0.15rem' }}>Promedio primera respuesta del equipo Owl</div>
               </div>
             ))}
+          </div>
+
+          {/* Admin revisor de documentos */}
+          <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:10, padding:'1rem 1.2rem', marginBottom:'1.5rem' }}>
+            <div style={{ fontSize:'0.58rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.4)', marginBottom:'0.7rem' }}>
+              Revisor de documentos
+            </div>
+            {modalDetalle.admin_revision_nombre ? (
+              <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'0.65rem' }}>
+                <div style={{ width:34, height:34, borderRadius:'50%', background:'rgba(150,134,34,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1rem', flexShrink:0 }}>🛡️</div>
+                <div>
+                  <div style={{ fontSize:'0.85rem', fontWeight:600, color:C.marfil }}>{modalDetalle.admin_revision_nombre}</div>
+                  <div style={{ fontSize:'0.65rem', color:'rgba(231,223,202,0.4)' }}>{modalDetalle.admin_revision_email}</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize:'0.78rem', color:'rgba(231,223,202,0.35)', marginBottom:'0.65rem', fontStyle:'italic' }}>
+                Sin revisor asignado — se notifica a todos los admins
+              </div>
+            )}
+            <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+              <select
+                defaultValue={modalDetalle.admin_revision_id ?? ''}
+                onChange={e => asignarAdminRevision(modalDetalle.id, e.target.value || null)}
+                disabled={asignandoRev}
+                style={{ flex:1, background:'rgba(231,223,202,0.07)', border:'1px solid rgba(150,134,34,0.3)', borderRadius:7, padding:'0.45rem 0.75rem', color:C.marfil, fontSize:'0.8rem', fontFamily:'inherit', outline:'none', cursor:'pointer' }}
+              >
+                <option value=''>— Sin revisor específico —</option>
+                {admins.map(a => (
+                  <option key={a.id} value={a.id}>{a.nombre} ({a.email})</option>
+                ))}
+              </select>
+              {asignandoRev && <span style={{ fontSize:'0.7rem', color:C.olivo }}>Guardando…</span>}
+            </div>
           </div>
 
           {/* Gráfica de cumplimiento */}

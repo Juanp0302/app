@@ -3,6 +3,14 @@ import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
 import crypto from 'crypto'
 
+// Migración segura: añadir columna admin_revision_id si no existe
+let migratedRevision = false
+async function ensureRevisionColumn() {
+  if (migratedRevision) return
+  migratedRevision = true
+  try { await execute(`ALTER TABLE clientes ADD COLUMN admin_revision_id TEXT REFERENCES users(id)`, []) } catch {}
+}
+
 function hashPassword(pwd: string) { return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex') }
 function uuid() { return crypto.randomUUID() }
 
@@ -16,10 +24,13 @@ async function requireAdmin() {
 export async function GET() {
   const user = await requireAdmin()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  await ensureRevisionColumn()
 
   const clientes = await queryAll(`
     SELECT c.id, c.razon_social, c.nit, c.contacto, c.email, c.telefono, c.activo, c.created_at,
            u.email AS user_email, u.nombre AS user_nombre, u.activo AS user_activo,
+           c.admin_revision_id,
+           ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,
            SUM(CASE WHEN co.estado = 'cumplida'    THEN 1 ELSE 0 END) AS cumplidas,
@@ -28,6 +39,7 @@ export async function GET() {
            SUM(CASE WHEN co.estado = 'en_progreso' THEN 1 ELSE 0 END) AS en_progreso
     FROM clientes c
     JOIN users u ON u.id = c.user_id
+    LEFT JOIN users ar ON ar.id = c.admin_revision_id
     LEFT JOIN cliente_servicios cs ON cs.cliente_id = c.id AND cs.activo = 1
     LEFT JOIN cliente_obligaciones co ON co.cliente_id = c.id
     GROUP BY c.id ORDER BY c.razon_social
@@ -148,6 +160,12 @@ export async function PATCH(req: NextRequest) {
           await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...vals, userId])
       }
     }
+  }
+
+  if (typeof body.admin_revision_id !== 'undefined') {
+    await execute(`UPDATE clientes SET admin_revision_id = ? WHERE id = ?`,
+      [body.admin_revision_id || null, clienteId])
+    return NextResponse.json({ ok: true })
   }
 
   if (body.nuevo_servicio) {

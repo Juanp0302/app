@@ -18,9 +18,12 @@ interface DocPendiente {
   uploaded_at:      string
   subido_por_nombre: string
   subido_por_email:  string
-  razon_social:     string
-  cliente_id:       string
-  cliente_obl_id:   string | null
+  razon_social:          string
+  cliente_id:            string
+  cliente_obl_id:        string | null
+  admin_revision_id:     string | null
+  admin_revision_nombre: string | null
+  admin_revision_email:  string | null
   aspecto:          string | null
   obligacion:       string | null
   sub_titulo:       string | null
@@ -173,14 +176,27 @@ export default function RevisionesClient() {
 
         {!loading && Object.entries(porCliente).map(([cliente, cdocs]) => (
           <div key={cliente} style={{ marginBottom: '2rem' }}>
-            <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em',
-              textTransform: 'uppercase', color: C.olivo, marginBottom: '0.75rem',
-              display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span>{cliente}</span>
-              <span style={{ background: 'rgba(150,134,34,0.15)', padding: '2px 10px',
-                borderRadius: 20, fontSize: '0.6rem' }}>
-                {cdocs.length} pendiente{cdocs.length !== 1 ? 's' : ''}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em',
+                textTransform: 'uppercase', color: C.olivo,
+                display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span>{cliente}</span>
+                <span style={{ background: 'rgba(150,134,34,0.15)', padding: '2px 10px',
+                  borderRadius: 20, fontSize: '0.6rem' }}>
+                  {cdocs.length} pendiente{cdocs.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {cdocs[0].admin_revision_nombre ? (
+                <span style={{ fontSize: '0.62rem', color: 'rgba(231,223,202,0.45)',
+                  background: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: '3px 10px' }}>
+                  🛡️ Revisor: <strong style={{ color: C.marfil }}>{cdocs[0].admin_revision_nombre}</strong>
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.62rem', color: 'rgba(231,223,202,0.3)',
+                  background: 'rgba(0,0,0,0.15)', borderRadius: 6, padding: '3px 10px', fontStyle: 'italic' }}>
+                  Sin revisor asignado
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

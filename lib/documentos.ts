@@ -102,13 +102,17 @@ export async function listarPendientesRevision(clienteId?: string) {
   const args = clienteId ? [clienteId] : []
   return queryAll(`
     SELECT d.*,
-           u.nombre        AS subido_por_nombre,
-           u.email         AS subido_por_email,
+           u.nombre         AS subido_por_nombre,
+           u.email          AS subido_por_email,
            c.razon_social,
+           c.admin_revision_id,
+           ar.nombre        AS admin_revision_nombre,
+           ar.email         AS admin_revision_email,
            oc.aspecto, oc.obligacion, oc.sub_titulo, oc.periodicidad, oc.servicio
     FROM documentos d
     JOIN users u ON u.id = d.uploaded_by
     JOIN clientes c ON c.id = d.cliente_id
+    LEFT JOIN users ar ON ar.id = c.admin_revision_id
     LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
     LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
     ${where}
