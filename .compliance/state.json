@@ -1,0 +1,174 @@
+{
+  "schema": 1,
+  "generated_at": "2026-06-22T22:50:52Z",
+  "git_commit": "1468c74",
+  "company": {
+    "razon_social": "Owl Compliance",
+    "nit": "[NIT por confirmar]",
+    "tamano": "micro",
+    "domicilio": "Bogotá, Cundinamarca, Colombia",
+    "responsable_tratamiento": "Nicolás Almeyda Orozco",
+    "email_contacto": "recordatorios@owlcompliance.co",
+    "marca": "Owl Compliance",
+    "url": "https://owlcompliance.co"
+  },
+  "active_packs": ["ley-1581"],
+  "rnbd": {
+    "obligada": false,
+    "razon": "Microempresa con activos <= 100.000 UVT, de naturaleza privada. No aplica la obligación de inscripción (Circular Única Título V, cap. 2.2).",
+    "inscrita": false,
+    "inscripcion_voluntaria_recomendada": false
+  },
+  "datos_especiales": {
+    "sensibles": false,
+    "menores": false
+  },
+  "controls": {
+    "gov-responsable": {
+      "status": "pass",
+      "evidence": "Nicolás Almeyda Orozco — representante legal designado como responsable de tratamiento (Art. 23 Ley 1581 — la SIC acepta al representante legal para empresas pequeñas).",
+      "remediation": "Formalizar la designación en la Política de Privacidad."
+    },
+    "gov-registro": {
+      "status": "pass",
+      "evidence": "Microempresa con activos <= 100.000 UVT, privada. No está obligada a inscribirse en el RNBD (Circular Única Título V, cap. 2.2). Control no aplicable.",
+      "remediation": ""
+    },
+    "gov-politicas": {
+      "status": "fail",
+      "evidence": "No se encontró política de tratamiento publicada en el repositorio ni enlazada desde el frontend.",
+      "remediation": "Publicar la política de privacidad en /privacidad y enlazarla desde el login y el pie de página. Usar docs/1581-politica-privacidad.md."
+    },
+    "gov-capacitacion": {
+      "status": "unknown",
+      "evidence": "No verificable por código.",
+      "remediation": "Documentar capacitación anual del equipo en protección de datos."
+    },
+    "gov-auditoria": {
+      "status": "partial",
+      "evidence": "audit_log tabla implementada (scripts/setup-db.mjs:110). Registra user_id, user_email, acción, entidad, IP. No hay proceso documentado de revisión periódica.",
+      "remediation": "Documentar revisión periódica del audit_log."
+    },
+    "gov-denuncias": {
+      "status": "fail",
+      "evidence": "No se encontró canal para que titulares ejerzan derechos de Habeas Data.",
+      "remediation": "Habilitar canal (email dedicado mínimo). Ver docs/1581-canal-habeas-data.md."
+    },
+    "data-licitud": {
+      "status": "fail",
+      "evidence": "El login (app/login/page.tsx) no muestra aviso de privacidad ni solicita autorización antes de recoger datos.",
+      "remediation": "Agregar aviso de privacidad y checkbox opt-in en el flujo de registro/primer acceso. Ver docs/1581-autorizacion-tratamiento.md."
+    },
+    "data-autorizacion": {
+      "status": "fail",
+      "evidence": "No hay captura ni conservación de la autorización del titular. lib/clientes.ts:crearCliente no registra autorización.",
+      "remediation": "Agregar autorizacion_otorgada_at y autorizacion_texto_version a tabla users. Ver docs/1581-autorizacion-tratamiento.md."
+    },
+    "data-derechos": {
+      "status": "fail",
+      "evidence": "No existen endpoints ni UI para ejercer derechos de Habeas Data.",
+      "remediation": "Implementar canal. Ver docs/1581-canal-habeas-data.md."
+    },
+    "data-info": {
+      "status": "fail",
+      "evidence": "No hay aviso de privacidad en ninguna ruta pública del app.",
+      "remediation": "Publicar aviso de privacidad accesible desde login. Ver docs/1581-aviso-privacidad.md."
+    },
+    "data-minimizacion": {
+      "status": "partial",
+      "evidence": "Tabla clientes recoge solo campos necesarios. No documentados plazos de retención ni proceso de borrado.",
+      "remediation": "Documentar plazos de retención en el RAT. Implementar proceso de supresión al terminar relación contractual."
+    },
+    "data-encargados": {
+      "status": "fail",
+      "evidence": "No se encontraron DPA firmados con Turso, Resend, Google, Microsoft.",
+      "remediation": "Verificar ToS de cada proveedor o suscribir DPA. Ver docs/1581-clausula-encargados.md."
+    },
+    "data-transfer": {
+      "status": "partial",
+      "evidence": "Proveedores: Turso (EE.UU.), Resend (EE.UU.), Google (EE.UU.), Microsoft (EE.UU.). Todos con nivel adecuado SIC (Título V, num. 3.2). Son transmisiones a encargados, no transferencias a responsables — no requieren autorización SIC.",
+      "remediation": "Verificar que los ToS de cada proveedor incluyan cláusulas de encargo."
+    },
+    "data-rights-channel": {
+      "status": "fail",
+      "evidence": "No existe canal visible para Habeas Data.",
+      "remediation": "Mínimo: email dedicado con plazos legales (10 días hábiles consulta, 15 reclamo). Ver docs/1581-canal-habeas-data.md."
+    },
+    "data-eipd": {
+      "status": "partial",
+      "evidence": "No hay datos sensibles ni menores. EIPD no obligatoria. Generada como buena práctica por riesgo de concentración en BD en la nube y tokens OAuth almacenados.",
+      "remediation": "Revisar y aprobar docs/1581-eipd.md anualmente."
+    },
+    "data-privacy-by-design": {
+      "status": "partial",
+      "evidence": "Segregación por cliente_id implementada. JWT con roles. Sin minimización explícita ni borrado automático.",
+      "remediation": "Documentar decisiones de privacidad desde el diseño en el RAT."
+    },
+    "data-pseudonym": {
+      "status": "fail",
+      "evidence": "No se encontró seudonimización en logs ni BD.",
+      "remediation": "Considerar hash de IP en audit_log."
+    },
+    "sec-tls": {
+      "status": "partial",
+      "evidence": "Producción (Fly.io + Turso): TLS aplicado. Dev local: HTTP. Sin HSTS explícito.",
+      "remediation": "Verificar que Fly.io fuerza HTTPS. Agregar header Strict-Transport-Security."
+    },
+    "sec-rest": {
+      "status": "partial",
+      "evidence": "Turso cifra en reposo (managed). SQLite local sin cifrado. storage_config puede contener tokens OAuth en claro.",
+      "remediation": "Cifrar storage_config antes de guardar en BD."
+    },
+    "sec-passwords": {
+      "status": "fail",
+      "evidence": "lib/auth.ts:7 y lib/clientes.ts:22 usan SHA-256 con salt fijo ('owl_salt_2026'). El comentario dice bcrypt pero la implementación es SHA-256, inseguro para contraseñas.",
+      "remediation": "CRÍTICO: Reemplazar por bcryptjs (ya en package.json) con costo >=12. Migrar hashes al primer login."
+    },
+    "sec-mfa": {
+      "status": "fail",
+      "evidence": "No hay MFA en ningún flujo de autenticación.",
+      "remediation": "Implementar TOTP o magic link para accesos de admin."
+    },
+    "sec-logs": {
+      "status": "pass",
+      "evidence": "audit_log implementado (scripts/setup-db.mjs:110). Registra user_email, acción, IP, detalle JSON.",
+      "remediation": ""
+    },
+    "sec-tenant": {
+      "status": "pass",
+      "evidence": "Segregación por cliente_id en todas las tablas. API routes verifican pertenencia (app/api/chat/route.ts:43-48, app/api/storage/config/route.ts:17-27).",
+      "remediation": ""
+    },
+    "sec-secrets": {
+      "status": "pass",
+      "evidence": "Variables de entorno para TURSO_AUTH_TOKEN, GOOGLE_CLIENT_SECRET, MICROSOFT_CLIENT_SECRET, RESEND_API_KEY. .env.local no commitado.",
+      "remediation": ""
+    },
+    "sec-backups": {
+      "status": "unknown",
+      "evidence": "Turso gestiona backups (proveedor managed). No hay documentación de RTO/RPO ni pruebas de restauración.",
+      "remediation": "Documentar política de backups de Turso y verificar restauración periódicamente."
+    },
+    "inc-brechas": {
+      "status": "fail",
+      "evidence": "No se encontró plan de respuesta a brechas ni procedimiento de notificación a la SIC.",
+      "remediation": "Ver docs/1581-plan-respuesta-brechas.md. Plazo legal: 15 días hábiles para notificar a la SIC."
+    },
+    "sec-monitoring": {
+      "status": "fail",
+      "evidence": "No hay alertas ni monitoreo sobre audit_log ni secret scanning.",
+      "remediation": "Implementar alertas sobre audit_log y monitoreo de errores. Ver references/build/monitoreo.md."
+    }
+  },
+  "frameworks": {
+    "ley-1581": {
+      "score": 0.31,
+      "controls_required": 26,
+      "pass": 5,
+      "partial": 6,
+      "fail": 13,
+      "unknown": 2,
+      "nota": "Score = (pass + 0.5·partial) / (controls_required - unknown) = (5 + 3) / 24 = 0.33. gov-registro ahora es pass (no obligada). gov-responsable ahora es pass (Nicolás Almeyda Orozco designado)."
+    }
+  }
+}
