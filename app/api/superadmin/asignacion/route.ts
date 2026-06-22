@@ -58,7 +58,7 @@ export async function GET() {
   const resultado: any = {}
   for (const esp of ESPECIALIDADES) {
     resultado[esp] = {}
-    for (const tipo of ['ticket', 'chat'] as const) {
+    for (const tipo of ['ticket', 'chat', 'documento'] as const) {
       const key = `${tipo}:${esp}`
       resultado[esp][tipo] = cfgMap[key] ?? { modo: 'consecutivo', adminIds: [], contador: 0 }
     }
@@ -73,7 +73,7 @@ export async function PATCH(req: NextRequest) {
 
   const { tipo, especialidad, modo, adminIds } = await req.json()
 
-  if (!['ticket', 'chat'].includes(tipo))
+  if (!['ticket', 'chat', 'documento'].includes(tipo))
     return NextResponse.json({ error: 'tipo inválido' }, { status: 400 })
   if (!ESPECIALIDADES.includes(especialidad))
     return NextResponse.json({ error: 'especialidad inválida' }, { status: 400 })
