@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { query, queryOne } from '@/lib/db'
+import { queryAll, queryOne } from '@/lib/db'
 import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
 import { notificarDocumentoSubido, notificarRevisionDocumento } from '@/lib/notificaciones'
 
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   // Notificar a todos los admins activos
   const clienteRow = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
-  const admins = await query('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
+  const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
   notificarDocumentoSubido({
     docId,
     cliente:       (clienteRow as any)?.razon_social ?? '',
