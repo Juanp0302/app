@@ -11,7 +11,19 @@ import { queryOne, queryAll, execute } from '@/lib/db'
 
 export const ESPECIALIDADES = ['financiera', 'tecnica', 'juridica', 'transversal'] as const
 export type Especialidad = typeof ESPECIALIDADES[number]
-export type TipoEntidad  = 'ticket' | 'chat'
+export type TipoEntidad  = 'ticket' | 'chat' | 'documento'
+
+/**
+ * Mapea el campo `aspecto` de un documento a la especialidad del sistema.
+ * ADMINISTRATIVO cae a transversal por afinidad.
+ */
+export function aspectoAEspecialidad(aspecto: string): Especialidad {
+  const a = aspecto.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  if (a.includes('FINANC'))  return 'financiera'
+  if (a.includes('TECNIC') || a.includes('TECN')) return 'tecnica'
+  if (a.includes('JURIDIC') || a.includes('JURID') || a.includes('LEGAL')) return 'juridica'
+  return 'transversal'
+}
 
 /** Crea la tabla si no existe (se llama desde las rutas API). */
 export async function ensureAsignacionTable(): Promise<void> {
@@ -95,7 +107,7 @@ export async function adminParaAsignacion(
 
 /** Guarda (upsert) la configuración para un tipo+especialidad. Resetea el contador. */
 export async function guardarAsignacionConfig(
-  tipo: TipoEntidad,
+  tipo: string,
   especialidad: string,
   modo: 'unico' | 'consecutivo',
   adminIds: string[]

@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react'
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
 const ESPECIALIDADES = ['financiera', 'tecnica', 'juridica', 'transversal'] as const
-const TIPOS          = ['ticket', 'chat'] as const
+const TIPOS          = ['ticket', 'chat', 'documento'] as const
 
 const ESP_LABEL: Record<string, string> = {
   financiera:  'Financiera',
@@ -19,8 +19,8 @@ const ESP_COLOR: Record<string, string> = {
   juridica:    '#f59e0b',
   transversal: '#8b5cf6',
 }
-const TIPO_LABEL: Record<string, string> = { ticket: 'Tickets', chat: 'Chats' }
-const TIPO_ICON:  Record<string, string> = { ticket: '🎫', chat: '💬' }
+const TIPO_LABEL: Record<string, string> = { ticket: 'Tickets', chat: 'Chats', documento: 'Documentos' }
+const TIPO_ICON:  Record<string, string> = { ticket: '🎫', chat: '💬', documento: '📁' }
 
 interface AdminInfo { id: string; nombre: string; email: string; especialidades: string[] }
 
@@ -142,8 +142,8 @@ export default function AsignacionClient() {
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.3rem,2.5vw,1.8rem)',
           fontWeight: 700, marginBottom: '0.4rem' }}>Reglas de Asignación</div>
         <p style={{ fontSize: '0.82rem', color: 'rgba(231,223,202,0.55)', marginBottom: '2.5rem', lineHeight: 1.7 }}>
-          Configura cómo se asignan los tickets y chats nuevos a cada administrador según su especialidad.
-          Los cambios aplican a las nuevas asignaciones; los tickets y chats existentes no se reasignan.
+          Configura cómo se asignan los tickets, chats y revisiones de documentos a cada administrador según su especialidad.
+          Los cambios aplican a las nuevas asignaciones; las existentes no se reasignan.
         </p>
 
         {error && (
@@ -233,8 +233,8 @@ export default function AsignacionClient() {
                         {/* Descripción del modo */}
                         <p style={{ fontSize: '0.72rem', color: 'rgba(231,223,202,0.4)', marginBottom: '1rem', lineHeight: 1.6 }}>
                           {celda.modo === 'consecutivo'
-                            ? 'Cada nuevo ticket/chat se asigna al siguiente admin en la lista, rotando en orden.'
-                            : 'Todos van al primer admin de la lista; él los redistribuye manualmente.'}
+                            ? `Cada nuevo ${TIPO_LABEL[tipo].toLowerCase().replace('s','')} se asigna al siguiente admin en la lista, rotando en orden.`
+                            : `Todos van al primer admin de la lista; él los redistribuye manualmente.`}
                         </p>
 
                         {/* Lista de admins disponibles */}

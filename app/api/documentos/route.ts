@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { queryAll, queryOne } from '@/lib/db'
 import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
 import { notificarDocumentoSubido, notificarRevisionDocumento } from '@/lib/notificaciones'
+import { adminParaAsignacion, aspectoAEspecialidad } from '@/lib/asignacion'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -93,20 +94,32 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await archivo.arrayBuffer())
   const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
 
-  // Notificar al admin revisor asignado, o a todos si no hay uno específico
+  // Determinar a quién notificar: 1) revisor manual del cliente, 2) asignación por especialidad, 3) todos
   const clienteRow = await queryOne(`
-    SELECT c.razon_social, u.email AS admin_revision_email
+    SELECT c.razon_social, c.admin_revision_id, u.email AS admin_revision_email
     FROM clientes c
     LEFT JOIN users u ON u.id = c.admin_revision_id AND u.activo = 1
     WHERE c.id = ?
   `, [clienteId]) as any
+
   let adminEmails: string[]
   if (clienteRow?.admin_revision_email) {
+    // Prioridad 1: revisor manual asignado al cliente
     adminEmails = [clienteRow.admin_revision_email]
   } else {
-    const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
-    adminEmails = (admins as any[]).map(a => a.email).filter(Boolean)
+    // Prioridad 2: asignación automática por especialidad del aspecto
+    const especialidad = aspectoAEspecialidad(aspecto)
+    const adminId = await adminParaAsignacion(especialidad, 'documento')
+    if (adminId) {
+      const adminRow = await queryOne('SELECT email FROM users WHERE id = ?', [adminId]) as any
+      adminEmails = adminRow?.email ? [adminRow.email] : []
+    } else {
+      // Fallback: notificar a todos los admins activos
+      const admins = await queryAll('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
+      adminEmails = (admins as any[]).map(a => a.email).filter(Boolean)
+    }
   }
+
   notificarDocumentoSubido({
     docId,
     cliente:       clienteRow?.razon_social ?? '',
