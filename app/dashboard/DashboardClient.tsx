@@ -15,6 +15,7 @@ export default function DashboardClient({
 
   const cards = isSuperadmin ? [
     { titulo: 'Vista Global',     desc: 'Tickets y chats asignados a cada administrador', href: '/dashboard/superadmin', icono: '🔭' },
+    { titulo: 'Chat',             desc: 'Conversaciones con clientes y administradores',  href: '/dashboard/chat',       icono: '💬' },
     { titulo: 'Tickets',          desc: 'Todos los tickets del sistema',                   href: '/dashboard/tickets',    icono: '🎫' },
     { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes',              href: '/dashboard/clientes',   icono: '👥' },
     { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',             href: '/dashboard/admins',     icono: '🛡️' },

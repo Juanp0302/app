@@ -60,11 +60,28 @@ export default function SuperadminClient() {
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em',
           textTransform: 'uppercase', color: C.olivo }}>Vista Global — Super Administrador</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <a href="/dashboard/chat" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: C.marfil, textDecoration: 'none',
+            border: `1px solid rgba(231,223,202,0.3)`, borderRadius: 6, padding: '0.3rem 0.8rem' }}>
+            Chats
+          </a>
           <a href="/dashboard/tickets" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
             border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem' }}>
-            Ver tickets
+            Tickets
+          </a>
+          <a href="/api/superadmin/exportar?tipo=clientes" download style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: '#34d399', textDecoration: 'none',
+            border: '1px solid rgba(52,211,153,0.4)', borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: 'rgba(52,211,153,0.08)' }}>
+            Exportar clientes
+          </a>
+          <a href="/api/superadmin/exportar?tipo=admins" download style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: '#60a5fa', textDecoration: 'none',
+            border: '1px solid rgba(96,165,250,0.4)', borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: 'rgba(96,165,250,0.08)' }}>
+            Exportar admins
           </a>
           <a href="/signout" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.15em',
             textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>
@@ -76,10 +93,28 @@ export default function SuperadminClient() {
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
 
         {/* Título */}
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem,2.5vw,1.9rem)',
-          fontWeight: 700, marginBottom: '0.3rem' }}>Vista General de Operaciones</div>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
-          color: C.olivo, marginBottom: '2.5rem' }}>Tickets y chats por administrador</div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '2.5rem' }}>
+          <div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem,2.5vw,1.9rem)',
+              fontWeight: 700, marginBottom: '0.3rem' }}>Vista General de Operaciones</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
+              color: C.olivo }}>Tickets y chats por administrador</div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <a href="/api/superadmin/exportar?tipo=clientes" download
+              style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: '#34d399', textDecoration: 'none', border: '1px solid rgba(52,211,153,0.35)',
+                borderRadius: 8, padding: '0.5rem 1rem', background: 'rgba(52,211,153,0.08)' }}>
+              Exportar estadísticas clientes (CSV)
+            </a>
+            <a href="/api/superadmin/exportar?tipo=admins" download
+              style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: '#60a5fa', textDecoration: 'none', border: '1px solid rgba(96,165,250,0.35)',
+                borderRadius: 8, padding: '0.5rem 1rem', background: 'rgba(96,165,250,0.08)' }}>
+              Exportar estadísticas admins (CSV)
+            </a>
+          </div>
+        </div>
 
         {/* Alertas: urgentes */}
         {urgentes.length > 0 && (
