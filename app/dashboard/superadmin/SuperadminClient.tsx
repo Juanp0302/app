@@ -19,6 +19,14 @@ function numTicket(n: any) {
   return `#${String(n).padStart(4, '0')}`
 }
 
+function formatHoras(h: number | null | undefined): string {
+  if (h === null || h === undefined || isNaN(Number(h))) return '—'
+  const n = Number(h)
+  if (n < 1)  return `${Math.round(n * 60)} min`
+  if (n < 24) return `${Math.round(n)} h`
+  return `${(n / 24).toFixed(1)} días`
+}
+
 function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
     <div style={{ background: 'rgba(231,223,202,0.06)', border: '1px solid rgba(150,134,34,0.2)',
@@ -204,7 +212,7 @@ export default function SuperadminClient() {
                     textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '0.6rem' }}>
                     Tickets
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                     <StatCard label="Total"       value={a.tickets.total}       />
                     <StatCard label="Abiertos"    value={a.tickets.abiertos}    color="#3b82f6" />
                     <StatCard label="En progreso" value={a.tickets.en_progreso} color="#f59e0b" />
@@ -213,6 +221,14 @@ export default function SuperadminClient() {
                     {a.tickets.urgentes > 0 && (
                       <StatCard label="Urgentes" value={a.tickets.urgentes} color="#dc2626" />
                     )}
+                    <div style={{ background: 'rgba(231,223,202,0.06)', border: '1px solid rgba(150,134,34,0.2)',
+                      borderRadius: 10, padding: '0.9rem 1.1rem', minWidth: 90, textAlign: 'center' }}>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 700, color: a.tickets.avg_horas_respuesta === null ? '#6b7280' : '#f59e0b' }}>
+                        {formatHoras(a.tickets.avg_horas_respuesta)}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: 'rgba(231,223,202,0.45)', marginTop: 2 }}>Resp. promedio</div>
+                    </div>
                   </div>
                 </div>
 
@@ -221,10 +237,18 @@ export default function SuperadminClient() {
                     textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '0.6rem' }}>
                     Chats
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <StatCard label="Total"   value={a.chats.total}   />
-                    <StatCard label="Activos" value={a.chats.activas} color="#3b82f6" />
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <StatCard label="Total"    value={a.chats.total}   />
+                    <StatCard label="Activos"  value={a.chats.activas}  color="#3b82f6" />
                     <StatCard label="Cerrados" value={a.chats.cerradas} color="#6b7280" />
+                    <div style={{ background: 'rgba(231,223,202,0.06)', border: '1px solid rgba(150,134,34,0.2)',
+                      borderRadius: 10, padding: '0.9rem 1.1rem', minWidth: 90, textAlign: 'center' }}>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 700, color: a.chats.avg_horas_respuesta === null ? '#6b7280' : '#f59e0b' }}>
+                        {formatHoras(a.chats.avg_horas_respuesta)}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: 'rgba(231,223,202,0.45)', marginTop: 2 }}>Resp. promedio</div>
+                    </div>
                   </div>
                 </div>
               </div>

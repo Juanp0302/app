@@ -19,6 +19,14 @@ function toRow(cols: any[]): string {
   return cols.map(escapeCsv).join(',')
 }
 
+function fmtHoras(h: number | null | undefined): string {
+  if (h === null || h === undefined || isNaN(Number(h))) return '—'
+  const n = Number(h)
+  if (n < 1)  return `${Math.round(n * 60)} min`
+  if (n < 24) return `${Math.round(n)} h`
+  return `${(n / 24).toFixed(1)} días`
+}
+
 export async function GET(req: NextRequest) {
   const session = await auth()
   const user = session?.user as any
@@ -49,6 +57,20 @@ export async function GET(req: NextRequest) {
        FROM tickets t GROUP BY t.admin_id`
     ) as any[]
 
+    const ticketTiempos = await queryAll(
+      `SELECT t.admin_id,
+              AVG((JULIANDAY(pr.created_at) - JULIANDAY(t.created_at)) * 24) AS avg_horas
+       FROM tickets t
+       JOIN (
+         SELECT r.ticket_id, MIN(r.created_at) AS created_at
+         FROM ticket_respuestas r
+         JOIN users u ON u.id = r.user_id AND u.rol = 'admin'
+         GROUP BY r.ticket_id
+       ) pr ON pr.ticket_id = t.id
+       WHERE t.admin_id IS NOT NULL
+       GROUP BY t.admin_id`
+    ) as any[]
+
     const chatStats = await queryAll(
       `SELECT c.admin_id,
               COUNT(*)                                                 AS total,
@@ -57,16 +79,36 @@ export async function GET(req: NextRequest) {
        FROM conversaciones c GROUP BY c.admin_id`
     ) as any[]
 
-    const tMap: Record<string, any> = {}
-    for (const r of ticketStats) tMap[r.admin_id ?? ''] = r
-    const cMap: Record<string, any> = {}
-    for (const r of chatStats) cMap[r.admin_id ?? ''] = r
+    const chatTiempos = await queryAll(
+      `SELECT c.admin_id,
+              AVG((JULIANDAY(pm.created_at) - JULIANDAY(c.created_at)) * 24) AS avg_horas
+       FROM conversaciones c
+       JOIN (
+         SELECT m.conversacion_id, MIN(m.created_at) AS created_at
+         FROM mensajes m
+         JOIN users u ON u.id = m.user_id AND u.rol = 'admin'
+         GROUP BY m.conversacion_id
+       ) pm ON pm.conversacion_id = c.id
+       WHERE c.admin_id IS NOT NULL
+       GROUP BY c.admin_id`
+    ) as any[]
+
+    const tMap:  Record<string, any> = {}
+    for (const r of ticketStats)   tMap[r.admin_id ?? '']  = r
+    const cMap:  Record<string, any> = {}
+    for (const r of chatStats)     cMap[r.admin_id ?? '']  = r
+    const ttMap: Record<string, number | null> = {}
+    for (const r of ticketTiempos) ttMap[r.admin_id ?? ''] = r.avg_horas
+    const ctMap: Record<string, number | null> = {}
+    for (const r of chatTiempos)   ctMap[r.admin_id ?? ''] = r.avg_horas
 
     const header = [
       'Nombre', 'Email',
       'Tickets total', 'Tickets abiertos', 'Tickets en progreso',
       'Tickets resueltos', 'Tickets cerrados', 'Tickets urgentes',
+      'Tiempo resp. tickets (promedio)',
       'Chats total', 'Chats activos', 'Chats cerrados',
+      'Tiempo resp. chats (promedio)',
     ]
     const rows = [header.join(',')]
 
@@ -76,7 +118,9 @@ export async function GET(req: NextRequest) {
       rows.push(toRow([
         a.nombre, a.email,
         t.total, t.abiertos, t.en_progreso, t.resueltos, t.cerrados, t.urgentes,
+        fmtHoras(ttMap[a.id]),
         c.total, c.activas, c.cerradas,
+        fmtHoras(ctMap[a.id]),
       ]))
     }
     csv = rows.join('\r\n')
@@ -103,23 +147,55 @@ export async function GET(req: NextRequest) {
        ORDER BY c.razon_social`
     ) as any[]
 
+    const ticketTiempos = await queryAll(
+      `SELECT t.cliente_id,
+              AVG((JULIANDAY(pr.created_at) - JULIANDAY(t.created_at)) * 24) AS avg_horas
+       FROM tickets t
+       JOIN (
+         SELECT r.ticket_id, MIN(r.created_at) AS created_at
+         FROM ticket_respuestas r
+         JOIN users u ON u.id = r.user_id AND u.rol = 'admin'
+         GROUP BY r.ticket_id
+       ) pr ON pr.ticket_id = t.id
+       GROUP BY t.cliente_id`
+    ) as any[]
+
+    const chatTiempos = await queryAll(
+      `SELECT cv.cliente_id,
+              AVG((JULIANDAY(pm.created_at) - JULIANDAY(cv.created_at)) * 24) AS avg_horas
+       FROM conversaciones cv
+       JOIN (
+         SELECT m.conversacion_id, MIN(m.created_at) AS created_at
+         FROM mensajes m
+         JOIN users u ON u.id = m.user_id AND u.rol = 'admin'
+         GROUP BY m.conversacion_id
+       ) pm ON pm.conversacion_id = cv.id
+       GROUP BY cv.cliente_id`
+    ) as any[]
+
+    const ttMap: Record<string, number | null> = {}
+    for (const r of ticketTiempos as any[]) ttMap[(r as any).cliente_id] = (r as any).avg_horas
+    const ctMap: Record<string, number | null> = {}
+    for (const r of chatTiempos as any[])   ctMap[(r as any).cliente_id] = (r as any).avg_horas
+
     const header = [
       'Razón social', 'NIT', 'Contacto', 'Email empresa', 'Teléfono',
       'Email usuario', 'Nombre usuario', 'Servicios',
       'Total obligaciones', 'Cumplidas', 'En progreso', 'Vencidas', 'Pendientes',
       '% Cumplimiento',
+      'Tiempo resp. tickets (promedio)', 'Tiempo resp. chats (promedio)',
     ]
     const rows = [header.join(',')]
 
     for (const c of clientes) {
-      const pct = c.total_obl > 0
-        ? Math.round((c.cumplidas / c.total_obl) * 100)
-        : 0
+      const pct = c.total_obl > 0 ? Math.round((c.cumplidas / c.total_obl) * 100) : 0
       rows.push(toRow([
         c.razon_social, c.nit, c.contacto, c.email, c.telefono,
         c.user_email, c.user_nombre, c.num_servicios,
         c.total_obl, c.cumplidas, c.en_progreso, c.vencidas, c.pendientes,
         `${pct}%`,
+        fmtHoras(ttMap[c.id]),
+        fmtHoras(ctMap[c.id]),
       ]))
     }
     csv = rows.join('\r\n')

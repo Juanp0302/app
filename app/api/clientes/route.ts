@@ -33,10 +33,45 @@ export async function GET() {
     GROUP BY c.id ORDER BY c.razon_social
   `)
 
+  // Tiempo promedio de respuesta en tickets por cliente (horas hasta primera respuesta de admin)
+  const ticketTiempos = await queryAll(`
+    SELECT t.cliente_id,
+           AVG((JULIANDAY(pr.created_at) - JULIANDAY(t.created_at)) * 24) AS avg_horas
+    FROM tickets t
+    JOIN (
+      SELECT r.ticket_id, MIN(r.created_at) AS created_at
+      FROM ticket_respuestas r
+      JOIN users u ON u.id = r.user_id AND u.rol = 'admin'
+      GROUP BY r.ticket_id
+    ) pr ON pr.ticket_id = t.id
+    GROUP BY t.cliente_id
+  `)
+
+  // Tiempo promedio de respuesta en chats por cliente
+  const chatTiempos = await queryAll(`
+    SELECT cv.cliente_id,
+           AVG((JULIANDAY(pm.created_at) - JULIANDAY(cv.created_at)) * 24) AS avg_horas
+    FROM conversaciones cv
+    JOIN (
+      SELECT m.conversacion_id, MIN(m.created_at) AS created_at
+      FROM mensajes m
+      JOIN users u ON u.id = m.user_id AND u.rol = 'admin'
+      GROUP BY m.conversacion_id
+    ) pm ON pm.conversacion_id = cv.id
+    GROUP BY cv.cliente_id
+  `)
+
+  const ttMap: Record<string, number | null> = {}
+  for (const r of ticketTiempos as any[]) ttMap[(r as any).cliente_id] = (r as any).avg_horas
+  const ctMap: Record<string, number | null> = {}
+  for (const r of chatTiempos as any[])  ctMap[(r as any).cliente_id] = (r as any).avg_horas
+
   const result = (clientes as any[]).map(c => ({
     ...c,
     servicios: c.servicios ? c.servicios.split(',') : [],
     pct: c.total_obl ? Math.round((c.cumplidas / c.total_obl) * 100) : 0,
+    avg_horas_ticket: ttMap[c.id] ?? null,
+    avg_horas_chat:   ctMap[c.id] ?? null,
   }))
   return NextResponse.json(result)
 }

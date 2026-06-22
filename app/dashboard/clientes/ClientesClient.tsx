@@ -28,23 +28,33 @@ function pctColor(pct: number) {
 }
 
 interface Cliente {
-  id:           string
-  razon_social: string
-  nit:          string
-  contacto:     string
-  email:        string
-  telefono:     string
-  user_email:   string
-  user_nombre:  string
-  activo:       number
-  servicios:    string[]
-  total_obl:    number
-  cumplidas:    number
-  en_progreso:  number
-  vencidas:     number
-  pendientes:   number
-  pct:          number
-  created_at:   string
+  id:                string
+  razon_social:      string
+  nit:               string
+  contacto:          string
+  email:             string
+  telefono:          string
+  user_email:        string
+  user_nombre:       string
+  activo:            number
+  servicios:         string[]
+  total_obl:         number
+  cumplidas:         number
+  en_progreso:       number
+  vencidas:          number
+  pendientes:        number
+  pct:               number
+  created_at:        string
+  avg_horas_ticket:  number | null
+  avg_horas_chat:    number | null
+}
+
+function formatHoras(h: number | null | undefined): string {
+  if (h === null || h === undefined || isNaN(Number(h))) return '—'
+  const n = Number(h)
+  if (n < 1)  return `${Math.round(n * 60)} min`
+  if (n < 24) return `${Math.round(n)} h`
+  return `${(n / 24).toFixed(1)} días`
 }
 
 const SERVICIO_FORM_INIT = {
@@ -371,7 +381,7 @@ export default function ClientesClient({
           </div>
           {modalDetalle.nit && <div style={{ fontSize:'0.72rem', color:'rgba(231,223,202,0.5)', marginBottom:'1.5rem' }}>NIT {modalDetalle.nit}</div>}
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1.5rem' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1.25rem' }}>
             {[
               { label:'Contacto',   val: modalDetalle.contacto ?? '—' },
               { label:'Email',      val: modalDetalle.email ?? '—' },
@@ -381,6 +391,20 @@ export default function ClientesClient({
               <div key={r.label}>
                 <div style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.45)', marginBottom:'0.2rem' }}>{r.label}</div>
                 <div style={{ fontSize:'0.85rem' }}>{r.val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tiempos de respuesta */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem', marginBottom:'1.5rem' }}>
+            {[
+              { label:'Tiempo respuesta tickets', val: formatHoras(modalDetalle.avg_horas_ticket), color: modalDetalle.avg_horas_ticket === null ? 'rgba(231,223,202,0.3)' : modalDetalle.avg_horas_ticket < 4 ? '#16a34a' : modalDetalle.avg_horas_ticket < 24 ? '#f59e0b' : '#dc2626' },
+              { label:'Tiempo respuesta chats',   val: formatHoras(modalDetalle.avg_horas_chat),   color: modalDetalle.avg_horas_chat   === null ? 'rgba(231,223,202,0.3)' : modalDetalle.avg_horas_chat   < 4 ? '#16a34a' : modalDetalle.avg_horas_chat   < 24 ? '#f59e0b' : '#dc2626' },
+            ].map(r => (
+              <div key={r.label} style={{ background:'rgba(0,0,0,0.2)', borderRadius:10, padding:'0.75rem 1rem' }}>
+                <div style={{ fontSize:'0.58rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.4)', marginBottom:'0.3rem' }}>{r.label}</div>
+                <div style={{ fontSize:'1.2rem', fontWeight:700, color: r.color }}>{r.val}</div>
+                <div style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.35)', marginTop:'0.15rem' }}>Promedio primera respuesta del equipo Owl</div>
               </div>
             ))}
           </div>
