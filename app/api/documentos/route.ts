@@ -6,8 +6,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { queryOne } from '@/lib/db'
+import { query, queryOne } from '@/lib/db'
 import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
+import { notificarDocumentoSubido, notificarRevisionDocumento } from '@/lib/notificaciones'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -92,6 +93,19 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await archivo.arrayBuffer())
   const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
 
+  // Notificar a todos los admins activos
+  const clienteRow = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
+  const admins = await query('SELECT email FROM users WHERE rol = ? AND activo = 1', ['admin'])
+  notificarDocumentoSubido({
+    docId,
+    cliente:       (clienteRow as any)?.razon_social ?? '',
+    aspecto,
+    obligacion,
+    nombreArchivo: archivo.name,
+    adminEmails:   (admins as any[]).map(a => a.email).filter(Boolean),
+    fecha:         new Date().toLocaleString('es-CO'),
+  })
+
   return NextResponse.json({ ok: true, docId })
 }
 
@@ -155,5 +169,31 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'El motivo de rechazo es obligatorio' }, { status: 400 })
 
   await revisarDocumento(docId, user.id ?? '', user.email ?? '', aprobado, comentario ?? '')
+
+  // Notificar al cliente
+  const doc = await queryOne(`
+    SELECT d.nombre_archivo, d.aspecto, d.obligacion,
+           c.razon_social, u.email AS cliente_email, u.nombre AS admin_nombre
+    FROM documentos d
+    JOIN clientes c ON c.id = d.cliente_id
+    JOIN users cu ON cu.id = c.user_id
+    LEFT JOIN users u ON u.id = d.revisado_por
+    WHERE d.id = ?
+  `, [docId]) as any
+  if (doc?.cliente_email) {
+    notificarRevisionDocumento({
+      docId,
+      cliente:       doc.razon_social  ?? '',
+      cliente_email: doc.cliente_email,
+      aspecto:       doc.aspecto       ?? '',
+      obligacion:    doc.obligacion    ?? '',
+      nombreArchivo: doc.nombre_archivo ?? '',
+      aprobado,
+      comentario:    comentario ?? '',
+      adminNombre:   user.email ?? '',
+      fecha:         new Date().toLocaleString('es-CO'),
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }
