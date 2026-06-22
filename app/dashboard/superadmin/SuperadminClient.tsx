@@ -70,6 +70,12 @@ export default function SuperadminClient() {
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em',
           textTransform: 'uppercase', color: C.olivo }}>Vista Global — Super Administrador</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <a href="/dashboard/superadmin/asignacion" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
+            border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: 'rgba(150,134,34,0.08)' }}>
+            Reglas de asignación
+          </a>
           <a href="/dashboard/chat" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: C.marfil, textDecoration: 'none',
             border: `1px solid rgba(231,223,202,0.3)`, borderRadius: 6, padding: '0.3rem 0.8rem' }}>

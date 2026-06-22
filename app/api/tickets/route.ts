@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import { notificarAsignacion } from '@/lib/notificaciones'
+import { adminParaAsignacion } from '@/lib/asignacion'
 import crypto from 'crypto'
 
 const TIPOS       = ['financiera','tecnica','juridica','transversal']
@@ -23,14 +24,9 @@ async function resolveClienteId(user: any, param: string | null) {
   return param
 }
 
+/** @deprecated — reemplazado por adminParaAsignacion de lib/asignacion */
 async function adminParaTipo(tipo: string) {
-  const row = await queryOne(
-    `SELECT ae.user_id FROM admin_especialidades ae
-     JOIN users u ON u.id = ae.user_id
-     WHERE ae.tipo = ? AND u.activo = 1 LIMIT 1`,
-    [tipo]
-  )
-  return row ? (row as any).user_id : null
+  return adminParaAsignacion(tipo, 'ticket')
 }
 
 /** Cierra automáticamente tickets sin actividad por más de 2 días */
