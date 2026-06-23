@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { execute } from '@/lib/db'
+import { encryptStorageConfig } from '@/lib/storage-crypto'
 
 export async function GET(req: NextRequest) {
   const code      = req.nextUrl.searchParams.get('code')
@@ -43,14 +44,14 @@ export async function GET(req: NextRequest) {
   if (!res.ok) return NextResponse.redirect(redirectErr)
   const tokens = await res.json()
 
-  const config = JSON.stringify({
+  const config = encryptStorageConfig({
     type:          'googledrive',
     access_token:  tokens.access_token,
     refresh_token: tokens.refresh_token,
     token_expiry:  Date.now() + (tokens.expires_in ?? 3600) * 1000,
   })
 
-  await execute(`UPDATE clientes SET storage_type='googledrive', storage_config=? WHERE id=?`, [config, clienteId])
+  await execute(`UPDATE clientes SET storage_type='googledrive', storage_config=? WHERE id=?`, [JSON.stringify(config), clienteId])
 
   return NextResponse.redirect(redirectOk)
 }

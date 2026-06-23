@@ -5,6 +5,7 @@
 
 import { db, queryOne, queryAll, execute } from './db'
 import crypto from 'crypto'
+import { hashPassword } from './password'
 
 export interface ClienteInput {
   razon_social: string
@@ -18,17 +19,13 @@ export interface ClienteInput {
   user_password: string
 }
 
-function hashPassword(pwd: string) {
-  return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
-}
-
 export async function crearCliente(input: ClienteInput) {
   const userId    = crypto.randomUUID()
   const clienteId = crypto.randomUUID()
 
   const stmts: { sql: string; args: any[] }[] = [
     { sql: `INSERT INTO users (id, email, password, nombre, rol) VALUES (?, ?, ?, ?, 'cliente')`,
-      args: [userId, input.user_email, hashPassword(input.user_password), input.user_nombre] },
+      args: [userId, input.user_email, await hashPassword(input.user_password), input.user_nombre] },
     { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [clienteId, userId, input.razon_social, input.nit ?? null, input.contacto ?? null, input.email ?? null, input.telefono ?? null] },
   ]

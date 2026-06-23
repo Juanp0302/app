@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import crypto from 'crypto'
-
-function hashPassword(pwd: string) {
-  return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
-}
+import { hashPassword } from '@/lib/password'
 
 async function requireAdmin() {
   const session = await auth()
@@ -37,7 +34,7 @@ export async function POST(req: NextRequest) {
   const id = crypto.randomUUID()
   await execute(
     `INSERT INTO users (id, email, password, nombre, rol) VALUES (?, ?, ?, ?, 'admin')`,
-    [id, email, hashPassword(password), nombre]
+    [id, email, await hashPassword(password), nombre]
   )
   return NextResponse.json({ ok: true, id }, { status: 201 })
 }
@@ -74,7 +71,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'La contraseña debe tener al menos 8 caracteres' }, { status: 400 })
     await execute(
       `UPDATE users SET nombre = ?, email = ?, password = ? WHERE id = ? AND rol = 'admin'`,
-      [nombre, email, hashPassword(password), id]
+      [nombre, email, await hashPassword(password), id]
     )
   } else {
     await execute(

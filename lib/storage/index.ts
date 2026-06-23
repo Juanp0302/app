@@ -3,6 +3,7 @@ import { queryOne, execute } from '@/lib/db'
 import { LocalProvider }      from './local'
 import { GoogleDriveProvider } from './googledrive'
 import { MicrosoftProvider }   from './microsoft'
+import { decryptStorageConfig, encryptStorageConfig } from '@/lib/storage-crypto'
 import type { StorageConfig, IStorageProvider } from './types'
 
 export * from './types'
@@ -15,12 +16,12 @@ export async function getStorageConfig(clienteId: string): Promise<StorageConfig
   const type   = ((row as any).storage_type ?? 'local') as StorageConfig['type']
   let parsed: Partial<StorageConfig> = {}
   try { parsed = JSON.parse((row as any).storage_config ?? '{}') } catch {}
-  return { type, ...parsed }
+  return { type, ...decryptStorageConfig(parsed) }
 }
 
 export async function saveStorageConfig(clienteId: string, partial: Partial<StorageConfig>): Promise<void> {
   const current = await getStorageConfig(clienteId)
-  const updated = { ...current, ...partial }
+  const updated = encryptStorageConfig({ ...current, ...partial })
   await execute(`UPDATE clientes SET storage_config = ? WHERE id = ?`, [JSON.stringify(updated), clienteId])
 }
 

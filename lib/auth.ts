@@ -1,11 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
-import crypto from 'crypto'
 import { authConfig } from './auth.config'
-
-function hashPassword(pwd: string): string {
-  return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
-}
+import { verifyPassword } from './password'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -18,13 +14,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-        const { queryOne } = await import('./db')
+        const { queryOne, execute } = await import('./db')
         const user = await queryOne(
           'SELECT * FROM users WHERE email = ? AND activo = 1',
           [credentials.email as string]
         )
         if (!user) return null
-        if (hashPassword(credentials.password as string) !== (user as any).password) return null
+
+        const { ok, rehash } = await verifyPassword(
+          credentials.password as string,
+          (user as any).password
+        )
+        if (!ok) return null
+
+        // Migración silenciosa: si el hash era SHA-256, reemplazar por bcrypt
+        if (rehash) {
+          await execute(
+            `UPDATE users SET password = ? WHERE id = ?`,
+            [rehash, (user as any).id]
+          )
+        }
+
         return {
           id:            (user as any).id,
           email:         (user as any).email,

@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { execute } from '@/lib/db'
+import { encryptStorageConfig } from '@/lib/storage-crypto'
 
 export async function GET(req: NextRequest) {
   const code      = req.nextUrl.searchParams.get('code')
@@ -51,14 +52,15 @@ export async function GET(req: NextRequest) {
   if (!res.ok) return NextResponse.redirect(redirectErr)
   const tokens = await res.json()
 
-  const config: Record<string, any> = {
+  const rawConfig: Record<string, any> = {
     type:          storageType,
     access_token:  tokens.access_token,
     refresh_token: tokens.refresh_token,
     token_expiry:  Date.now() + (tokens.expires_in ?? 3600) * 1000,
   }
-  if (storageType === 'sharepoint' && siteUrl) config.site_url = siteUrl
+  if (storageType === 'sharepoint' && siteUrl) rawConfig.site_url = siteUrl
 
+  const config = encryptStorageConfig(rawConfig)
   await execute(`UPDATE clientes SET storage_type=?, storage_config=? WHERE id=?`, [storageType, JSON.stringify(config), clienteId])
 
   return NextResponse.redirect(redirectOk)
