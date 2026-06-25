@@ -88,8 +88,12 @@ export default function RevisionesClient() {
           setResultado(r => { const c = { ...r }; delete c[docId]; return c })
         }, 1200)
       } else {
-        const j = await res.json()
-        alert(j.error ?? 'Error al guardar')
+        let mensaje = 'Error al guardar la revisión'
+        try {
+          const j = await res.json()
+          mensaje = j.error ?? mensaje
+        } catch { /* respuesta no es JSON */ }
+        alert(mensaje)
         setResultado(r => ({ ...r, [docId]: 'error' }))
       }
     } finally { setRevisando(null) }

@@ -34,6 +34,8 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
   const [editForm,      setEditForm]      = useState(EDIT_FORM_INIT)
   const [editSaving,    setEditSaving]    = useState(false)
   const [editError,     setEditError]     = useState('')
+  const [showPwd,       setShowPwd]       = useState(false)
+  const [showEditPwd,   setShowEditPwd]   = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -208,14 +210,28 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
               ))}
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Nueva contraseña <span style={{ fontWeight: 400, color: '#999' }}>(dejar vacío para no cambiar)</span></label>
-                <input style={inp} type="password" value={editForm.password}
-                  onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} />
+                <div style={{ position: 'relative' }}>
+                  <input style={{ ...inp, width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }}
+                    type={showEditPwd ? 'text' : 'password'} value={editForm.password}
+                    onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} />
+                  <button type="button" onClick={() => setShowEditPwd(v => !v)}
+                    style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(39,2,5,0.45)', fontSize:'1rem' }}>
+                    {showEditPwd ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               {editForm.password && (
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Confirmar contraseña</label>
-                  <input style={inp} type="password" value={editForm.confirmar}
-                    onChange={e => setEditForm(f => ({ ...f, confirmar: e.target.value }))} />
+                  <div style={{ position: 'relative' }}>
+                    <input style={{ ...inp, width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }}
+                      type={showEditPwd ? 'text' : 'password'} value={editForm.confirmar}
+                      onChange={e => setEditForm(f => ({ ...f, confirmar: e.target.value }))} />
+                    <button type="button" onClick={() => setShowEditPwd(v => !v)}
+                      style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(39,2,5,0.45)', fontSize:'1rem' }}>
+                      {showEditPwd ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
               )}
               {editError && <p style={{ color: '#dc2626', fontSize: 13, margin: 0 }}>{editError}</p>}
@@ -234,13 +250,37 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
           <div style={{ background: '#fff', borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <h2 style={{ margin: '0 0 1.5rem', color: C.vino, fontSize: 20 }}>Nuevo administrador</h2>
             <form onSubmit={crear} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[['Nombre completo','nombre','text'],['Email','email','email'],['Contraseña','password','password'],['Confirmar contraseña','confirmar','password']].map(([label, key, type]) => (
+              {[['Nombre completo','nombre','text'],['Email','email','email']].map(([label, key, type]) => (
                 <div key={key}>
                   <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>{label}</label>
                   <input style={inp} type={type} required value={(form as any)[key]}
                     onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
                 </div>
               ))}
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Contraseña</label>
+                <div style={{ position: 'relative' }}>
+                  <input style={{ ...inp, width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }}
+                    type={showPwd ? 'text' : 'password'} required value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+                  <button type="button" onClick={() => setShowPwd(v => !v)}
+                    style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(39,2,5,0.45)', fontSize:'1rem' }}>
+                    {showPwd ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Confirmar contraseña</label>
+                <div style={{ position: 'relative' }}>
+                  <input style={{ ...inp, width: '100%', paddingRight: '2.5rem', boxSizing: 'border-box' }}
+                    type={showPwd ? 'text' : 'password'} required value={form.confirmar}
+                    onChange={e => setForm(f => ({ ...f, confirmar: e.target.value }))} />
+                  <button type="button" onClick={() => setShowPwd(v => !v)}
+                    style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(39,2,5,0.45)', fontSize:'1rem' }}>
+                    {showPwd ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
               {error && <p style={{ color: '#dc2626', fontSize: 13, margin: 0 }}>{error}</p>}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
                 <button type="button" style={btn('#f0f0f0', '#333')} onClick={() => setModalNuevo(false)}>Cancelar</button>

@@ -97,6 +97,8 @@ export default function ClientesClient({
   const [editError,   setEditError]   = useState('')
   const [admins,      setAdmins]      = useState<AdminSimple[]>([])
   const [asignandoRev, setAsignandoRev] = useState(false)
+  const [showPwd,     setShowPwd]     = useState(false)
+  const [showEditPwd, setShowEditPwd] = useState(false)
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -602,9 +604,15 @@ export default function ClientesClient({
                 <Field label="Email de acceso" type="email" value={editForm.user_email} onChange={v => setEditForm(f => ({...f, user_email:v}))} />
                 <div>
                   <label style={labelStyle}>Nueva contraseña <span style={{ fontWeight:400, color:'rgba(231,223,202,0.35)' }}>(vacío = sin cambio)</span></label>
-                  <input type="password" value={editForm.user_password}
-                    onChange={e => setEditForm(f => ({...f, user_password:e.target.value}))}
-                    style={{ ...inputStyle, width:'100%' }} />
+                  <div style={{ position:'relative' }}>
+                    <input type={showEditPwd ? 'text' : 'password'} value={editForm.user_password}
+                      onChange={e => setEditForm(f => ({...f, user_password:e.target.value}))}
+                      style={{ ...inputStyle, width:'100%', paddingRight:'2.5rem', boxSizing:'border-box' }} />
+                    <button type="button" onClick={() => setShowEditPwd(v => !v)}
+                      style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(231,223,202,0.4)', fontSize:'1rem' }}>
+                      {showEditPwd ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -649,7 +657,18 @@ export default function ClientesClient({
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
                 <Field label="Nombre completo *" required value={form.user_nombre}   onChange={v => setForm(f => ({...f, user_nombre:v}))} />
                 <Field label="Email de acceso *" required type="email" value={form.user_email} onChange={v => setForm(f => ({...f, user_email:v}))} />
-                <Field label="Contraseña *" required type="password" value={form.user_password} onChange={v => setForm(f => ({...f, user_password:v}))} />
+                <div>
+                  <label style={labelStyle}>Contraseña *</label>
+                  <div style={{ position:'relative' }}>
+                    <input type={showPwd ? 'text' : 'password'} required value={form.user_password}
+                      onChange={e => setForm(f => ({...f, user_password:e.target.value}))}
+                      style={{ ...inputStyle, width:'100%', paddingRight:'2.5rem', boxSizing:'border-box' }} />
+                    <button type="button" onClick={() => setShowPwd(v => !v)}
+                      style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(231,223,202,0.4)', fontSize:'1rem' }}>
+                      {showPwd ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 

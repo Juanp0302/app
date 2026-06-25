@@ -196,31 +196,39 @@ export async function PATCH(req: NextRequest) {
   if (!aprobado && !comentario?.trim())
     return NextResponse.json({ error: 'El motivo de rechazo es obligatorio' }, { status: 400 })
 
-  await revisarDocumento(docId, user.id ?? '', user.email ?? '', aprobado, comentario ?? '')
+  try {
+    await revisarDocumento(docId, user.id ?? '', user.email ?? '', aprobado, comentario ?? '')
+  } catch (err: any) {
+    console.error('[PATCH /api/documentos] revisarDocumento falló:', err)
+    return NextResponse.json({ error: err?.message ?? 'Error al guardar la revisión' }, { status: 500 })
+  }
 
-  // Notificar al cliente
-  const doc = await queryOne(`
-    SELECT d.nombre_archivo, d.aspecto, d.obligacion,
-           c.razon_social, u.email AS cliente_email, u.nombre AS admin_nombre
-    FROM documentos d
-    JOIN clientes c ON c.id = d.cliente_id
-    JOIN users cu ON cu.id = c.user_id
-    LEFT JOIN users u ON u.id = d.revisado_por
-    WHERE d.id = ?
-  `, [docId]) as any
-  if (doc?.cliente_email) {
-    notificarRevisionDocumento({
-      docId,
-      cliente:       doc.razon_social  ?? '',
-      cliente_email: doc.cliente_email,
-      aspecto:       doc.aspecto       ?? '',
-      obligacion:    doc.obligacion    ?? '',
-      nombreArchivo: doc.nombre_archivo ?? '',
-      aprobado,
-      comentario:    comentario ?? '',
-      adminNombre:   user.email ?? '',
-      fecha:         new Date().toLocaleString('es-CO'),
-    })
+  // Notificar al cliente (no bloqueante)
+  try {
+    const doc = await queryOne(`
+      SELECT d.nombre_archivo, d.aspecto, d.obligacion,
+             c.razon_social, cu.email AS cliente_email
+      FROM documentos d
+      JOIN clientes c ON c.id = d.cliente_id
+      JOIN users cu ON cu.id = c.user_id
+      WHERE d.id = ?
+    `, [docId]) as any
+    if (doc?.cliente_email) {
+      notificarRevisionDocumento({
+        docId,
+        cliente:       doc.razon_social  ?? '',
+        cliente_email: doc.cliente_email,
+        aspecto:       doc.aspecto       ?? '',
+        obligacion:    doc.obligacion    ?? '',
+        nombreArchivo: doc.nombre_archivo ?? '',
+        aprobado,
+        comentario:    comentario ?? '',
+        adminNombre:   user.email ?? '',
+        fecha:         new Date().toLocaleString('es-CO'),
+      })
+    }
+  } catch (e) {
+    console.error('[PATCH /api/documentos] notificación falló (no crítico):', e)
   }
 
   return NextResponse.json({ ok: true })

@@ -7,10 +7,11 @@ import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [error,    setError]    = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [error,       setError]       = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -123,23 +124,38 @@ export default function LoginPage() {
             }}>
               Contraseña
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '0.8rem 1rem',
-                border: '1.5px solid rgba(39,2,5,0.2)',
-                borderRadius: '8px',
-                background: 'white',
-                fontSize: '0.9rem',
-                color: '#270205',
-                outline: 'none',
-                fontFamily: 'inherit',
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.8rem 2.8rem 0.8rem 1rem',
+                  border: '1.5px solid rgba(39,2,5,0.2)',
+                  borderRadius: '8px',
+                  background: 'white',
+                  fontSize: '0.9rem',
+                  color: '#270205',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                style={{
+                  position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  color: 'rgba(39,2,5,0.45)', fontSize: '1rem', lineHeight: 1,
+                }}
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           {error && (

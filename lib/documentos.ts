@@ -149,13 +149,17 @@ export async function revisarDocumento(
     )
   }
 
-  await execute(
-    `INSERT INTO audit_log (id, user_id, user_email, accion, entidad, entidad_id, detalle) VALUES (?, ?, ?, ?, 'documento', ?, ?)`,
-    [crypto.randomUUID(), adminId, adminEmail,
-      aprobado ? 'documento_aprobado' : 'documento_rechazado',
-      docId,
-      JSON.stringify({ estado, comentario: comentario || null })]
-  )
+  try {
+    await execute(
+      `INSERT INTO audit_log (id, user_id, user_email, accion, entidad, entidad_id, detalle) VALUES (?, ?, ?, ?, 'documento', ?, ?)`,
+      [crypto.randomUUID(), adminId, adminEmail,
+        aprobado ? 'documento_aprobado' : 'documento_rechazado',
+        docId,
+        JSON.stringify({ estado, comentario: comentario || null })]
+    )
+  } catch (e) {
+    console.error('[revisarDocumento] audit_log insert falló (no crítico):', e)
+  }
 }
 
 export type BorradoScope = 'todo' | 'servicio' | 'aspecto' | 'obligacion'
