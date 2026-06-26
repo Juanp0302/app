@@ -30,6 +30,7 @@ export default function DashboardClient({
     { titulo: 'Documentos',       desc: 'Acreditación de cumplimiento ante el Ministerio',          href: '/dashboard/documentos',      icono: '📁' },
     ...(!isAdmin ? [{ titulo: 'Almacenamiento', desc: 'Conecta Google Drive, OneDrive o SharePoint para guardar tus documentos', href: '/dashboard/almacenamiento', icono: '☁️' }] : []),
     ...(isAdmin ? [{ titulo: 'Revisiones', desc: 'Revisar y aprobar documentos subidos por los clientes', href: '/dashboard/revisiones', icono: '🔍' }] : []),
+    ...(isAdmin ? [{ titulo: 'Mensajería interna', desc: 'Canal general y mensajes directos entre administradores', href: '/dashboard/mensajeria', icono: '🗨️' }] : []),
     { titulo: 'Chat',    desc: isAdmin ? 'Conversaciones con clientes por tipo de obligación' : 'Conversaciones con tu equipo de cumplimiento', href: '/dashboard/chat',    icono: '💬' },
     { titulo: 'Tickets', desc: isAdmin ? 'Gestión de solicitudes y soporte regulatorio'       : 'Solicitudes de soporte y consultas regulatorias', href: '/dashboard/tickets', icono: '🎫' },
   ]
