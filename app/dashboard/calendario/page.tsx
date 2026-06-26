@@ -26,7 +26,7 @@ export default async function CalendarioPage({
     ? (await queryAll('SELECT id, razon_social, nit FROM clientes WHERE activo=1 ORDER BY razon_social') as any[])
     : []
 
-  const resolvedId = clienteId ?? clientes[0]?.id ?? null
+  const resolvedId = clienteId ?? (clientes.length > 0 ? 'general' : null)
 
   return (
     <CalendarioClient

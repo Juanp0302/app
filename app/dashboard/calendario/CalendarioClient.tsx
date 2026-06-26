@@ -60,6 +60,8 @@ export default function CalendarioClient({
   const [loading,    setLoading]    = useState(false)
   const [diaSelec,   setDiaSelec]   = useState<string | null>(null)  // YYYY-MM-DD
 
+  const isGeneral = clienteId === 'general'
+
   const cargar = useCallback(async (cid: string, yr: number) => {
     setLoading(true)
     try {
@@ -135,15 +137,23 @@ export default function CalendarioClient({
           {userRole === 'admin' && clientes.length > 0 && (
             <div style={{ marginBottom:'1.5rem' }}>
               <select
-                value={clienteId ?? ''}
-                onChange={e => setClienteId(e.target.value)}
+                value={clienteId ?? 'general'}
+                onChange={e => { setClienteId(e.target.value); setDiaSelec(null) }}
                 style={{ background:'rgba(231,223,202,0.08)', border:'1px solid rgba(150,134,34,0.35)', borderRadius:'8px', padding:'0.7rem 1rem', color:C.marfil, fontSize:'0.9rem', fontFamily:'inherit', width:'100%', maxWidth:'420px', cursor:'pointer' }}
               >
-                <option value="" disabled>Selecciona un cliente…</option>
+                <option value="general" style={{ background:C.vino, fontWeight:700 }}>Vista general — todos los clientes</option>
+                <option value="" disabled style={{ background:C.vino, color:'rgba(231,223,202,0.3)' }}>── Clientes ──</option>
                 {clientes.map((c:any) => (
                   <option key={c.id} value={c.id} style={{ background:C.vino }}>{c.razon_social}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* Indicador modo general */}
+          {isGeneral && userRole === 'admin' && (
+            <div style={{ marginBottom:'1rem', padding:'0.6rem 1rem', background:'rgba(150,134,34,0.08)', border:'1px solid rgba(150,134,34,0.2)', borderRadius:'8px', fontSize:'0.72rem', color:'rgba(231,223,202,0.55)', letterSpacing:'0.05em' }}>
+              Mostrando obligaciones consolidadas de todos los clientes activos. Selecciona un cliente para ver su estado individual.
             </div>
           )}
 
@@ -287,9 +297,14 @@ export default function CalendarioClient({
                       <div style={{ fontSize:'0.68rem', color:'rgba(231,223,202,0.5)', marginBottom:'0.3rem' }}>
                         {ev.sub_titulo}
                       </div>
-                      <div style={{ display:'flex', gap:'0.5rem' }}>
+                      <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
                         <span style={{ fontSize:'0.6rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', background:`${aspColor}22`, color:aspColor, padding:'0.15rem 0.5rem', borderRadius:'8px' }}>{ev.aspecto}</span>
                         <span style={{ fontSize:'0.6rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', background:'rgba(150,134,34,0.12)', color:C.olivo, padding:'0.15rem 0.5rem', borderRadius:'8px' }}>{ev.periodicidad}</span>
+                        {isGeneral && ev.num_clientes != null && (
+                          <span style={{ fontSize:'0.6rem', fontWeight:700, letterSpacing:'0.06em', background:'rgba(231,223,202,0.08)', color:'rgba(231,223,202,0.55)', padding:'0.15rem 0.5rem', borderRadius:'8px' }}>
+                            {ev.cumplidas_count}/{ev.num_clientes} clientes
+                          </span>
+                        )}
                       </div>
                     </div>
                   )
