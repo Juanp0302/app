@@ -32,17 +32,19 @@ const ESTADO_COLOR: Record<string, string> = {
 }
 
 interface Evento {
-  obl_id:       string
-  fecha:        string
-  label:        string
-  urgencia:     string
-  estado:       string
-  sub_titulo:   string
-  obligacion:   string
-  aspecto:      string
-  grupo:        string
-  servicio:     string
-  periodicidad: string
+  obl_id:         string
+  fecha:          string
+  label:          string
+  urgencia:       string
+  estado:         string
+  sub_titulo:     string
+  obligacion:     string
+  aspecto:        string
+  grupo:          string
+  servicio:       string
+  periodicidad:   string
+  num_clientes?:  number
+  cumplidas_count?: number
 }
 
 export default function CalendarioClient({
