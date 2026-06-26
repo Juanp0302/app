@@ -57,6 +57,7 @@ export default function RevisionesClient() {
   const [comentarios,  setComentarios]  = useState<Record<string, string>>({})
   const [expandidos,   setExpandidos]   = useState<Set<string>>(new Set())
   const [resultado,    setResultado]    = useState<Record<string, 'ok' | 'error'>>({})
+  const [aprobados,    setAprobados]    = useState<Record<string, boolean>>({})
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -82,11 +83,16 @@ export default function RevisionesClient() {
         body:    JSON.stringify({ docId, aprobado, comentario }),
       })
       if (res.ok) {
+        // Feedback inmediato: marcar aprobado/rechazado y colapsar panel
+        setAprobados(r => ({ ...r, [docId]: aprobado }))
         setResultado(r => ({ ...r, [docId]: 'ok' }))
+        setExpandidos(prev => { const s = new Set(prev); s.delete(docId); return s })
+        // Quitar de la lista después de un breve instante
         setTimeout(() => {
           setDocs(prev => prev.filter(d => d.id !== docId))
           setResultado(r => { const c = { ...r }; delete c[docId]; return c })
-        }, 1200)
+          setAprobados(r => { const c = { ...r }; delete c[docId]; return c })
+        }, 900)
       } else {
         let mensaje = 'Error al guardar la revisión'
         try {
@@ -205,15 +211,19 @@ export default function RevisionesClient() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {cdocs.map(doc => {
-                const color    = ASPECTO_COLOR[doc.aspecto ?? ''] ?? C.olivo
-                const expanded = expandidos.has(doc.id)
-                const ok       = resultado[doc.id] === 'ok'
-                const isBusy   = revisando === doc.id
+                const color      = ASPECTO_COLOR[doc.aspecto ?? ''] ?? C.olivo
+                const expanded   = expandidos.has(doc.id)
+                const ok         = resultado[doc.id] === 'ok'
+                const isBusy     = revisando === doc.id
+                const fueAprobado = aprobados[doc.id]
+
+                const bgColor  = ok ? (fueAprobado ? 'rgba(16,185,129,0.08)' : 'rgba(220,38,38,0.06)') : 'rgba(231,223,202,0.04)'
+                const bdrColor = ok ? (fueAprobado ? 'rgba(16,185,129,0.4)'  : 'rgba(220,38,38,0.3)')  : 'rgba(150,134,34,0.2)'
 
                 return (
                   <div key={doc.id} style={{
-                    background: ok ? 'rgba(16,185,129,0.08)' : 'rgba(231,223,202,0.04)',
-                    border: `1px solid ${ok ? 'rgba(16,185,129,0.4)' : 'rgba(150,134,34,0.2)'}`,
+                    background: bgColor,
+                    border: `1px solid ${bdrColor}`,
                     borderRadius: 12, overflow: 'hidden',
                     transition: 'border-color 0.3s, background 0.3s',
                   }}>
@@ -343,9 +353,12 @@ export default function RevisionesClient() {
 
                     {/* Confirmación visual */}
                     {ok && (
-                      <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(16,185,129,0.2)',
-                        background: 'rgba(16,185,129,0.06)', fontSize: '0.78rem', color: '#34d399' }}>
-                        Revisión guardada correctamente.
+                      <div style={{ padding: '0.75rem 1.25rem',
+                        borderTop: `1px solid ${fueAprobado ? 'rgba(16,185,129,0.2)' : 'rgba(220,38,38,0.2)'}`,
+                        background: fueAprobado ? 'rgba(16,185,129,0.06)' : 'rgba(220,38,38,0.06)',
+                        fontSize: '0.78rem',
+                        color: fueAprobado ? '#34d399' : '#f87171' }}>
+                        {fueAprobado ? '✓ Documento aprobado correctamente.' : '✕ Documento rechazado.'}
                       </div>
                     )}
                   </div>

@@ -205,9 +205,22 @@ export default function DocumentosClient({
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ docId, aprobado, comentario }),
       })
-      if (!res.ok) { const j = await res.json(); alert(j.error ?? 'Error'); return }
-      if (clienteId) cargar(clienteId)
+      let errorMsg = ''
+      if (!res.ok) {
+        try { const j = await res.json(); errorMsg = j.error ?? 'Error al guardar' } catch { errorMsg = 'Error al guardar' }
+        alert(errorMsg)
+        return
+      }
+      // Actualización inmediata del estado local sin refetch
+      setGrupos(prev => prev.map(g => ({
+        ...g,
+        archivos: g.archivos.map(a => a.id === docId
+          ? { ...a, estado_revision: aprobado ? 'aprobado' : 'rechazado', revision_comentario: comentario || null }
+          : a
+        ),
+      })))
       setRevExpandidos(prev => { const s = new Set(prev); s.delete(docId); return s })
+      setRevComentarios(prev => { const c = { ...prev }; delete c[docId]; return c })
     } finally { setRevisando(null) }
   }
 
