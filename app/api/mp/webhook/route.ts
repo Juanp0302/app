@@ -4,7 +4,7 @@
  * URL en panel MP: https://owlcompliance.onrender.com/api/mp/webhook
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { queryOne, execute } from '@/lib/db'
+import { db, queryOne, execute } from '@/lib/db'
 import { obtenerSuscripcion, obtenerPago } from '@/lib/mercadopago'
 import { migrateSuscripcion, PLANES, PlanKey } from '@/lib/suscripcion'
 import { notificarSuscripcion, notificarBienvenida } from '@/lib/notificaciones'
@@ -83,8 +83,6 @@ async function crearCuentaNueva(opts: {
     },
   ]
 
-  // Usar db.batch para la transacción
-  const { db } = await import('@/lib/db')
   await db.batch(stmts, 'write')
 
   // Enviar email de bienvenida con credenciales
