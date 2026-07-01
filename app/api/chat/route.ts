@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import { notificarAsignacion, notificarSinAsignar } from '@/lib/notificaciones'
 import { adminParaAsignacion } from '@/lib/asignacion'
+import { puedeCrearChat, incrementarContador } from '@/lib/suscripcion'
 import crypto from 'crypto'
 
 const TIPOS = ['financiera','tecnica','juridica','transversal']
@@ -96,12 +97,27 @@ export async function POST(req: NextRequest) {
     const clienteId = await resolveClienteId(user, cIdParam)
     if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
 
+    // Verificar límite de suscripción (solo para clientes)
+    if (user.role === 'cliente') {
+      const permiso = await puedeCrearChat(clienteId)
+      if (!permiso.ok) {
+        if (permiso.razon === 'suscripcion_suspendida')
+          return NextResponse.json({ error: 'Tu suscripción está suspendida. Renueva tu plan para continuar.', codigo: 'SUSCRIPCION_SUSPENDIDA' }, { status: 403 })
+        if (permiso.razon === 'limite_alcanzado')
+          return NextResponse.json({
+            error: `Alcanzaste el límite de ${permiso.limite} chat${permiso.limite !== 1 ? 's' : ''} de tu plan ${permiso.plan}. Actualiza tu plan para continuar.`,
+            codigo: 'LIMITE_CHATS', limite: permiso.limite, usado: permiso.usado, plan: permiso.plan,
+          }, { status: 403 })
+      }
+    }
+
     const adminId = await adminParaTipo(tipo)
     const id = crypto.randomUUID()
     await execute(
       `INSERT INTO conversaciones (id, cliente_id, admin_id, tipo, asunto) VALUES (?,?,?,?,?)`,
       [id, clienteId, adminId, tipo, asunto]
     )
+    if (user.role === 'cliente') await incrementarContador(clienteId, 'chat')
 
     const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [clienteId])
     const razonSocial = (cliente as any)?.razon_social ?? ''

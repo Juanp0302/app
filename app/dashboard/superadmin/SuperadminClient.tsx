@@ -40,19 +40,46 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 }
 
 export default function SuperadminClient() {
-  const [data,       setData]       = useState<any>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [asignando,  setAsignando]  = useState<string | null>(null)
-  const [selAdmin,   setSelAdmin]   = useState<Record<string, string>>({})
-  const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+  const [data,          setData]          = useState<any>(null)
+  const [loading,       setLoading]       = useState(true)
+  const [asignando,     setAsignando]     = useState<string | null>(null)
+  const [selAdmin,      setSelAdmin]      = useState<Record<string, string>>({})
+  const [expandidos,    setExpandidos]    = useState<Set<string>>(new Set())
+  const [clientes,      setClientes]      = useState<any[]>([])
+  const [planGuardando, setPlanGuardando] = useState<string | null>(null)
+  const [planSel,       setPlanSel]       = useState<Record<string, string>>({})
+  const [estadoSel,     setEstadoSel]     = useState<Record<string, string>>({})
 
   async function cargar() {
-    const d = await fetch('/api/superadmin').then(r => r.json())
+    const [d, cl] = await Promise.all([
+      fetch('/api/superadmin').then(r => r.json()),
+      fetch('/api/clientes').then(r => r.json()),
+    ])
     setData(d)
+    setClientes(Array.isArray(cl) ? cl : [])
     setLoading(false)
   }
 
   useEffect(() => { cargar() }, [])
+
+  async function guardarPlan(clienteId: string) {
+    const plan   = planSel[clienteId]
+    const estado = estadoSel[clienteId]
+    if (!plan && !estado) return
+    setPlanGuardando(clienteId)
+    try {
+      await fetch('/api/suscripcion', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId, plan: plan || undefined, estado: estado || undefined }),
+      })
+      setPlanSel(p  => { const c = { ...p };  delete c[clienteId]; return c })
+      setEstadoSel(p => { const c = { ...p }; delete c[clienteId]; return c })
+      await cargar()
+    } finally {
+      setPlanGuardando(null)
+    }
+  }
 
   async function reasignar(tipo: string, id: string) {
     const adminId = selAdmin[id]
@@ -450,6 +477,84 @@ export default function SuperadminClient() {
             </div>
           )}
         </div>
+
+        {/* ── Suscripciones de clientes ── */}
+        <div style={{ marginTop: '2.5rem' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
+            color: C.olivo, marginBottom: '1.2rem' }}>
+            Suscripciones de clientes ({clientes.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {clientes.map((c: any) => {
+              const planActual   = c.plan ?? null
+              const estadoActual = c.suscripcion_estado ?? 'trial'
+              const estadoColor  = estadoActual === 'activa' ? '#16a34a' : estadoActual === 'suspendida' ? '#dc2626' : estadoActual === 'cancelada' ? '#6b7280' : '#3b82f6'
+              const planLabel    = planActual === 'basico' ? 'Básico' : planActual === 'pro' ? 'Pro' : planActual === 'premium' ? 'Premium' : '—'
+              const busy         = planGuardando === c.id
+              const hayCambios   = planSel[c.id] !== undefined || estadoSel[c.id] !== undefined
+
+              return (
+                <div key={c.id} style={{ background: 'rgba(231,223,202,0.04)', border: '1px solid rgba(150,134,34,0.15)',
+                  borderRadius: 10, padding: '0.9rem 1.2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  {/* Nombre */}
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{c.razon_social}</div>
+                    <div style={{ fontSize: '0.65rem', color: 'rgba(231,223,202,0.4)' }}>{c.user_email}</div>
+                  </div>
+                  {/* Estado actual */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, background: `${estadoColor}18`,
+                      color: estadoColor, border: `1px solid ${estadoColor}40`,
+                      padding: '0.2rem 0.7rem', borderRadius: 20 }}>
+                      {planLabel} · {estadoActual}
+                    </span>
+                    {c.suscripcion_vencimiento && (
+                      <span style={{ fontSize: '0.62rem', color: 'rgba(231,223,202,0.35)' }}>
+                        hasta {c.suscripcion_vencimiento}
+                      </span>
+                    )}
+                  </div>
+                  {/* Selectores */}
+                  <select value={planSel[c.id] ?? planActual ?? ''}
+                    onChange={e => setPlanSel(p => ({ ...p, [c.id]: e.target.value }))}
+                    style={{ background: 'rgba(231,223,202,0.07)', border: '1px solid rgba(150,134,34,0.3)',
+                      borderRadius: 6, padding: '0.35rem 0.6rem', color: C.marfil, fontSize: '0.72rem',
+                      fontFamily: 'inherit', cursor: 'pointer' }}>
+                    <option value="">Sin plan</option>
+                    <option value="basico">Básico — $199.000</option>
+                    <option value="pro">Pro — $890.000</option>
+                    <option value="premium">Premium — $2.490.000</option>
+                  </select>
+                  <select value={estadoSel[c.id] ?? estadoActual}
+                    onChange={e => setEstadoSel(p => ({ ...p, [c.id]: e.target.value }))}
+                    style={{ background: 'rgba(231,223,202,0.07)', border: '1px solid rgba(150,134,34,0.3)',
+                      borderRadius: 6, padding: '0.35rem 0.6rem', color: C.marfil, fontSize: '0.72rem',
+                      fontFamily: 'inherit', cursor: 'pointer' }}>
+                    <option value="trial">Trial</option>
+                    <option value="activa">Activa</option>
+                    <option value="suspendida">Suspendida</option>
+                    <option value="cancelada">Cancelada</option>
+                  </select>
+                  <button onClick={() => guardarPlan(c.id)} disabled={busy || !hayCambios}
+                    style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                      background: hayCambios ? 'rgba(150,134,34,0.2)' : 'transparent',
+                      color: hayCambios ? C.olivo : 'rgba(231,223,202,0.2)',
+                      border: `1px solid ${hayCambios ? C.olivo : 'rgba(231,223,202,0.1)'}`,
+                      borderRadius: 6, padding: '0.35rem 0.85rem', cursor: hayCambios ? 'pointer' : 'default',
+                      fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                    {busy ? '…' : 'Guardar'}
+                  </button>
+                </div>
+              )
+            })}
+            {clientes.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(231,223,202,0.3)', fontSize: '0.82rem' }}>
+                No hay clientes registrados.
+              </div>
+            )}
+          </div>
+        </div>
+
       </main>
     </div>
   )

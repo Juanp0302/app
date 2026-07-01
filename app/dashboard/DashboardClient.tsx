@@ -6,10 +6,12 @@ export default function DashboardClient({
   userName,
   userRole,
   isSuperadmin,
+  suscripcion,
 }: {
-  userName: string
-  userRole: string
+  userName:     string
+  userRole:     string
   isSuperadmin?: boolean
+  suscripcion?: any
 }) {
   const isAdmin = userRole === 'admin'
 
@@ -33,6 +35,7 @@ export default function DashboardClient({
     ...(isAdmin ? [{ titulo: 'Mensajería interna', desc: 'Canal general y mensajes directos entre administradores', href: '/dashboard/mensajeria', icono: '🗨️' }] : []),
     { titulo: 'Chat',    desc: isAdmin ? 'Conversaciones con clientes por tipo de obligación' : 'Conversaciones con tu equipo de cumplimiento', href: '/dashboard/chat',    icono: '💬' },
     { titulo: 'Tickets', desc: isAdmin ? 'Gestión de solicitudes y soporte regulatorio'       : 'Solicitudes de soporte y consultas regulatorias', href: '/dashboard/tickets', icono: '🎫' },
+    ...(!isAdmin ? [{ titulo: 'Mi suscripción', desc: 'Consulta tu plan actual, uso del mes y opciones de upgrade', href: '/dashboard/suscripcion', icono: '📦' }] : []),
   ]
 
   return (
@@ -59,9 +62,14 @@ export default function DashboardClient({
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 700, marginBottom: '0.5rem' }}>
           Bienvenido, {userName.split(' ')[0]}
         </div>
-        <div style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.olivo, marginBottom: '3rem' }}>
+        <div style={{ fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.olivo, marginBottom: suscripcion ? '1.5rem' : '3rem' }}>
           Centro de Cumplimiento Regulatorio
         </div>
+
+        {/* Banner de suscripción para clientes */}
+        {suscripcion && !isAdmin && (
+          <SuscripcionBanner suscripcion={suscripcion} />
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
           {cards.map(card => (
@@ -69,6 +77,51 @@ export default function DashboardClient({
           ))}
         </div>
       </main>
+    </div>
+  )
+}
+
+function SuscripcionBanner({ suscripcion }: { suscripcion: any }) {
+  const { planLabel, estado, tickets, chats } = suscripcion
+  if (!planLabel) return null
+
+  const ticketsPct = tickets.limite ? Math.round((tickets.usado / tickets.limite) * 100) : 0
+  const chatsPct   = chats.limite   ? Math.round((chats.usado   / chats.limite)   * 100) : 0
+  const alerta     = ticketsPct >= 80 || chatsPct >= 80
+
+  return (
+    <div style={{
+      background: alerta ? 'rgba(245,158,11,0.08)' : 'rgba(231,223,202,0.04)',
+      border: `1px solid ${alerta ? 'rgba(245,158,11,0.3)' : 'rgba(150,134,34,0.2)'}`,
+      borderRadius: '10px', padding: '1rem 1.4rem', marginBottom: '2rem',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', flexWrap: 'wrap' }}>
+        <div>
+          <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)' }}>Plan </span>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.olivo }}>{planLabel}</span>
+        </div>
+        <MiniBar label="Tickets" usado={tickets.usado} limite={tickets.limite} />
+        <MiniBar label="Chats"   usado={chats.usado}   limite={chats.limite}   />
+      </div>
+      <a href="/dashboard/suscripcion" style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.olivo, textDecoration: 'none', border: '1px solid rgba(150,134,34,0.35)', padding: '0.35rem 0.85rem', borderRadius: '6px' }}>
+        Ver plan
+      </a>
+    </div>
+  )
+}
+
+function MiniBar({ label, usado, limite }: { label: string; usado: number; limite: number | null }) {
+  if (!limite) return null
+  const pct   = Math.min(100, Math.round((usado / limite) * 100))
+  const color = pct >= 100 ? '#dc2626' : pct >= 80 ? '#f59e0b' : '#16a34a'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <span style={{ fontSize: '0.68rem', color: 'rgba(231,223,202,0.5)' }}>{label}:</span>
+      <span style={{ fontSize: '0.72rem', fontWeight: 700, color }}>{usado}/{limite}</span>
+      <div style={{ width: '48px', height: '4px', background: 'rgba(231,223,202,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '2px' }} />
+      </div>
     </div>
   )
 }

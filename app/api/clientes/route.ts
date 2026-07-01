@@ -31,6 +31,8 @@ export async function GET() {
            u.email AS user_email, u.nombre AS user_nombre, u.activo AS user_activo,
            c.admin_revision_id,
            ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
+           c.plan, c.suscripcion_estado, c.suscripcion_vencimiento,
+           c.tickets_mes, c.chats_mes,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,
            SUM(CASE WHEN co.estado = 'cumplida'    THEN 1 ELSE 0 END) AS cumplidas,
