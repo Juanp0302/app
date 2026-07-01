@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { queryOne, execute } from '@/lib/db'
 import { obtenerSuscripcion, obtenerPago } from '@/lib/mercadopago'
 import { migrateSuscripcion } from '@/lib/suscripcion'
+import { notificarSuscripcion } from '@/lib/notificaciones'
 
 function addDays(n: number) {
   const d = new Date()
@@ -14,18 +15,25 @@ function addDays(n: number) {
   return d.toISOString().slice(0, 10)
 }
 
+async function getCliente(clienteId: string) {
+  return queryOne(
+    `SELECT c.id, c.plan, c.razon_social, u.email
+     FROM clientes c JOIN users u ON u.id = c.user_id
+     WHERE c.id = ?`,
+    [clienteId]
+  ) as Promise<any>
+}
+
 async function handlePreapproval(mpId: string) {
   await migrateSuscripcion()
   const sub = await obtenerSuscripcion(mpId)
 
-  // external_reference = clienteId en nuestra DB
   const clienteId = sub.external_reference
   if (!clienteId) return
 
-  const cliente = await queryOne('SELECT id FROM clientes WHERE id = ?', [clienteId])
+  const cliente = await getCliente(clienteId)
   if (!cliente) return
 
-  // Mapear estados de MP a nuestros estados
   const ESTADO: Record<string, string> = {
     authorized: 'activa',
     pending:    'trial',
@@ -36,16 +44,15 @@ async function handlePreapproval(mpId: string) {
   const nuevoEstado = ESTADO[estadoMP] ?? 'suspendida'
 
   if (nuevoEstado === 'activa') {
-    // Activar: guardar ID, establecer vencimiento +30 días, resetear contadores
     await execute(
       `UPDATE clientes
-       SET mp_subscription_id   = ?,
-           suscripcion_estado    = 'activa',
-           suscripcion_inicio    = datetime('now'),
-           suscripcion_vencimiento = ?,
-           tickets_mes           = 0,
-           chats_mes             = 0,
-           conteo_reset_at       = strftime('%Y-%m', 'now')
+       SET mp_subscription_id      = ?,
+           suscripcion_estado       = 'activa',
+           suscripcion_inicio       = datetime('now'),
+           suscripcion_vencimiento  = ?,
+           tickets_mes              = 0,
+           chats_mes                = 0,
+           conteo_reset_at          = strftime('%Y-%m', 'now')
        WHERE id = ?`,
       [mpId, addDays(30), clienteId]
     )
@@ -55,21 +62,31 @@ async function handlePreapproval(mpId: string) {
       [nuevoEstado, clienteId]
     )
   }
+
+  // Notificar por email al superadmin
+  try {
+    await notificarSuscripcion({
+      clienteId,
+      cliente:      cliente.razon_social,
+      clienteEmail: cliente.email,
+      plan:         cliente.plan ?? sub.reason ?? '—',
+      estado:       nuevoEstado,
+      fecha:        new Date().toLocaleString('es-CO'),
+    })
+  } catch {}
 }
 
 async function handlePayment(paymentId: string) {
   await migrateSuscripcion()
   const pago = await obtenerPago(paymentId)
 
-  // Solo procesar pagos de suscripciones aprobados
   if (pago.status !== 'approved') return
   if (!pago.external_reference) return
 
   const clienteId = pago.external_reference as string
-  const cliente = await queryOne('SELECT id FROM clientes WHERE id = ?', [clienteId])
+  const cliente = await getCliente(clienteId)
   if (!cliente) return
 
-  // Pago exitoso → extender vencimiento 30 días más, resetear contadores del mes
   await execute(
     `UPDATE clientes
      SET suscripcion_estado      = 'activa',
@@ -80,17 +97,27 @@ async function handlePayment(paymentId: string) {
      WHERE id = ?`,
     [addDays(30), clienteId]
   )
+
+  // Notificar pago exitoso
+  try {
+    await notificarSuscripcion({
+      clienteId,
+      cliente:      cliente.razon_social,
+      clienteEmail: cliente.email,
+      plan:         cliente.plan ?? '—',
+      estado:       'activa',
+      fecha:        new Date().toLocaleString('es-CO'),
+    })
+  } catch {}
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const tipo    = body.type   as string | undefined
-    const dataId  = body.data?.id as string | undefined
+    const body  = await req.json()
+    const tipo   = body.type      as string | undefined
+    const dataId = body.data?.id  as string | undefined
 
-    if (!tipo || !dataId) {
-      return NextResponse.json({ ok: true })
-    }
+    if (!tipo || !dataId) return NextResponse.json({ ok: true })
 
     if (tipo === 'subscription_preapproval') {
       await handlePreapproval(dataId)
@@ -101,7 +128,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     console.error('[mp/webhook]', err?.message ?? err)
-    // Devolver 200 de todas formas para que MP no reintente
     return NextResponse.json({ ok: true })
   }
 }

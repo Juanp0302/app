@@ -6,7 +6,7 @@
 
 export interface NotificacionParams {
   id:            string
-  tipo_entidad:  'ticket' | 'chat' | 'documento_subido' | 'documento_revisado'
+  tipo_entidad:  'ticket' | 'chat' | 'documento_subido' | 'documento_revisado' | 'suscripcion'
   especialidad:  string
   asunto:        string
   cliente:       string
@@ -83,6 +83,30 @@ export async function notificarDocumentoSubido(params: {
       fecha:        params.fecha,
     })
   ))
+}
+
+export async function notificarSuscripcion(params: {
+  clienteId:    string
+  cliente:      string
+  clienteEmail: string
+  plan:         string
+  estado:       string   // 'activa' | 'suspendida' | 'cancelada'
+  fecha:        string
+}): Promise<void> {
+  const superadminEmail = process.env.SUPERADMIN_EMAIL ?? 'owlcompliance2026@gmail.com'
+  const planLabel = params.plan === 'basico' ? 'Básico' : params.plan === 'pro' ? 'Pro' : params.plan === 'premium' ? 'Premium' : params.plan
+  const estadoLabel = params.estado === 'activa' ? 'activada' : params.estado === 'suspendida' ? 'suspendida' : 'cancelada'
+  return enviar({
+    id:           params.clienteId,
+    tipo_entidad: 'suscripcion',
+    especialidad: params.plan,
+    asunto:       `Suscripción ${estadoLabel}: Plan ${planLabel} — ${params.cliente}`,
+    cliente:      params.cliente,
+    cliente_email: params.clienteEmail,
+    admin_email:  superadminEmail,
+    estado:       params.estado,
+    fecha:        params.fecha,
+  })
 }
 
 export async function notificarRevisionDocumento(params: {
