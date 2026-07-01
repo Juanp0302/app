@@ -16,11 +16,12 @@ export default function DashboardClient({
   const isAdmin = userRole === 'admin'
 
   const cards = isSuperadmin ? [
-    { titulo: 'Vista Global',     desc: 'Tickets y chats asignados a cada administrador', href: '/dashboard/superadmin', icono: '🔭' },
-    { titulo: 'Chat',             desc: 'Conversaciones con clientes y administradores',  href: '/dashboard/chat',       icono: '💬' },
-    { titulo: 'Tickets',          desc: 'Todos los tickets del sistema',                   href: '/dashboard/tickets',    icono: '🎫' },
-    { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes',              href: '/dashboard/clientes',   icono: '👥' },
-    { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',             href: '/dashboard/admins',     icono: '🛡️' },
+    { titulo: 'Vista Global',     desc: 'Tickets y chats asignados a cada administrador', href: '/dashboard/superadmin',  icono: '🔭' },
+    { titulo: 'Chat',             desc: 'Conversaciones con clientes y administradores',  href: '/dashboard/chat',        icono: '💬' },
+    { titulo: 'Tickets',          desc: 'Todos los tickets del sistema',                   href: '/dashboard/tickets',     icono: '🎫' },
+    { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes',              href: '/dashboard/clientes',    icono: '👥' },
+    { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',             href: '/dashboard/admins',      icono: '🛡️' },
+    { titulo: 'Habeas Data',      desc: 'Consultar y suprimir datos personales (Ley 1581)', href: '/dashboard/habeas-data', icono: '🔐' },
   ] : [
     ...(isAdmin ? [
       { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
