@@ -126,12 +126,14 @@ async function handlePreapproval(mpId: string) {
   const nuevoEstado = ESTADO[sub.status as string] ?? 'suspendida'
   const fecha       = new Date().toLocaleString('es-CO')
 
-  // ── Nuevo cliente desde el sitio web (external_reference = "new:basico") ──
+  // ── Nuevo cliente desde el sitio web (external_reference = "new:basico:email") ──
   if (ref.startsWith('new:') && nuevoEstado === 'activa') {
-    const planKey   = ref.replace('new:', '') as PlanKey
+    const partes  = ref.split(':')           // ['new', 'basico', 'correo@...']
+    const planKey = partes[1] as PlanKey
+    const email   = partes.slice(2).join(':') // reconstruir email (tiene ":")
     if (!PLANES[planKey]) return
 
-    const payerEmail = (sub.payer_email ?? sub.payer?.email ?? '') as string
+    const payerEmail = email || (sub.payer_email ?? sub.payer?.email ?? '') as string
     if (!payerEmail) return
 
     const nombre = [sub.payer?.first_name, sub.payer?.last_name]
