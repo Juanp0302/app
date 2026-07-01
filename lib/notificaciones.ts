@@ -85,6 +85,43 @@ export async function notificarDocumentoSubido(params: {
   ))
 }
 
+/** Envía email de bienvenida con credenciales al nuevo cliente */
+export async function notificarBienvenida(params: {
+  clienteEmail: string
+  clienteNombre: string
+  password:      string
+  plan:          string
+  fecha:         string
+}): Promise<void> {
+  const planLabel = params.plan === 'basico' ? 'Básico' : params.plan === 'pro' ? 'Pro' : 'Premium'
+  const superadminEmail = process.env.SUPERADMIN_EMAIL ?? 'owlcompliance2026@gmail.com'
+  // Email al cliente con sus credenciales
+  await enviar({
+    id:            'bienvenida-' + Date.now(),
+    tipo_entidad:  'ticket',
+    especialidad:  'transversal',
+    asunto:        `Bienvenido a Owl Compliance — Tus credenciales de acceso`,
+    cliente:       params.clienteNombre,
+    cliente_email: params.clienteEmail,
+    admin_email:   params.clienteEmail,
+    comentario:    `Usuario: ${params.clienteEmail} | Contraseña temporal: ${params.password} | Plan: ${planLabel} | Ingresa en: https://owlcompliance.onrender.com/login`,
+    estado:        'activa',
+    fecha:         params.fecha,
+  })
+  // Copia al superadmin
+  await enviar({
+    id:            'bienvenida-admin-' + Date.now(),
+    tipo_entidad:  'ticket',
+    especialidad:  'transversal',
+    asunto:        `[NUEVO CLIENTE] ${params.clienteNombre} se suscribió al Plan ${planLabel}`,
+    cliente:       params.clienteNombre,
+    cliente_email: params.clienteEmail,
+    admin_email:   superadminEmail,
+    estado:        'activa',
+    fecha:         params.fecha,
+  })
+}
+
 export async function notificarSuscripcion(params: {
   clienteId:    string
   cliente:      string
