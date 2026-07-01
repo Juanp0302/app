@@ -98,9 +98,9 @@ export async function notificarSuscripcion(params: {
   const estadoLabel = params.estado === 'activa' ? 'activada' : params.estado === 'suspendida' ? 'suspendida' : 'cancelada'
   return enviar({
     id:           params.clienteId,
-    tipo_entidad: 'suscripcion',
-    especialidad: params.plan,
-    asunto:       `Suscripción ${estadoLabel}: Plan ${planLabel} — ${params.cliente}`,
+    tipo_entidad: 'ticket',
+    especialidad: 'transversal',
+    asunto:       `[SUSCRIPCIÓN ${estadoLabel.toUpperCase()}] Plan ${planLabel} — ${params.cliente}`,
     cliente:      params.cliente,
     cliente_email: params.clienteEmail,
     admin_email:  superadminEmail,
