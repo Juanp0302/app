@@ -3,17 +3,62 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+
+type Paso = 'credenciales' | 'mfa'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email,       setEmail]       = useState('')
-  const [password,    setPassword]    = useState('')
-  const [error,       setError]       = useState('')
-  const [loading,     setLoading]     = useState(false)
+  const [paso,         setPaso]        = useState<Paso>('credenciales')
+  const [email,        setEmail]       = useState('')
+  const [password,     setPassword]    = useState('')
+  const [mfaCode,      setMfaCode]     = useState('')
+  const [error,        setError]       = useState('')
+  const [loading,      setLoading]     = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  /* ── Paso 1: verificar credenciales y detectar si necesita MFA ── */
+  async function handleCredenciales(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/mfa/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+
+      if (!data.ok) {
+        setError('Email o contraseña incorrectos.')
+        setLoading(false)
+        return
+      }
+
+      if (data.needsMfa) {
+        // Admin → mostrar paso de código
+        setPaso('mfa')
+        setLoading(false)
+        return
+      }
+
+      // Cliente (sin MFA) → iniciar sesión directamente
+      const result = await signIn('credentials', { email, password, mfaCode: '', redirect: false })
+      if (result?.error) {
+        setError('Email o contraseña incorrectos.')
+      } else {
+        router.push('/dashboard')
+      }
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /* ── Paso 2: verificar código MFA e iniciar sesión ── */
+  async function handleMfa(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
@@ -21,15 +66,27 @@ export default function LoginPage() {
     const result = await signIn('credentials', {
       email,
       password,
+      mfaCode: mfaCode.trim(),
       redirect: false,
     })
 
     if (result?.error) {
-      setError('Email o contraseña incorrectos.')
+      setError('Código incorrecto o expirado. Solicita uno nuevo.')
       setLoading(false)
     } else {
       router.push('/dashboard')
     }
+  }
+
+  async function reenviarCodigo() {
+    setError('')
+    await fetch('/api/mfa/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    setMfaCode('')
+    setError('Nuevo código enviado a tu correo.')
   }
 
   return (
@@ -42,7 +99,6 @@ export default function LoginPage() {
       fontFamily: "'Josefin Sans', sans-serif",
       padding: '2rem',
     }}>
-      {/* Google Fonts */}
       <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Josefin+Sans:wght@300;400;600;700&display=swap"
         rel="stylesheet"
@@ -79,121 +135,111 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.2rem' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: '#270205',
-              marginBottom: '0.5rem',
-            }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              style={{
-                width: '100%',
-                padding: '0.8rem 1rem',
-                border: '1.5px solid rgba(39,2,5,0.2)',
-                borderRadius: '8px',
-                background: 'white',
-                fontSize: '0.9rem',
-                color: '#270205',
-                outline: 'none',
-                fontFamily: 'inherit',
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: '#270205',
-              marginBottom: '0.5rem',
-            }}>
-              Contraseña
-            </label>
-            <div style={{ position: 'relative' }}>
+        {/* ── PASO 1: Email + Contraseña ── */}
+        {paso === 'credenciales' && (
+          <form onSubmit={handleCredenciales}>
+            <div style={{ marginBottom: '1.2rem' }}>
+              <label style={labelStyle}>Email</label>
               <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 required
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={labelStyle}>Contraseña</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  style={{ ...inputStyle, paddingRight: '2.8rem', boxSizing: 'border-box' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  style={{
+                    position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                    color: 'rgba(39,2,5,0.45)', fontSize: '1rem', lineHeight: 1,
+                  }}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
+
+            {error && <ErrorBox>{error}</ErrorBox>}
+
+            <button type="submit" disabled={loading} style={btnStyle(loading)}>
+              {loading ? 'Verificando...' : 'Continuar'}
+            </button>
+          </form>
+        )}
+
+        {/* ── PASO 2: Código MFA ── */}
+        {paso === 'mfa' && (
+          <form onSubmit={handleMfa}>
+            <div style={{
+              background: 'rgba(150,134,34,0.12)',
+              border: '1px solid rgba(150,134,34,0.35)',
+              borderRadius: '8px',
+              padding: '0.9rem 1rem',
+              marginBottom: '1.5rem',
+              fontSize: '0.78rem',
+              color: '#270205',
+              lineHeight: 1.6,
+            }}>
+              Enviamos un código de 6 dígitos a <strong>{email}</strong>. Revisa tu correo e ingrésalo a continuación.
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={labelStyle}>Código de verificación</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                required
+                autoFocus
                 style={{
-                  width: '100%',
-                  padding: '0.8rem 2.8rem 0.8rem 1rem',
-                  border: '1.5px solid rgba(39,2,5,0.2)',
-                  borderRadius: '8px',
-                  background: 'white',
-                  fontSize: '0.9rem',
-                  color: '#270205',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                  boxSizing: 'border-box',
+                  ...inputStyle,
+                  textAlign: 'center',
+                  fontSize: '1.4rem',
+                  letterSpacing: '0.4em',
+                  fontWeight: 700,
                 }}
               />
+            </div>
+
+            {error && <ErrorBox>{error}</ErrorBox>}
+
+            <button type="submit" disabled={loading || mfaCode.length < 6} style={btnStyle(loading || mfaCode.length < 6)}>
+              {loading ? 'Verificando...' : 'Ingresar'}
+            </button>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
               <button
                 type="button"
-                onClick={() => setShowPassword(v => !v)}
-                style={{
-                  position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                  color: 'rgba(39,2,5,0.45)', fontSize: '1rem', lineHeight: 1,
-                }}
-                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                onClick={() => { setPaso('credenciales'); setError(''); setMfaCode('') }}
+                style={linkBtn}
               >
-                {showPassword ? '🙈' : '👁️'}
+                Volver
+              </button>
+              <button type="button" onClick={reenviarCodigo} style={linkBtn}>
+                Reenviar código
               </button>
             </div>
-          </div>
-
-          {error && (
-            <div style={{
-              background: 'rgba(113,37,41,0.1)',
-              border: '1px solid rgba(113,37,41,0.3)',
-              borderRadius: '8px',
-              padding: '0.75rem 1rem',
-              fontSize: '0.82rem',
-              color: '#712529',
-              marginBottom: '1.2rem',
-            }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '0.9rem',
-              background: loading ? '#968622aa' : '#968622',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-              transition: 'background 0.2s',
-            }}
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
+          </form>
+        )}
 
         <div style={{
           textAlign: 'center',
@@ -224,6 +270,75 @@ export default function LoginPage() {
           . Consultas: contacto@owlcompliance.co
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Estilos compartidos ── */
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  letterSpacing: '0.15em',
+  textTransform: 'uppercase',
+  color: '#270205',
+  marginBottom: '0.5rem',
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.8rem 1rem',
+  border: '1.5px solid rgba(39,2,5,0.2)',
+  borderRadius: '8px',
+  background: 'white',
+  fontSize: '0.9rem',
+  color: '#270205',
+  outline: 'none',
+  fontFamily: 'inherit',
+}
+
+function btnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    width: '100%',
+    padding: '0.9rem',
+    background: disabled ? '#968622aa' : '#968622',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'inherit',
+    transition: 'background 0.2s',
+  }
+}
+
+const linkBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  fontSize: '0.72rem',
+  color: 'rgba(39,2,5,0.5)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textDecoration: 'underline',
+  padding: 0,
+}
+
+function ErrorBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'rgba(113,37,41,0.1)',
+      border: '1px solid rgba(113,37,41,0.3)',
+      borderRadius: '8px',
+      padding: '0.75rem 1rem',
+      fontSize: '0.82rem',
+      color: '#712529',
+      marginBottom: '1.2rem',
+    }}>
+      {children}
     </div>
   )
 }
