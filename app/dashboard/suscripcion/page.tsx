@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { queryOne } from '@/lib/db'
 import { resumenUso, PLANES } from '@/lib/suscripcion'
+import { Suspense } from 'react'
 import SuscripcionClient from './SuscripcionClient'
 
 export default async function SuscripcionPage() {
@@ -20,5 +21,9 @@ export default async function SuscripcionPage() {
 
   const resumen = await resumenUso(clienteId!)
 
-  return <SuscripcionClient resumen={resumen} planes={PLANES} />
+  return (
+    <Suspense>
+      <SuscripcionClient resumen={resumen} planes={PLANES} />
+    </Suspense>
+  )
 }
