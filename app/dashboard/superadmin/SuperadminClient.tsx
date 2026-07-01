@@ -51,13 +51,20 @@ export default function SuperadminClient() {
   const [estadoSel,     setEstadoSel]     = useState<Record<string, string>>({})
 
   async function cargar() {
-    const [d, cl] = await Promise.all([
-      fetch('/api/superadmin').then(r => r.json()),
-      fetch('/api/clientes').then(r => r.json()),
-    ])
-    setData(d)
-    setClientes(Array.isArray(cl) ? cl : [])
-    setLoading(false)
+    try {
+      const [d, cl] = await Promise.all([
+        fetch('/api/superadmin').then(r => r.ok ? r.json() : Promise.reject(`superadmin ${r.status}`)),
+        fetch('/api/clientes').then(r => r.ok ? r.json() : Promise.reject(`clientes ${r.status}`)),
+      ])
+      setData(d)
+      setClientes(Array.isArray(cl) ? cl : [])
+    } catch (err) {
+      console.error('[superadmin] error al cargar:', err)
+      setData({ porAdmin: [], sinAsignar: [], chatsSinAsignar: [], docsSinAsignar: [], urgentes: [] })
+      setClientes([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { cargar() }, [])

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
+import { migrateSuscripcion } from '@/lib/suscripcion'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -25,6 +26,7 @@ export async function GET() {
   const user = await requireAdmin()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   await ensureRevisionColumn()
+  await migrateSuscripcion()
 
   const clientes = await queryAll(`
     SELECT c.id, c.razon_social, c.nit, c.contacto, c.email, c.telefono, c.activo, c.created_at,
