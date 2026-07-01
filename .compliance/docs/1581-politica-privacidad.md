@@ -2,14 +2,14 @@
 ## Owl Compliance — Owl Compliance
 
 **Versión:** 1.0
-**Fecha de vigencia:** [COMPLETAR: fecha de publicación]
-**Última actualización:** 22 de junio de 2026
+**Fecha de vigencia:** 1 de julio de 2026
+**Última actualización:** 1 de julio de 2026
 
 ---
 
 ## 1. Responsable del tratamiento
 
-**Owl Compliance**, con NIT [por confirmar], domiciliada en Bogotá, Cundinamarca, Colombia, correo electrónico: [COMPLETAR: ej. datos@owlcompliance.co], teléfono: [COMPLETAR].
+**Juan Pablo Osorio Marín**, CC 1.053.824.988, que actúa bajo la marca comercial **Owl Compliance**, domiciliado en Bogotá, Cundinamarca, Colombia, correo electrónico de contacto para asuntos de protección de datos: **contacto@owlcompliance.co**.
 
 Marca comercial: **Owl Compliance** — Centro de Cumplimiento Regulatorio para ISPs.
 
@@ -82,7 +82,7 @@ Como titular de datos personales, usted tiene derecho a:
 | **Revocación de autorización** | Retirar el consentimiento para el tratamiento | 15 días hábiles |
 | **Presentar queja ante la SIC** | Si considera que sus derechos han sido vulnerados, puede acudir a la SIC (solo después de presentar reclamo ante Owl Compliance) | — |
 
-Para ejercer estos derechos, contacte: **[COMPLETAR: ej. datos@owlcompliance.co]** con el asunto "Solicitud Habeas Data".
+Para ejercer estos derechos, contacte: **contacto@owlcompliance.co** con el asunto "Solicitud Habeas Data".
 
 ---
 
@@ -120,9 +120,9 @@ En caso de un incidente de seguridad que afecte sus datos, le notificaremos dent
 
 Conservamos sus datos personales durante el tiempo necesario para cumplir las finalidades descritas y las obligaciones legales aplicables:
 
-- **Datos de usuarios y clientes:** durante la vigencia de la relación contractual y [COMPLETAR: ej. 5 años] después de su terminación.
-- **Registros de auditoría:** [COMPLETAR: ej. 5 años] desde la fecha del registro.
-- **Mensajes y conversaciones:** [COMPLETAR: ej. 2 años] desde el cierre de la conversación.
+- **Datos de usuarios y clientes:** durante la vigencia de la relación contractual y 5 años después de su terminación.
+- **Registros de auditoría:** 5 años desde la fecha del registro.
+- **Mensajes y conversaciones:** 2 años desde el cierre de la conversación.
 
 ---
 
@@ -134,10 +134,10 @@ Notificaremos cambios materiales a esta política con al menos 10 días hábiles
 
 ## 12. Vigencia
 
-Esta política rige a partir del [COMPLETAR: fecha de publicación].
+Esta política rige a partir del 1 de julio de 2026.
 
 ---
 
-**Owl Compliance** — Owl Compliance · [COMPLETAR: ciudad], Colombia · [correo por confirmar]
+**Juan Pablo Osorio Marín** · CC 1.053.824.988 · Marca comercial: **Owl Compliance** · Bogotá, Colombia · contacto@owlcompliance.co
 
 *Este documento es un borrador generado con compliance-co (pack ley-1581). No constituye asesoría legal.*

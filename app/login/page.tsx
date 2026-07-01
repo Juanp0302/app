@@ -197,12 +197,31 @@ export default function LoginPage() {
 
         <div style={{
           textAlign: 'center',
-          marginTop: '2rem',
+          marginTop: '1.5rem',
           fontSize: '0.7rem',
           color: 'rgba(39,2,5,0.4)',
           letterSpacing: '0.05em',
         }}>
           Plataforma restringida — solo usuarios autorizados
+        </div>
+
+        <div style={{
+          textAlign: 'center',
+          marginTop: '1rem',
+          fontSize: '0.68rem',
+          color: 'rgba(39,2,5,0.4)',
+          lineHeight: 1.6,
+        }}>
+          Al ingresar, acepta el tratamiento de sus datos conforme a nuestra{' '}
+          <a
+            href="/privacidad"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#712529', textDecoration: 'underline' }}
+          >
+            Política de Privacidad
+          </a>
+          . Consultas: contacto@owlcompliance.co
         </div>
       </div>
     </div>
