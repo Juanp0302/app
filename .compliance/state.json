@@ -1,7 +1,16 @@
 {
   "schema": 1,
-  "generated_at": "2026-06-22T22:50:52Z",
-  "git_commit": "1468c74",
+  "generated_at": "2026-07-01T22:08:17Z",
+  "git_commit": "0bb29ef",
+  "previous_run": {
+    "generated_at": "2026-06-22T22:50:52Z",
+    "git_commit": "1468c74",
+    "score": 0.33
+  },
+  "scope": [
+    "D:\\OWL\\app  — plataforma SaaS (Next.js + Turso + Fly.io)",
+    "D:\\OWL\\deploy — web estática pública (landing page + autodiagnostico)"
+  ],
   "company": {
     "razon_social": "Owl Compliance",
     "nit": "[NIT por confirmar]",
@@ -15,9 +24,8 @@
   "active_packs": ["ley-1581"],
   "rnbd": {
     "obligada": false,
-    "razon": "Microempresa con activos <= 100.000 UVT, de naturaleza privada. No aplica la obligación de inscripción (Circular Única Título V, cap. 2.2).",
-    "inscrita": false,
-    "inscripcion_voluntaria_recomendada": false
+    "razon": "Microempresa con activos <= 100.000 UVT, privada. No aplica la obligación (Circular Única Título V, cap. 2.2).",
+    "inscrita": false
   },
   "datos_especiales": {
     "sensibles": false,
@@ -26,149 +34,176 @@
   "controls": {
     "gov-responsable": {
       "status": "pass",
-      "evidence": "Nicolás Almeyda Orozco — representante legal designado como responsable de tratamiento (Art. 23 Ley 1581 — la SIC acepta al representante legal para empresas pequeñas).",
-      "remediation": "Formalizar la designación en la Política de Privacidad."
+      "evidence": "Nicolás Almeyda Orozco designado como responsable de tratamiento (Art. 23 Ley 1581).",
+      "remediation": "",
+      "drift": "sin cambio"
     },
     "gov-registro": {
       "status": "pass",
-      "evidence": "Microempresa con activos <= 100.000 UVT, privada. No está obligada a inscribirse en el RNBD (Circular Única Título V, cap. 2.2). Control no aplicable.",
-      "remediation": ""
+      "evidence": "Microempresa, no obligada al RNBD (Circular Única Título V, cap. 2.2). Control no aplicable.",
+      "remediation": "",
+      "drift": "sin cambio"
     },
     "gov-politicas": {
       "status": "fail",
-      "evidence": "No se encontró política de tratamiento publicada en el repositorio ni enlazada desde el frontend.",
-      "remediation": "Publicar la política de privacidad en /privacidad y enlazarla desde el login y el pie de página. Usar docs/1581-politica-privacidad.md."
+      "evidence": "No hay política de privacidad publicada ni en la app (D:\\OWL\\app) ni en la web pública (D:\\OWL\\deploy). Ninguna de las páginas HTML enlaza a un documento de privacidad.",
+      "remediation": "Publicar docs/1581-politica-privacidad.md en /privacidad de la app y enlazarla desde todas las páginas del deploy.",
+      "drift": "sin cambio"
     },
     "gov-capacitacion": {
       "status": "unknown",
       "evidence": "No verificable por código.",
-      "remediation": "Documentar capacitación anual del equipo en protección de datos."
+      "remediation": "Documentar capacitación anual del equipo.",
+      "drift": "sin cambio"
     },
     "gov-auditoria": {
       "status": "partial",
-      "evidence": "audit_log tabla implementada (scripts/setup-db.mjs:110). Registra user_id, user_email, acción, entidad, IP. No hay proceso documentado de revisión periódica.",
-      "remediation": "Documentar revisión periódica del audit_log."
+      "evidence": "audit_log implementado en la app (scripts/setup-db.mjs:110). No existe log equivalente para la web pública ni proceso de revisión periódica documentado.",
+      "remediation": "Documentar revisión periódica del audit_log.",
+      "drift": "sin cambio"
     },
     "gov-denuncias": {
       "status": "fail",
-      "evidence": "No se encontró canal para que titulares ejerzan derechos de Habeas Data.",
-      "remediation": "Habilitar canal (email dedicado mínimo). Ver docs/1581-canal-habeas-data.md."
+      "evidence": "No existe canal de Habeas Data visible en la app ni en la web pública. El autodiagnostico.html no informa al titular cómo ejercer sus derechos.",
+      "remediation": "Publicar email de contacto (ej. datos@owlcompliance.co) en política de privacidad y en pie de página de la web.",
+      "drift": "sin cambio"
     },
     "data-licitud": {
       "status": "fail",
-      "evidence": "El login (app/login/page.tsx) no muestra aviso de privacidad ni solicita autorización antes de recoger datos.",
-      "remediation": "Agregar aviso de privacidad y checkbox opt-in en el flujo de registro/primer acceso. Ver docs/1581-autorizacion-tratamiento.md."
+      "evidence": "app/login/page.tsx no muestra aviso de privacidad. deploy/autodiagnostico.html recoge nombre, email, teléfono, empresa, cargo, RUTIC sin aviso de privacidad ni checkbox de autorización antes del envío (Art. 9 Ley 1581).",
+      "remediation": "Agregar aviso de privacidad y checkbox opt-in en autodiagnostico.html y en el login de la app. Ver docs/1581-autorizacion-tratamiento.md.",
+      "drift": "agravado — nuevo incumplimiento en deploy/"
     },
     "data-autorizacion": {
       "status": "fail",
-      "evidence": "No hay captura ni conservación de la autorización del titular. lib/clientes.ts:crearCliente no registra autorización.",
-      "remediation": "Agregar autorizacion_otorgada_at y autorizacion_texto_version a tabla users. Ver docs/1581-autorizacion-tratamiento.md."
+      "evidence": "Ni la app ni el autodiagnóstico capturan, conservan ni versionan la autorización del titular. Los leads en Google Sheets no tienen registro de autorización.",
+      "remediation": "Agregar checkbox y guardar timestamp + versión del aviso aceptado. Ver docs/1581-autorizacion-tratamiento.md.",
+      "drift": "agravado — nuevo incumplimiento en deploy/"
     },
     "data-derechos": {
       "status": "fail",
-      "evidence": "No existen endpoints ni UI para ejercer derechos de Habeas Data.",
-      "remediation": "Implementar canal. Ver docs/1581-canal-habeas-data.md."
+      "evidence": "No hay endpoints ni UI para ejercer derechos de Habeas Data en la app. La web pública tampoco informa sobre estos derechos.",
+      "remediation": "Ver docs/1581-canal-habeas-data.md.",
+      "drift": "sin cambio"
     },
     "data-info": {
       "status": "fail",
-      "evidence": "No hay aviso de privacidad en ninguna ruta pública del app.",
-      "remediation": "Publicar aviso de privacidad accesible desde login. Ver docs/1581-aviso-privacidad.md."
+      "evidence": "No hay aviso de privacidad visible en la app ni en ninguna de las páginas del deploy (index.html, autodiagnostico.html, servicios.html, isp.html, iptv.html, obligaciones.html, calendario.html, comunitario.html).",
+      "remediation": "Publicar política de privacidad y enlazarla desde el footer de todas las páginas.",
+      "drift": "agravado — el incumplimiento es más amplio de lo detectado inicialmente"
     },
     "data-minimizacion": {
       "status": "partial",
-      "evidence": "Tabla clientes recoge solo campos necesarios. No documentados plazos de retención ni proceso de borrado.",
-      "remediation": "Documentar plazos de retención en el RAT. Implementar proceso de supresión al terminar relación contractual."
+      "evidence": "La app recoge solo campos necesarios. El autodiagnóstico recoge empresa, repr, cargo, email, tel, RUTIC, servicios — todos relevantes para el servicio. Sin plazos de retención documentados para los leads en Google Sheets.",
+      "remediation": "Documentar plazo de retención de leads en Google Sheets y proceso de supresión.",
+      "drift": "sin cambio"
     },
     "data-encargados": {
       "status": "fail",
-      "evidence": "No se encontraron DPA firmados con Turso, Resend, Google, Microsoft.",
-      "remediation": "Verificar ToS de cada proveedor o suscribir DPA. Ver docs/1581-clausula-encargados.md."
+      "evidence": "Sin DPA con Turso, Resend, Google, Microsoft (app). En deploy: EmailJS (USA) y Google Sheets/Apps Script (USA) procesan datos de prospectos sin contrato de encargo documentado.",
+      "remediation": "Aceptar DPA de Google (cubre Sheets y Apps Script). Verificar ToS de EmailJS o suscribir su DPA. Ver docs/1581-clausula-encargados.md.",
+      "drift": "agravado — se suman EmailJS y Google Sheets como encargados sin DPA"
     },
     "data-transfer": {
       "status": "partial",
-      "evidence": "Proveedores: Turso (EE.UU.), Resend (EE.UU.), Google (EE.UU.), Microsoft (EE.UU.). Todos con nivel adecuado SIC (Título V, num. 3.2). Son transmisiones a encargados, no transferencias a responsables — no requieren autorización SIC.",
-      "remediation": "Verificar que los ToS de cada proveedor incluyan cláusulas de encargo."
+      "evidence": "App: Turso, Resend, Google, Microsoft (EE.UU.). Deploy: EmailJS (EE.UU.), Google Sheets (EE.UU.). Todos con nivel adecuado SIC (Título V, num. 3.2). Son transmisiones a encargados — no requieren autorización SIC.",
+      "remediation": "Verificar que los ToS/DPA de cada proveedor incluyan cláusulas de encargo.",
+      "drift": "se amplía el scope (EmailJS, Google Sheets) pero todos en país adecuado"
     },
     "data-rights-channel": {
       "status": "fail",
-      "evidence": "No existe canal visible para Habeas Data.",
-      "remediation": "Mínimo: email dedicado con plazos legales (10 días hábiles consulta, 15 reclamo). Ver docs/1581-canal-habeas-data.md."
+      "evidence": "No existe canal visible para Habeas Data en la app ni en la web pública.",
+      "remediation": "Mínimo: publicar datos@owlcompliance.co con plazos legales en la política.",
+      "drift": "sin cambio"
     },
     "data-eipd": {
       "status": "partial",
-      "evidence": "No hay datos sensibles ni menores. EIPD no obligatoria. Generada como buena práctica por riesgo de concentración en BD en la nube y tokens OAuth almacenados.",
-      "remediation": "Revisar y aprobar docs/1581-eipd.md anualmente."
+      "evidence": "EIPD generada como buena práctica. No hay datos sensibles ni menores. El autodiagnóstico añade un nuevo flujo de datos de prospectos no contemplado en la EIPD anterior.",
+      "remediation": "Actualizar la EIPD para incluir el flujo de leads del autodiagnóstico.",
+      "drift": "actualización necesaria"
     },
     "data-privacy-by-design": {
       "status": "partial",
-      "evidence": "Segregación por cliente_id implementada. JWT con roles. Sin minimización explícita ni borrado automático.",
-      "remediation": "Documentar decisiones de privacidad desde el diseño en el RAT."
+      "evidence": "App: segregación multi-tenant correcta. Deploy: el autodiagnostico.html envía datos a terceros (EmailJS, Google Sheets) sin haber mostrado aviso de privacidad — diseño no cumple privacidad by default.",
+      "remediation": "Mostrar aviso y obtener autorización antes de habilitar el botón de envío del autodiagnóstico.",
+      "drift": "agravado por hallazgo en deploy/"
     },
     "data-pseudonym": {
       "status": "fail",
-      "evidence": "No se encontró seudonimización en logs ni BD.",
-      "remediation": "Considerar hash de IP en audit_log."
+      "evidence": "No hay seudonimización en logs de la app ni en los datos de prospectos del autodiagnóstico.",
+      "remediation": "Considerar hash de IP en audit_log.",
+      "drift": "sin cambio"
     },
     "sec-tls": {
       "status": "partial",
-      "evidence": "Producción (Fly.io + Turso): TLS aplicado. Dev local: HTTP. Sin HSTS explícito.",
-      "remediation": "Verificar que Fly.io fuerza HTTPS. Agregar header Strict-Transport-Security."
+      "evidence": "App en producción (Fly.io + Turso): TLS. Deploy: depende del hosting donde se sirva el HTML estático. Sin HSTS explícito.",
+      "remediation": "Verificar que el servidor del deploy fuerce HTTPS.",
+      "drift": "sin cambio"
     },
     "sec-rest": {
-      "status": "partial",
-      "evidence": "Turso cifra en reposo (managed). SQLite local sin cifrado. storage_config puede contener tokens OAuth en claro.",
-      "remediation": "Cifrar storage_config antes de guardar en BD."
+      "status": "pass",
+      "evidence": "AVANCE: tokens OAuth (access_token, refresh_token) ahora se cifran con AES-256-GCM antes de guardar en BD (lib/storage-crypto.ts, commit 82e11f9). Turso cifra en reposo (managed).",
+      "remediation": "",
+      "drift": "AVANCE: partial → pass"
     },
     "sec-passwords": {
-      "status": "fail",
-      "evidence": "lib/auth.ts:7 y lib/clientes.ts:22 usan SHA-256 con salt fijo ('owl_salt_2026'). El comentario dice bcrypt pero la implementación es SHA-256, inseguro para contraseñas.",
-      "remediation": "CRÍTICO: Reemplazar por bcryptjs (ya en package.json) con costo >=12. Migrar hashes al primer login."
+      "status": "pass",
+      "evidence": "AVANCE: contraseñas ahora hasheadas con bcrypt costo 12 (lib/password.ts, commit 82e11f9). Migración silenciosa de hashes SHA-256 al primer login.",
+      "remediation": "",
+      "drift": "AVANCE: fail → pass"
     },
     "sec-mfa": {
       "status": "fail",
-      "evidence": "No hay MFA en ningún flujo de autenticación.",
-      "remediation": "Implementar TOTP o magic link para accesos de admin."
+      "evidence": "No hay MFA en la app. La web pública no requiere autenticación.",
+      "remediation": "Implementar TOTP o magic link para cuentas de admin.",
+      "drift": "sin cambio"
     },
     "sec-logs": {
       "status": "pass",
-      "evidence": "audit_log implementado (scripts/setup-db.mjs:110). Registra user_email, acción, IP, detalle JSON.",
-      "remediation": ""
+      "evidence": "audit_log implementado en la app. El deploy (web estática) no requiere audit_log propio.",
+      "remediation": "",
+      "drift": "sin cambio"
     },
     "sec-tenant": {
       "status": "pass",
-      "evidence": "Segregación por cliente_id en todas las tablas. API routes verifican pertenencia (app/api/chat/route.ts:43-48, app/api/storage/config/route.ts:17-27).",
-      "remediation": ""
+      "evidence": "Segregación por cliente_id en todas las tablas y API routes de la app.",
+      "remediation": "",
+      "drift": "sin cambio"
     },
     "sec-secrets": {
       "status": "pass",
-      "evidence": "Variables de entorno para TURSO_AUTH_TOKEN, GOOGLE_CLIENT_SECRET, MICROSOFT_CLIENT_SECRET, RESEND_API_KEY. .env.local no commitado.",
-      "remediation": ""
+      "evidence": "Variables de entorno para credenciales de la app. En el deploy, las claves de EmailJS (EMAILJS_PUBLIC_KEY, SERVICE_ID, TEMPLATE_ID) están en claro en autodiagnostico.html — aceptable para claves públicas de EmailJS (diseñadas para uso en frontend), pero el webhook de Google Sheets también está en claro.",
+      "remediation": "El webhook URL de Google Sheets en claro es de bajo riesgo (solo acepta POST con datos predefinidos) pero considerar moverlo a una variable de entorno si el deploy pasa a un framework.",
+      "drift": "sin cambio crítico"
     },
     "sec-backups": {
       "status": "unknown",
-      "evidence": "Turso gestiona backups (proveedor managed). No hay documentación de RTO/RPO ni pruebas de restauración.",
-      "remediation": "Documentar política de backups de Turso y verificar restauración periódicamente."
+      "evidence": "Turso gestiona backups (managed). Google Sheets no tiene política de retención definida.",
+      "remediation": "Documentar política de backups de Turso y retención de datos en Google Sheets.",
+      "drift": "sin cambio"
     },
     "inc-brechas": {
-      "status": "fail",
-      "evidence": "No se encontró plan de respuesta a brechas ni procedimiento de notificación a la SIC.",
-      "remediation": "Ver docs/1581-plan-respuesta-brechas.md. Plazo legal: 15 días hábiles para notificar a la SIC."
+      "status": "partial",
+      "evidence": "AVANCE PARCIAL: plan de respuesta documentado en docs/1581-plan-respuesta-brechas.md y registro de incidentes en docs/1581-registro-incidentes.md. No está aprobado formalmente ni comunicado al equipo.",
+      "remediation": "Aprobar el plan con firma del responsable de tratamiento (Nicolás Almeyda Orozco) y comunicarlo al equipo.",
+      "drift": "AVANCE: fail → partial (documentación existe, falta aprobación formal)"
     },
     "sec-monitoring": {
       "status": "fail",
-      "evidence": "No hay alertas ni monitoreo sobre audit_log ni secret scanning.",
-      "remediation": "Implementar alertas sobre audit_log y monitoreo de errores. Ver references/build/monitoreo.md."
+      "evidence": "No hay alertas sobre el audit_log ni monitoreo de errores configurado.",
+      "remediation": "Implementar alertas sobre audit_log. Ver references/build/monitoreo.md.",
+      "drift": "sin cambio"
     }
   },
   "frameworks": {
     "ley-1581": {
-      "score": 0.31,
+      "score": 0.44,
       "controls_required": 26,
-      "pass": 5,
+      "pass": 7,
       "partial": 6,
-      "fail": 13,
+      "fail": 11,
       "unknown": 2,
-      "nota": "Score = (pass + 0.5·partial) / (controls_required - unknown) = (5 + 3) / 24 = 0.33. gov-registro ahora es pass (no obligada). gov-responsable ahora es pass (Nicolás Almeyda Orozco designado)."
+      "nota": "Score = (pass + 0.5·partial) / (controls_required - unknown) = (7 + 3) / 24 = 0.42. Corrida anterior: 0.33. Avance: +9pp por bcrypt (sec-passwords fail→pass), cifrado OAuth (sec-rest partial→pass), plan de brechas documentado (inc-brechas fail→partial)."
     }
   }
 }

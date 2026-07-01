@@ -11,10 +11,13 @@
 |---|---|---|---|
 | **Turso Inc.** | BD completa (usuarios, clientes, mensajes, audit_log) | Verificar en turso.tech/legal | [COMPLETAR: ¿firmado?] |
 | **Resend** | Email de destinatario + contenido de recordatorios | Verificar en resend.com/legal | [COMPLETAR] |
-| **Google LLC** | Tokens OAuth + documentos en Google Drive | Google Data Processing Amendment (DPA) — aceptar en Google Cloud Console | [COMPLETAR] |
+| **Google LLC** | Tokens OAuth + documentos en Google Drive + **leads en Google Sheets vía Apps Script** | Google Data Processing Amendment (DPA) — aceptar en Google Cloud Console o Google Workspace Admin | [COMPLETAR] |
 | **Microsoft Corp.** | Tokens OAuth + documentos OneDrive/SharePoint | Microsoft DPA — disponible en microsoft.com/en-us/trust-center | [COMPLETAR] |
+| **EmailJS** | Nombre, empresa, cargo, email, teléfono del prospecto (notificación al equipo de ventas) | Verificar en emailjs.com — revisar si ofrecen DPA o si ToS incluye cláusulas de encargo | [COMPLETAR] |
 
 > **Nota:** Todos los países son EE.UU., con nivel adecuado reconocido por la SIC. Las relaciones son de transmisión (encargados), no de transferencia a responsables. No se requiere Declaración de Conformidad ni autorización SIC (Circular Única Título V, numerales 3.2 y 3.3).
+>
+> **EmailJS — consideración especial:** si EmailJS no ofrece DPA, evaluar alternativas como Resend (ya usado) para las notificaciones del autodiagnóstico. El uso de EmailJS sin DPA es un riesgo de cumplimiento bajo para la cantidad de datos transmitidos, pero debe resolverse para cerrar el control data-encargados.
 
 ---
 

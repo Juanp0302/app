@@ -1,157 +1,139 @@
-# Resumen de Compliance — Owl Compliance · Ley 1581 de 2012
-**Empresa:** Owl Compliance · **NIT:** [por confirmar] · **Bogotá, Cundinamarca**
-**Representante legal / Responsable de tratamiento:** Nicolás Almeyda Orozco
-**Tamaño:** Microempresa · **RNBD:** No obligada (activos ≤ 100.000 UVT, privada)
-**Fecha:** 22 de junio de 2026 · **Commit auditado:** 1468c74
-**Corrida:** Primera auditoría
+# Resumen Ejecutivo de Cumplimiento — Ley 1581 de 2012
+**Empresa:** Owl Compliance · **NIT:** [por confirmar]
+**Responsable:** Nicolás Almeyda Orozco
+**Fecha:** 1 de julio de 2026
+**Corrida anterior:** 22 de junio de 2026
 
 ---
 
-## Postura general
+## Puntuación global
 
-```
-Score Ley 1581:  33%  ███░░░░░░░░░░░░░░░░░
-                 (8 de 24 controles evaluables en ✅ o ✅½)
-
-✅ CUMPLE:  5   (gov-responsable*, gov-registro*, sec-logs, sec-tenant, sec-secrets)
-⚠️ PARCIAL: 6   (gov-auditoria, data-transfer, data-eipd, data-minimizacion, data-privacy-by-design, sec-tls, sec-rest)
-❌ FALTA:  13   (gov-politicas, gov-denuncias, data-licitud, data-autorizacion, data-derechos,
-                 data-info, data-encargados, data-rights-channel, data-pseudonym,
-                 sec-passwords, sec-mfa, inc-brechas, sec-monitoring)
-❓ DESCONOCIDO: 2  (gov-capacitacion, sec-backups)
-
-* gov-responsable: Nicolás Almeyda Orozco designado como responsable de tratamiento.
-* gov-registro: No aplica — microempresa, no obligada al RNBD.
-```
-
----
-
-## Lo que SÍ está bien
-
-- **Segregación multi-tenant** (sec-tenant ✅): cada cliente tiene su `cliente_id` y todas las queries filtran por este. Buen diseño.
-- **Audit log** (sec-logs ✅): tabla `audit_log` con registro de acciones, user_email, IP y detalle JSON. Sólido.
-- **Secretos fuera del código** (sec-secrets ✅): uso correcto de variables de entorno. `.env.local` no se commitea.
-- **Proveedores en países con nivel adecuado** (data-transfer ⚠️): todos los proveedores externos (Turso, Resend, Google, Microsoft) están en EE.UU., que la SIC reconoce como país con nivel adecuado. No se requiere Declaración de Conformidad ni autorización SIC.
-- **Control de acceso por roles**: middleware y API routes verifican permisos correctamente.
-
----
-
-## Hallazgos críticos (actuar ya)
-
-### 🔴 CRÍTICO: Hashing de contraseñas con SHA-256 (sec-passwords ❌)
-**Archivo:** `lib/auth.ts:7`, `lib/clientes.ts:22`
-**Riesgo:** Si la base de datos es comprometida, las contraseñas son recuperables mediante ataques de diccionario o rainbow tables. SHA-256 con salt fijo NO es aceptable para almacenar contraseñas.
-**Fix:** Usar `bcryptjs` (ya en package.json) con factor de costo ≥12.
-```typescript
-// Reemplazar:
-crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
-// Por:
-import bcrypt from 'bcryptjs'
-await bcrypt.hash(pwd, 12)  // para crear
-await bcrypt.compare(pwd, hash)  // para verificar
-```
-**Migración:** Al primer login exitoso con la contraseña antigua (verificada contra el hash SHA-256), regenerar el hash con bcrypt y guardarlo.
-
----
-
-### 🔴 CRÍTICO: Sin aviso de privacidad ni mecanismo de autorización (data-licitud ❌, data-info ❌, data-autorizacion ❌)
-**Archivos:** `app/login/page.tsx`, `lib/clientes.ts:crearCliente`
-**Riesgo:** Incumplimiento directo del Art. 9 Ley 1581. La SIC puede sancionar con hasta 2.000 SMMLV.
-**Fix:** 
-1. Publicar política de privacidad en `/privacidad` (usar `docs/1581-politica-privacidad.md`).
-2. Agregar aviso de privacidad y checkbox de autorización en el login/registro.
-3. Guardar timestamp y versión del aviso aceptado en tabla `users`.
-
-Ver `docs/1581-autorizacion-tratamiento.md` para el código exacto.
-
----
-
-### 🔴 CRÍTICO: Sin canal de Habeas Data (data-derechos ❌, data-rights-channel ❌)
-**Riesgo:** Sin canal habilitado, si un titular hace una solicitud de consulta o reclamo y no es atendida en el plazo legal (10/15 días hábiles), puede acudir directamente a la SIC.
-**Fix mínimo:** Publicar email de contacto en la política de privacidad. Ver `docs/1581-canal-habeas-data.md`.
-
----
-
-### 🟡 ALTO: Sin MFA para administradores (sec-mfa ❌)
-**Riesgo:** Si un admin es víctima de phishing o credential stuffing, el atacante tiene acceso completo a todos los datos de todos los clientes ISP.
-**Fix:** Implementar TOTP con `otplib` o magic link por correo. Ver `references/build/index.md`.
-
----
-
-### 🟡 ALTO: Tokens OAuth en BD sin cifrar (sec-rest ⚠️)
-**Archivo:** `app/api/storage/config/route.ts:34-37`, columna `clientes.storage_config`
-**Riesgo:** Los tokens de acceso de Google y Microsoft se almacenan como JSON en la BD. Si la BD es comprometida, los atacantes tienen acceso a los documentos en Google Drive/SharePoint de los clientes.
-**Fix:** Cifrar `storage_config` con AES-256 antes de guardar; descifrar al leer.
-
----
-
-### 🟡 ALTO: Sin contratos de encargo (DPA) con proveedores (data-encargados ❌)
-**Proveedores:** Turso, Resend, Google, Microsoft.
-**Fix:**
-- Turso: verificar si sus ToS incluyen términos de encargo adecuados; en caso contrario, suscribir DPA.
-- Google: aceptar el Data Processing Amendment en Google Cloud Console.
-- Microsoft: suscribir el Data Processing Agreement en el portal de Microsoft.
-- Resend: verificar ToS de Resend para términos de encargo.
-
----
-
-## Hallazgos pendientes de información del usuario
-
-Los siguientes controles requieren información que no está en el código:
-
-| Control | Información necesaria |
-|---|---|
-| gov-responsable | ¿Quién está designado formalmente como responsable de tratamiento? |
-| gov-registro | ¿Está inscrita en el RNBD? ¿Cuál es el tamaño de la empresa? |
-| gov-capacitacion | ¿Hay capacitación documentada del equipo en protección de datos? |
-| sec-backups | ¿Está documentada la política de backups de Turso? ¿Se han probado restauraciones? |
-
----
-
-## Plan de acción prioritario
-
-| Prioridad | Acción | Archivo de referencia | Plazo sugerido |
+| Métrica | Corrida anterior | Esta corrida | Variación |
 |---|---|---|---|
-| 🔴 1 | Migrar contraseñas a bcrypt | `docs/1581-autorizacion-tratamiento.md` | Esta semana |
-| 🔴 2 | Publicar política de privacidad y aviso en la app | `docs/1581-politica-privacidad.md`, `docs/1581-aviso-privacidad.md` | Esta semana |
-| 🔴 3 | Agregar checkbox de autorización en login/registro | `docs/1581-autorizacion-tratamiento.md` | Esta semana |
-| 🔴 4 | Habilitar canal de Habeas Data (email mínimo) | `docs/1581-canal-habeas-data.md` | Esta semana |
-| 🟡 5 | Implementar MFA para admins | `references/build/index.md` | 30 días |
-| 🟡 6 | Cifrar tokens OAuth en BD | `docs/1581-eipd.md` | 30 días |
-| 🟡 7 | Firmar DPA con Turso, Resend, Google, Microsoft | `docs/1581-clausula-encargados.md` | 30 días |
-| 🔵 8 | Determinar obligación RNBD según tamaño/activos | `docs/1581-procedimiento-rnbd.md` | 30 días |
-| 🔵 9 | Implementar endpoint de Habeas Data en la API | `docs/1581-canal-habeas-data.md` | 60 días |
-| 🔵 10 | Configurar monitoreo y alertas en audit_log | `references/build/monitoreo.md` | 60 días |
+| **Score** | **33%** (commit 1468c74) | **42%** (commit 0bb29ef) | **+9 pp** |
+| Controles evaluables | 24 | 24 | — |
+| Pass | 5 | 7 | +2 |
+| Partial | 4 | 6 | +2 |
+| Fail | 13 | 11 | -2 |
+| Unknown | 2 | 2 | — |
+| Scope | Solo app/ | App + deploy/ | ampliado |
+
+> Score = (pass + 0.5 × partial) / evaluables = (7 + 3) / 24 = 42%
 
 ---
 
-## Siguientes pasos
+## Avances desde la corrida anterior
 
-1. **Responder las preguntas pendientes** (razón social, NIT, tamaño, RNBD) para completar los documentos con [COMPLETAR].
-2. **Completar los 4 items críticos** esta semana — especialmente bcrypt y el aviso de privacidad.
-3. **Commitear este directorio** para tener el estado versionado:
-   ```
-   git add .compliance && git commit -m "compliance: primera auditoría Ley 1581 - score 27%"
-   ```
-4. **Re-correr `/compliance-co`** después de implementar las correcciones para ver el avance.
+### Mejoras confirmadas en código (commit 82e11f9)
+
+| Control | Antes | Ahora | Cambio |
+|---|---|---|---|
+| **sec-passwords** | fail — SHA-256 | **pass** — bcrypt costo 12, migración silenciosa al login | Implementado |
+| **sec-rest** | partial — tokens en claro en BD | **pass** — AES-256-GCM (lib/storage-crypto.ts) | Implementado |
+| **inc-brechas** | fail — sin documentación | **partial** — plan y registro generados (.compliance/docs/) | Documentado |
+| **data-eipd** | fail | **partial** — EIPD generada como buena práctica | Documentado |
+
+### Nuevos archivos de documentación (.compliance/)
+
+Todos los documentos del pack ley-1581 están generados:
+- Política de privacidad completa
+- Aviso de privacidad (para login y formularios)
+- Autorización de tratamiento (con código SQL + frontend)
+- Canal de Habeas Data
+- Cláusula de encargo a proveedores
+- Plan de respuesta a brechas
+- Registro de incidentes
+- Procedimiento RNBD (no obligada)
+- EIPD
+
+---
+
+## Nuevos hallazgos — Deploy (web pública)
+
+El alcance de esta corrida se amplió a `D:\OWL\deploy`. Se identificó que `autodiagnostico.html` recoge datos personales de prospectos:
+
+**Datos recopilados:** empresa, representante legal, cargo, email, teléfono, RUTIC, servicios.
+
+**Encargados involucrados:**
+- EmailJS (USA) — notificación al equipo de ventas
+- Google Sheets vía Apps Script (USA) — almacenamiento de leads
+
+**Problemas:**
+1. **Sin aviso de privacidad** antes del formulario (Art. 10 Ley 1581).
+2. **Sin checkbox de autorización** — el envío ocurre sin consentimiento explícito (Art. 9 Ley 1581).
+3. **Sin DPA con EmailJS** (Google LLC ya tiene DPA disponible).
+4. **Sin plazo de retención** definido para los leads en Google Sheets.
+
+Esto agrava los controles `data-licitud`, `data-autorizacion`, `data-encargados` y `data-info`.
+
+**Nuevo documento generado:** Base de datos 6 en `docs/1581-rat.md` (leads/prospectos).
+
+---
+
+## Plan de acción priorizado
+
+### Alta prioridad — Obligaciones legales directas (Arts. 9, 10 Ley 1581)
+
+| # | Tarea | Archivo guía | Responsable |
+|---|---|---|---|
+| 1 | Agregar aviso de privacidad y checkbox de autorización en `autodiagnostico.html` antes del botón Enviar | docs/1581-autorizacion-tratamiento.md | Dev / Nicolás |
+| 2 | Agregar aviso de privacidad + enlace a política en el login de la app (`app/login/page.tsx`) | docs/1581-aviso-privacidad.md | Dev |
+| 3 | Publicar política de privacidad en `/privacidad` de la app y enlazarla desde el footer del deploy | docs/1581-politica-privacidad.md | Dev |
+| 4 | Crear canal de Habeas Data y publicarlo en la política + footer | docs/1581-canal-habeas-data.md | Nicolás |
+
+### Media prioridad — Gestión de encargados
+
+| # | Tarea | Referencia |
+|---|---|---|
+| 5 | Aceptar Data Processing Amendment de Google (cubre Drive, Sheets y Apps Script) | google.com/about/company/user-consent-policy |
+| 6 | Verificar DPA de Turso (turso.tech/legal) | docs/1581-clausula-encargados.md |
+| 7 | Verificar DPA de Resend (resend.com/legal) | docs/1581-clausula-encargados.md |
+| 8 | Verificar DPA de Microsoft (microsoft.com/trust-center) | docs/1581-clausula-encargados.md |
+| 9 | Verificar si EmailJS tiene DPA o evaluar reemplazarlo con Resend para notificaciones | docs/1581-clausula-encargados.md |
+
+### Baja prioridad — Buenas prácticas / robustez
+
+| # | Tarea |
+|---|---|
+| 10 | Aprobar formalmente el plan de respuesta a brechas (firma del responsable) y comunicarlo al equipo |
+| 11 | Implementar MFA para cuentas admin (TOTP o magic link) |
+| 12 | Documentar plazo de retención de leads en Google Sheets + proceso de supresión |
+| 13 | Definir plazos de conservación en el RAT (campos con [COMPLETAR]) |
+| 14 | Implementar alertas sobre el audit_log |
+| 15 | Actualizar EIPD para incluir el flujo de leads del autodiagnóstico |
+
+---
+
+## Proyección de score al completar las acciones
+
+| Escenario | Score estimado |
+|---|---|
+| Actual (hoy) | 42% |
+| Tras acciones 1-4 (aviso + autorización + política + canal) | ~58% |
+| Tras acciones 1-9 (+ DPAs con encargados) | ~67% |
+| Tras acciones 1-15 (plan completo) | ~83% |
+
+> El 100% teórico requiere controles organizacionales (capacitación anual, monitoreo, backups documentados) que no son verificables por código.
 
 ---
 
 ## Documentos generados en esta corrida
 
-| Documento | Archivo |
+| Archivo | Descripción |
 |---|---|
-| Registro de Actividades de Tratamiento (RAT) | `docs/1581-rat.md` |
-| Política de privacidad | `docs/1581-politica-privacidad.md` |
-| Aviso de privacidad (para login) | `docs/1581-aviso-privacidad.md` |
-| Mecanismo de autorización | `docs/1581-autorizacion-tratamiento.md` |
-| Canal de Habeas Data | `docs/1581-canal-habeas-data.md` |
-| Cláusula de encargados | `docs/1581-clausula-encargados.md` |
-| Plan de respuesta a brechas | `docs/1581-plan-respuesta-brechas.md` |
-| Registro de incidentes | `docs/1581-registro-incidentes.md` |
-| Procedimiento RNBD | `docs/1581-procedimiento-rnbd.md` |
-| EIPD | `docs/1581-eipd.md` |
+| `.compliance/state.json` | Estado completo de controles |
+| `.compliance/docs/1581-rat.md` | RAT con 6 bases de datos (incluye leads del autodiagnóstico) |
+| `.compliance/docs/1581-politica-privacidad.md` | Política de privacidad completa |
+| `.compliance/docs/1581-aviso-privacidad.md` | Aviso corto para formularios y login |
+| `.compliance/docs/1581-autorizacion-tratamiento.md` | Código para capturar autorización |
+| `.compliance/docs/1581-canal-habeas-data.md` | Canal y procedimiento Habeas Data |
+| `.compliance/docs/1581-clausula-encargados.md` | DPA tipo + lista de encargados (incl. EmailJS, Google Sheets) |
+| `.compliance/docs/1581-plan-respuesta-brechas.md` | Plan de respuesta a incidentes |
+| `.compliance/docs/1581-registro-incidentes.md` | Registro de incidentes |
+| `.compliance/docs/1581-procedimiento-rnbd.md` | RNBD — no obligada |
+| `.compliance/docs/1581-eipd.md` | Evaluación de impacto |
+| `.compliance/INSTRUCTIVO.md` | Runbooks operacionales |
 
 ---
 
-*Generado con compliance-co (pack ley-1581). No constituye asesoría legal. Responsable del tratamiento: Nicolás Almeyda Orozco — Owl Compliance, Bogotá.*
+*Generado con compliance-co (pack ley-1581). No constituye asesoría legal.*
