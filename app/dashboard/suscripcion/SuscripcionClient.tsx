@@ -40,6 +40,7 @@ function BarraUso({ usado, limite, color }: { usado: number; limite: number | nu
 export default function SuscripcionClient({ resumen, planes }: { resumen: any; planes: any }) {
   const params      = useSearchParams()
   const mpOk        = params.get('mp') === 'ok'
+  const planParam   = params.get('plan') ?? null   // viene del sitio web
 
   const [cargando,   setCargando]   = useState<string | null>(null)
   const [errorPago,  setErrorPago]  = useState<string | null>(null)
@@ -178,10 +179,11 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
             const p        = planes[key]
             const esActual = planActual === key && estado === 'activa'
             const loading  = cargando === key
+            const destacado = planParam === key && !esActual
             return (
               <div key={key} style={{
-                background: esActual ? 'rgba(150,134,34,0.12)' : 'rgba(231,223,202,0.03)',
-                border: esActual ? `2px solid ${C.olivo}` : '1px solid rgba(150,134,34,0.2)',
+                background: esActual ? 'rgba(150,134,34,0.12)' : destacado ? 'rgba(150,134,34,0.07)' : 'rgba(231,223,202,0.03)',
+                border: esActual ? `2px solid ${C.olivo}` : destacado ? `2px solid rgba(150,134,34,0.6)` : '1px solid rgba(150,134,34,0.2)',
                 borderRadius: '12px', padding: '1.4rem', position: 'relative',
                 display: 'flex', flexDirection: 'column',
               }}>
