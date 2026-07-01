@@ -19,14 +19,14 @@ export async function GET(req: NextRequest) {
   try {
     const suscripcion = await crearSuscripcion({
       planKey,
-      clienteId: `new:${planKey}`,   // prefijo "new:" = cuenta nueva
+      clienteId: `new:${planKey}`,
       backUrl:   `${BASE_URL}/pago-exitoso`,
-      // sin payerEmail: MP lo solicita al pagador durante el checkout
     })
 
     return NextResponse.redirect(suscripcion.init_point)
   } catch (err: any) {
-    console.error('[mp/checkout]', err?.message ?? err)
-    return NextResponse.redirect(`${BASE_URL}/pago-exitoso?error=1`)
+    const msg = err?.message ?? String(err)
+    console.error('[mp/checkout] ERROR:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
