@@ -19,11 +19,9 @@ export async function GET(req: NextRequest) {
   try {
     const suscripcion = await crearSuscripcion({
       planKey,
-      // external_reference con prefijo "new:" indica que aún no hay cuenta creada
-      clienteId:  `new:${planKey}`,
-      // MP pedirá el email al pagador durante el checkout
-      payerEmail: `nuevocliente+${planKey}@owlcompliance.co`,
-      backUrl:    `${BASE_URL}/pago-exitoso`,
+      clienteId: `new:${planKey}`,   // prefijo "new:" = cuenta nueva
+      backUrl:   `${BASE_URL}/pago-exitoso`,
+      // sin payerEmail: MP lo solicita al pagador durante el checkout
     })
 
     return NextResponse.redirect(suscripcion.init_point)

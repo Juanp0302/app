@@ -50,14 +50,13 @@ export interface PreapprovalCreado {
 export async function crearSuscripcion(opts: {
   planKey:     PlanKey
   clienteId:   string
-  payerEmail:  string
+  payerEmail?: string   // opcional: si no se pasa, MP lo pide al pagador
   backUrl:     string
 }): Promise<PreapprovalCreado> {
   const plan = PLANES[opts.planKey]
-  const data = await mpFetch('POST', '/preapproval', {
-    reason:            `Owl Compliance — Plan ${plan.label}`,
+  const body: Record<string, any> = {
+    reason:             `Owl Compliance — Plan ${plan.label}`,
     external_reference: opts.clienteId,
-    payer_email:        opts.payerEmail,
     auto_recurring: {
       frequency:          1,
       frequency_type:     'months',
@@ -66,7 +65,9 @@ export async function crearSuscripcion(opts: {
     },
     back_url: opts.backUrl,
     status:   'pending',
-  })
+  }
+  if (opts.payerEmail) body.payer_email = opts.payerEmail
+  const data = await mpFetch('POST', '/preapproval', body)
   return {
     id:         data.id,
     init_point: data.init_point,
