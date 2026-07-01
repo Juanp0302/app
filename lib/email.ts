@@ -1,12 +1,14 @@
 /**
  * lib/email.ts
- * Módulo de envío de emails.
+ * Módulo de envío de emails via Gmail SMTP (nodemailer).
  *
- * Usa Resend (resend.com) — free tier: 3.000 emails/mes.
- * Para activar: pon RESEND_API_KEY en .env.local
+ * Variables de entorno requeridas:
+ *   GMAIL_USER         — dirección Gmail (ej. tucorreo@gmail.com)
+ *   GMAIL_APP_PASSWORD — contraseña de aplicación de Google (16 caracteres)
  *
- * Sin clave configurada, los emails se loguean en consola (modo desarrollo).
+ * Sin variables configuradas, los emails se imprimen en consola (modo desarrollo).
  */
+import nodemailer from 'nodemailer'
 
 export interface EmailParams {
   to:      string | string[]
@@ -14,11 +16,22 @@ export interface EmailParams {
   html:    string
 }
 
-export async function enviarEmail(params: EmailParams): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY
+function getTransporter() {
+  const user = process.env.GMAIL_USER
+  const pass = process.env.GMAIL_APP_PASSWORD
 
-  // Sin API key → solo loguear (útil en desarrollo local)
-  if (!apiKey || apiKey === 'RE_TEST') {
+  if (!user || !pass) return null
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  })
+}
+
+export async function enviarEmail(params: EmailParams): Promise<boolean> {
+  const transporter = getTransporter()
+
+  if (!transporter) {
     console.log('\n📧 EMAIL (modo desarrollo — no enviado):')
     console.log('  Para:   ', Array.isArray(params.to) ? params.to.join(', ') : params.to)
     console.log('  Asunto: ', params.subject)
@@ -26,26 +39,16 @@ export async function enviarEmail(params: EmailParams): Promise<boolean> {
     return true
   }
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from:    process.env.EMAIL_FROM ?? 'Owl Compliance <recordatorios@owlcompliance.co>',
-        to:      Array.isArray(params.to) ? params.to : [params.to],
-        subject: params.subject,
-        html:    params.html,
-      }),
-    })
+  const from = process.env.GMAIL_USER ?? 'Owl Compliance'
+  const fromLabel = `"Owl Compliance" <${from}>`
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Error Resend:', err)
-      return false
-    }
+  try {
+    await transporter.sendMail({
+      from:    fromLabel,
+      to:      Array.isArray(params.to) ? params.to.join(', ') : params.to,
+      subject: params.subject,
+      html:    params.html,
+    })
     return true
   } catch (e) {
     console.error('Error enviando email:', e)
