@@ -103,11 +103,13 @@ export async function POST(req: NextRequest) {
       if (!permiso.ok) {
         if (permiso.razon === 'suscripcion_suspendida')
           return NextResponse.json({ error: 'Tu suscripción está suspendida. Renueva tu plan para continuar.', codigo: 'SUSCRIPCION_SUSPENDIDA' }, { status: 403 })
-        if (permiso.razon === 'limite_alcanzado')
+        if (permiso.razon === 'limite_alcanzado') {
+          const p = permiso as any
           return NextResponse.json({
-            error: `Alcanzaste el límite de ${permiso.limite} chat${permiso.limite !== 1 ? 's' : ''} de tu plan ${permiso.plan}. Actualiza tu plan para continuar.`,
-            codigo: 'LIMITE_CHATS', limite: permiso.limite, usado: permiso.usado, plan: permiso.plan,
+            error: `Alcanzaste el límite de ${p.limite} chat${p.limite !== 1 ? 's' : ''} de tu plan ${p.plan}. Actualiza tu plan para continuar.`,
+            codigo: 'LIMITE_CHATS', limite: p.limite, usado: p.usado, plan: p.plan,
           }, { status: 403 })
+        }
       }
     }
 
