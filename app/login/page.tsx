@@ -23,7 +23,8 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const res = await fetch('/api/mfa/send', {
+      // /api/mfa/verify solo verifica contraseña — responde en ~300ms
+      const res = await fetch('/api/mfa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -37,9 +38,15 @@ export default function LoginPage() {
       }
 
       if (data.needsMfa) {
-        // Admin → mostrar paso de código
+        // Mostrar pantalla MFA inmediatamente
         setPaso('mfa')
         setLoading(false)
+        // Disparar envío de código en paralelo SIN esperar (puede tardar)
+        fetch('/api/mfa/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        }).catch(() => {})
         return
       }
 
@@ -78,15 +85,16 @@ export default function LoginPage() {
     }
   }
 
-  async function reenviarCodigo() {
-    setError('')
-    await fetch('/api/mfa/send', {
+  function reenviarCodigo() {
+    setError('Enviando nuevo código...')
+    setMfaCode('')
+    fetch('/api/mfa/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
-    setMfaCode('')
-    setError('Nuevo código enviado a tu correo.')
+      .then(() => setError('Nuevo código enviado. Puede tardar unos segundos.'))
+      .catch(() => setError('Error enviando código. Intenta de nuevo.'))
   }
 
   return (

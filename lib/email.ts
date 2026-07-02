@@ -23,8 +23,13 @@ function getTransporter() {
   if (!user || !pass) return null
 
   return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user, pass },
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,         // SSL
+    auth: { user, pass: pass.replace(/\s/g, '') }, // quitar espacios por si acaso
+    connectionTimeout: 10_000,  // 10s máximo para conectar
+    greetingTimeout:   10_000,
+    socketTimeout:     15_000,
   })
 }
 

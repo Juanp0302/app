@@ -2,8 +2,8 @@
  * POST /api/mfa/send
  * Body: { email, password }
  *
- * Verifica credenciales rápido, luego genera y envía OTP en paralelo.
- * Devuelve { needsMfa, ok } inmediatamente sin esperar el email.
+ * Genera OTP y envía email. El cliente llama esto SIN esperar respuesta
+ * (fire-and-forget desde el frontend), después de que ya se mostró la pantalla MFA.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { queryOne, execute } from '@/lib/db'
@@ -15,24 +15,23 @@ export async function POST(req: NextRequest) {
   if (!email || !password)
     return NextResponse.json({ error: 'Faltan campos' }, { status: 400 })
 
-  // 1. Verificar usuario y contraseña (rápido)
   const user = await queryOne(
     'SELECT * FROM users WHERE lower(email) = lower(?) AND activo = 1',
     [email]
   ) as any
 
   if (!user)
-    return NextResponse.json({ needsMfa: false, ok: false })
+    return NextResponse.json({ ok: false })
 
   const { ok } = await verifyPassword(password, user.password)
   if (!ok)
-    return NextResponse.json({ needsMfa: false, ok: false })
+    return NextResponse.json({ ok: false })
 
   const esAdmin = Number(user.is_superadmin) === 1 || String(user.rol) === 'admin'
   if (!esAdmin)
-    return NextResponse.json({ needsMfa: false, ok: true })
+    return NextResponse.json({ ok: false })
 
-  // 2. Generar OTP y guardarlo en DB
+  // Generar OTP
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
@@ -46,17 +45,14 @@ export async function POST(req: NextRequest) {
     [email, code, expiresAt]
   )
 
-  // 3. Responder al cliente YA — el email se envía sin bloquear
-  const response = NextResponse.json({ needsMfa: true, ok: true })
-
-  // Envío en segundo plano (no bloquea la respuesta)
-  enviarEmail({
+  // Enviar email (este endpoint puede tardar — el cliente no espera su respuesta)
+  await enviarEmail({
     to: user.email,
     subject: `${code} — Tu código de acceso a Owl Compliance`,
     html: templateMfa({ nombre: user.nombre, code }),
-  }).catch(e => console.error('[MFA] Error enviando email:', e))
+  })
 
-  return response
+  return NextResponse.json({ ok: true })
 }
 
 function templateMfa({ nombre, code }: { nombre: string; code: string }) {
