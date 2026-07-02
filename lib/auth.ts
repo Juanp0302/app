@@ -37,31 +37,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
         }
 
-        // ── MFA para administradores y superadmin ──────────────────────────
-        const esAdmin = (user as any).rol === 'admin' || (user as any).is_superadmin === 1
-        if (esAdmin) {
-          const code = (credentials.mfaCode as string | undefined)?.trim()
-          if (!code) return null   // admin sin código → rechazar
-
-          const token = await queryOne(
-            `SELECT id FROM mfa_tokens
-             WHERE lower(email) = lower(?)
-               AND code = ?
-               AND used = 0
-               AND expires_at > datetime('now')
-             LIMIT 1`,
-            [credentials.email as string, code]
-          ) as any
-
-          if (!token) return null  // código inválido o expirado
-
-          // Marcar como usado (un solo uso)
-          await execute(
-            `UPDATE mfa_tokens SET used = 1 WHERE id = ?`,
-            [token.id]
-          )
-        }
-
         return {
           id:            (user as any).id,
           email:         (user as any).email,

@@ -4,53 +4,19 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
-type Paso = 'credenciales' | 'mfa'
-
 export default function LoginPage() {
   const router = useRouter()
-  const [paso,         setPaso]        = useState<Paso>('credenciales')
   const [email,        setEmail]       = useState('')
   const [password,     setPassword]    = useState('')
-  const [mfaCode,      setMfaCode]     = useState('')
   const [error,        setError]       = useState('')
   const [loading,      setLoading]     = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  /* ── Paso 1: verificar credenciales y detectar si necesita MFA ── */
-  async function handleCredenciales(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-
     try {
-      // /api/mfa/verify solo verifica contraseña — responde en ~300ms
-      const res = await fetch('/api/mfa/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-
-      if (!data.ok) {
-        setError('Email o contraseña incorrectos.')
-        setLoading(false)
-        return
-      }
-
-      if (data.needsMfa) {
-        // Mostrar pantalla MFA inmediatamente
-        setPaso('mfa')
-        setLoading(false)
-        // Disparar envío de código en paralelo SIN esperar (puede tardar)
-        fetch('/api/mfa/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        }).catch(() => {})
-        return
-      }
-
-      // Cliente (sin MFA) → iniciar sesión directamente
       const result = await signIn('credentials', { email, password, mfaCode: '', redirect: false })
       if (result?.error) {
         setError('Email o contraseña incorrectos.')
@@ -62,39 +28,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  /* ── Paso 2: verificar código MFA e iniciar sesión ── */
-  async function handleMfa(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      mfaCode: mfaCode.trim(),
-      redirect: false,
-    })
-
-    if (result?.error) {
-      setError('Código incorrecto o expirado. Solicita uno nuevo.')
-      setLoading(false)
-    } else {
-      router.push('/dashboard')
-    }
-  }
-
-  function reenviarCodigo() {
-    setError('Enviando nuevo código...')
-    setMfaCode('')
-    fetch('/api/mfa/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-      .then(() => setError('Nuevo código enviado. Puede tardar unos segundos.'))
-      .catch(() => setError('Error enviando código. Intenta de nuevo.'))
   }
 
   return (
@@ -143,9 +76,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ── PASO 1: Email + Contraseña ── */}
-        {paso === 'credenciales' && (
-          <form onSubmit={handleCredenciales}>
+        <form onSubmit={handleLogin}>
             <div style={{ marginBottom: '1.2rem' }}>
               <label style={labelStyle}>Email</label>
               <input
@@ -185,69 +116,9 @@ export default function LoginPage() {
             {error && <ErrorBox>{error}</ErrorBox>}
 
             <button type="submit" disabled={loading} style={btnStyle(loading)}>
-              {loading ? 'Verificando...' : 'Continuar'}
-            </button>
-          </form>
-        )}
-
-        {/* ── PASO 2: Código MFA ── */}
-        {paso === 'mfa' && (
-          <form onSubmit={handleMfa}>
-            <div style={{
-              background: 'rgba(150,134,34,0.12)',
-              border: '1px solid rgba(150,134,34,0.35)',
-              borderRadius: '8px',
-              padding: '0.9rem 1rem',
-              marginBottom: '1.5rem',
-              fontSize: '0.78rem',
-              color: '#270205',
-              lineHeight: 1.6,
-            }}>
-              Enviamos un código de 6 dígitos a <strong>{email}</strong>. Revisa tu correo e ingrésalo a continuación.
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={labelStyle}>Código de verificación</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={mfaCode}
-                onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="000000"
-                required
-                autoFocus
-                style={{
-                  ...inputStyle,
-                  textAlign: 'center',
-                  fontSize: '1.4rem',
-                  letterSpacing: '0.4em',
-                  fontWeight: 700,
-                }}
-              />
-            </div>
-
-            {error && <ErrorBox>{error}</ErrorBox>}
-
-            <button type="submit" disabled={loading || mfaCode.length < 6} style={btnStyle(loading || mfaCode.length < 6)}>
               {loading ? 'Verificando...' : 'Ingresar'}
             </button>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => { setPaso('credenciales'); setError(''); setMfaCode('') }}
-                style={linkBtn}
-              >
-                Volver
-              </button>
-              <button type="button" onClick={reenviarCodigo} style={linkBtn}>
-                Reenviar código
-              </button>
-            </div>
           </form>
-        )}
 
         <div style={{
           textAlign: 'center',
