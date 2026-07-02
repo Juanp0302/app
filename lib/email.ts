@@ -42,16 +42,19 @@ export async function enviarEmail(params: EmailParams): Promise<boolean> {
   const from = process.env.GMAIL_USER ?? 'Owl Compliance'
   const fromLabel = `"Owl Compliance" <${from}>`
 
+  const toStr = Array.isArray(params.to) ? params.to.join(', ') : params.to
+  console.log(`[email] Enviando a ${toStr} via Gmail SMTP (${process.env.GMAIL_USER})`)
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from:    fromLabel,
-      to:      Array.isArray(params.to) ? params.to.join(', ') : params.to,
+      to:      toStr,
       subject: params.subject,
       html:    params.html,
     })
+    console.log(`[email] OK — messageId: ${info.messageId}`)
     return true
-  } catch (e) {
-    console.error('Error enviando email:', e)
+  } catch (e: any) {
+    console.error('[email] ERROR enviando:', e?.message ?? e)
     return false
   }
 }
