@@ -24,12 +24,12 @@ function getTransporter() {
 
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,         // SSL
-    auth: { user, pass: pass.replace(/\s/g, '') }, // quitar espacios por si acaso
-    connectionTimeout: 10_000,  // 10s máximo para conectar
-    greetingTimeout:   10_000,
-    socketTimeout:     15_000,
+    port: 587,
+    secure: false,        // TLS (STARTTLS)
+    auth: { user, pass: pass.replace(/\s/g, '') },
+    connectionTimeout: 15_000,
+    greetingTimeout:   15_000,
+    socketTimeout:     20_000,
   })
 }
 

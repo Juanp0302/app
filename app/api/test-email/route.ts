@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com', port: 465, secure: true,
+      host: 'smtp.gmail.com', port: 587, secure: false,
       auth: { user, pass },
     })
     await transporter.verify()
