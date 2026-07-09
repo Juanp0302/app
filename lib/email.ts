@@ -1,14 +1,13 @@
 /**
  * lib/email.ts
- * Módulo de envío de emails via Gmail SMTP (nodemailer).
+ * Envío de emails via n8n (webhook → Gmail OAuth2).
  *
- * Variables de entorno requeridas:
- *   GMAIL_USER         — dirección Gmail (ej. tucorreo@gmail.com)
- *   GMAIL_APP_PASSWORD — contraseña de aplicación de Google (16 caracteres)
+ * Variable de entorno requerida:
+ *   N8N_EMAIL_WEBHOOK — URL del webhook de n8n para enviar emails
+ *                       Ej: https://mi-n8n.railway.app/webhook/enviar-email
  *
- * Sin variables configuradas, los emails se imprimen en consola (modo desarrollo).
+ * Sin la variable configurada, los emails se imprimen en consola (modo desarrollo).
  */
-import nodemailer from 'nodemailer'
 
 export interface EmailParams {
   to:      string | string[]
@@ -16,50 +15,34 @@ export interface EmailParams {
   html:    string
 }
 
-function getTransporter() {
-  const user = process.env.GMAIL_USER
-  const pass = process.env.GMAIL_APP_PASSWORD
-
-  if (!user || !pass) return null
-
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,        // TLS (STARTTLS)
-    auth: { user, pass: pass.replace(/\s/g, '') },
-    connectionTimeout: 15_000,
-    greetingTimeout:   15_000,
-    socketTimeout:     20_000,
-  })
-}
-
 export async function enviarEmail(params: EmailParams): Promise<boolean> {
-  const transporter = getTransporter()
+  const webhookUrl = process.env.N8N_EMAIL_WEBHOOK
 
-  if (!transporter) {
+  const toStr = Array.isArray(params.to) ? params.to.join(', ') : params.to
+
+  if (!webhookUrl) {
     console.log('\n📧 EMAIL (modo desarrollo — no enviado):')
-    console.log('  Para:   ', Array.isArray(params.to) ? params.to.join(', ') : params.to)
+    console.log('  Para:   ', toStr)
     console.log('  Asunto: ', params.subject)
     console.log('  ─────────────────────────────────')
     return true
   }
 
-  const from = process.env.GMAIL_USER ?? 'Owl Compliance'
-  const fromLabel = `"Owl Compliance" <${from}>`
-
-  const toStr = Array.isArray(params.to) ? params.to.join(', ') : params.to
-  console.log(`[email] Enviando a ${toStr} via Gmail SMTP (${process.env.GMAIL_USER})`)
+  console.log(`[email] Enviando a ${toStr} via n8n`)
   try {
-    const info = await transporter.sendMail({
-      from:    fromLabel,
-      to:      toStr,
-      subject: params.subject,
-      html:    params.html,
+    const res = await fetch(webhookUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to: toStr, subject: params.subject, html: params.html }),
     })
-    console.log(`[email] OK — messageId: ${info.messageId}`)
+    if (!res.ok) {
+      console.error('[email] n8n respondió con error:', res.status)
+      return false
+    }
+    console.log('[email] OK via n8n')
     return true
   } catch (e: any) {
-    console.error('[email] ERROR enviando:', e?.message ?? e)
+    console.error('[email] ERROR llamando n8n:', e?.message ?? e)
     return false
   }
 }
