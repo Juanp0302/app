@@ -231,9 +231,9 @@ export default function TicketsClient({
 
         {/* ── Detalle ticket ── */}
         {activo ? (
-          <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-            {/* Header */}
-            <div style={{ padding: '1.25rem 1.5rem', background: '#fff', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Header — fijo arriba */}
+            <div style={{ flexShrink: 0, padding: '1.25rem 1.5rem', background: '#fff', borderBottom: '1px solid #e5e7eb' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -270,51 +270,54 @@ export default function TicketsClient({
               </div>
             </div>
 
-            {/* Descripción */}
-            <div style={{ padding: '1.25rem 1.5rem', background: '#fafafa', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 6 }}>Descripción</div>
-              <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>{activo.descripcion}</p>
-            </div>
+            {/* Zona scrollable: descripción + respuestas */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              {/* Descripción */}
+              <div style={{ flexShrink: 0, padding: '1.25rem 1.5rem', background: '#fafafa', borderBottom: '1px solid #e5e7eb' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 6 }}>Descripción</div>
+                <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>{activo.descripcion}</p>
+              </div>
 
-            {/* Respuestas */}
-            <div style={{ flex: 1, padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {respuestas.length === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>Sin respuestas aún</p>}
-              {respuestas.map((r: any) => {
-                const esMio = r.user_id === userId
-                return (
-                  <div key={r.id} style={{ display: 'flex', justifyContent: esMio ? 'flex-end' : 'flex-start' }}>
-                    <div style={{ maxWidth: '75%' }}>
-                      <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3, textAlign: esMio ? 'right' : 'left' }}>
-                        {r.autor_nombre} ({r.autor_rol}) · {new Date(r.created_at).toLocaleString('es-CO')}
-                      </div>
-                      <div style={{ background: esMio ? C.bordo : '#fff', color: esMio ? '#fff' : '#333',
-                        padding: '10px 14px', borderRadius: esMio ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        fontSize: 14, lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                        {r.contenido}
+              {/* Respuestas */}
+              <div style={{ flex: 1, padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {respuestas.length === 0 && <p style={{ color: '#aaa', fontSize: 13 }}>Sin respuestas aún</p>}
+                {respuestas.map((r: any) => {
+                  const esMio = r.user_id === userId
+                  return (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: esMio ? 'flex-end' : 'flex-start' }}>
+                      <div style={{ maxWidth: '75%' }}>
+                        <div style={{ fontSize: 11, color: '#aaa', marginBottom: 3, textAlign: esMio ? 'right' : 'left' }}>
+                          {r.autor_nombre} ({r.autor_rol}) · {new Date(r.created_at).toLocaleString('es-CO')}
+                        </div>
+                        <div style={{ background: esMio ? C.bordo : '#fff', color: esMio ? '#fff' : '#333',
+                          padding: '10px 14px', borderRadius: esMio ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          fontSize: 14, lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                          {r.contenido}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
 
-              {historial.length > 0 && (
-                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>
-                    Historial de reasignaciones
-                  </div>
-                  {historial.map((h: any) => (
-                    <div key={h.id} style={{ fontSize: 12, color: '#888', padding: '4px 0' }}>
-                      {new Date(h.created_at).toLocaleDateString('es-CO')} — {h.de_nombre ?? 'Sin asignar'} → {h.a_nombre}
-                      {h.motivo && <span style={{ color: '#aaa' }}> · "{h.motivo}"</span>}
+                {historial.length > 0 && (
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Historial de reasignaciones
                     </div>
-                  ))}
-                </div>
-              )}
+                    {historial.map((h: any) => (
+                      <div key={h.id} style={{ fontSize: 12, color: '#888', padding: '4px 0' }}>
+                        {new Date(h.created_at).toLocaleDateString('es-CO')} — {h.de_nombre ?? 'Sin asignar'} → {h.a_nombre}
+                        {h.motivo && <span style={{ color: '#aaa' }}> · "{h.motivo}"</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Responder (disponible mientras no esté cerrado) */}
+            {/* Módulo de respuesta — fijo abajo */}
             {activo.estado !== 'cerrado' && (
-              <div style={{ padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
+              <div style={{ flexShrink: 0, padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
                 <input value={texto} onChange={e => setTexto(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); responder() } }}
                   placeholder="Escribe una respuesta…" style={{ ...inp, flex: 1 }} />
