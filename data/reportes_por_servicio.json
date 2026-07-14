@@ -1,0 +1,112 @@
+{
+  "isp_sva": [
+    { "codigo": "T.1.1 Ingresos",                      "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",              "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",               "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.2.4 Indicadores calidad datos fijos","periodicidad": "Trimestral", "plazo": "15 días calendario" },
+    { "codigo": "T.2.5 Indicadores disponibilidad",     "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.3.3 Acuerdos infraestructura",       "periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",               "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",             "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "Formato 3 Parámetros técnicos",        "periodicidad": "Trimestral", "plazo": "Último día del mes" }
+  ],
+  "portador": [
+    { "codigo": "T.1.1 Ingresos",          "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.3.1 Servicio transporte","periodicidad": "Anual",      "plazo": "31 de enero" }
+  ],
+  "iptv_sva": [
+    { "codigo": "T.1.2 Planes tarifarios",                      "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",                       "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.2.1.A Indicadores calidad TV (genérico)",    "periodicidad": "Semestral",  "plazo": "31 días calendario" },
+    { "codigo": "T.2.1.B Indicadores calidad TV (HFC/Satélite/IPTV)", "periodicidad": "Semestral", "plazo": "31 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión",                 "periodicidad": "Eventual",   "plazo": "15 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura",               "periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",                       "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",                     "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.5 Programación y sistemas acceso",         "periodicidad": "Trimestral", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.6 Mecanismos participación televidentes",  "periodicidad": "Anual",       "plazo": "31 de enero" },
+    { "codigo": "Formato 6 Suscriptores y asociados",           "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "Formato 7 Ingresos operacionales",             "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "tpbc_local_y_local_extendida": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "tpbc_larga_distancia": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "telefon_a_ip_sva": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "telefon_a_m_vil_celular": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "telefon_a_m_vil_rural": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "telefon_a_m_vil_virtual": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "servicio_de_comunicaciones_personal_pcs": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "telecom_convencionales_de_voz_y_o_datos": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ],
+  "sistemas_de_acceso_troncalizado_trunking": [
+    { "codigo": "T.1.1 Ingresos",              "periodicidad": "Trimestral", "plazo": "60 días calendario" },
+    { "codigo": "T.1.2 Planes tarifarios",     "periodicidad": "Semestral",  "plazo": "30 días calendario" },
+    { "codigo": "T.1.3 Líneas o accesos",      "periodicidad": "Trimestral", "plazo": "45 días calendario" },
+    { "codigo": "T.3.2 Acuerdos interconexión","periodicidad": "Eventual",   "plazo": "10 días hábiles" },
+    { "codigo": "T.3.3 Acuerdos infraestructura","periodicidad": "Eventual", "plazo": "10 días hábiles" },
+    { "codigo": "T.4.2 Monitoreo Quejas",      "periodicidad": "Trimestral", "plazo": "30 días calendario" },
+    { "codigo": "T.4.3 Indicadores quejas",    "periodicidad": "Trimestral", "plazo": "30 días calendario" }
+  ]
+}

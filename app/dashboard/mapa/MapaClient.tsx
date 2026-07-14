@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import DonutChart from '@/components/DonutChart'
 
 // ─── Colores ─────────────────────────────────────────────────────────────────
@@ -24,12 +24,13 @@ interface Sub {
   fecha_limite: string | null
   normatividad: string[]
 }
-interface Obligacion { nombre: string; descripcion: string; servicio: string; subs: Sub[] }
+interface ReporteFormato { codigo: string; periodicidad: string; plazo: string }
+interface Obligacion { nombre: string; descripcion: string; servicio: string; servicio_slug: string; subs: Sub[] }
 interface Grupo      { nombre: string; obligaciones: Obligacion[] }
 interface Aspecto    { nombre: string; grupos: Grupo[]; stats: { total: number; cumplidas: number; vencidas: number; pendientes: number }; pct: number }
-interface MapaData   { cliente: { id: string; razon_social: string; nit: string }; servicios: string[]; aspectos: Aspecto[]; stats: { total: number; cumplidas: number; vencidas: number; pendientes: number; pct: number } }
+interface MapaData   { cliente: { id: string; razon_social: string; nit: string }; servicios: string[]; aspectos: Aspecto[]; reportes_aplicables: { servicio: string; formatos: ReporteFormato[] }[]; stats: { total: number; cumplidas: number; vencidas: number; pendientes: number; pct: number } }
 
-interface DocInfo { id: string; nombre_archivo: string; uploaded_at: string; subido_por: string }
+interface DocInfo { id: string; nombre_archivo: string; uploaded_at: string; subido_por: string; formato_codigo?: string | null }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function pctColor(pct: number) { return pct >= 80 ? '#16a34a' : pct >= 50 ? '#968622' : '#dc2626' }
@@ -56,11 +57,22 @@ export default function MapaClient({
 
   // ── Documentos por subobligación ──────────────────────────────────────────
   const [docs, setDocs] = useState<Record<string, DocInfo[]>>({})
+  // Índice secundario: formato_codigo → docs
+  const [docsPorFormato, setDocsPorFormato] = useState<Record<string, DocInfo[]>>({})
 
   // ── Panel de subida ───────────────────────────────────────────────────────
   const [uploadPanel, setUploadPanel] = useState<{
     oblId: string; aspecto: string; obligacion: string; periodicidad: string
   } | null>(null)
+  // Panel de subida de formato específico
+  const [uploadFormato, setUploadFormato] = useState<{
+    oblId: string; aspecto: string; obligacion: string; formatoCodigo: string; periodicidad: string
+  } | null>(null)
+  const [uploadFormatoAnio,  setUploadFormatoAnio]  = useState(new Date().getFullYear())
+  const [uploadFormatoTrim,  setUploadFormatoTrim]  = useState<number | string>('')
+  const [uploadingFormato,   setUploadingFormato]   = useState(false)
+  const [uploadFormatoError, setUploadFormatoError] = useState('')
+  const fileInputFormatoRef = useRef<HTMLInputElement>(null)
   const [uploadAnio,      setUploadAnio]      = useState(new Date().getFullYear())
   const [uploadTrimestre, setUploadTrimestre] = useState<number | string>('')
   const [uploading,       setUploading]       = useState(false)
@@ -81,20 +93,28 @@ export default function MapaClient({
       const res  = await fetch(`/api/documentos?clienteId=${cid}`)
       const json = await res.json()
       const idx: Record<string, DocInfo[]> = {}
+      const idxFormato: Record<string, DocInfo[]> = {}
       for (const grupo of (json.grupos ?? [])) {
         for (const arch of (grupo.archivos ?? [])) {
-          if (!arch.cliente_obl_id) continue
-          if (!idx[arch.cliente_obl_id]) idx[arch.cliente_obl_id] = []
-          idx[arch.cliente_obl_id].push(arch)
+          if (arch.cliente_obl_id) {
+            if (!idx[arch.cliente_obl_id]) idx[arch.cliente_obl_id] = []
+            idx[arch.cliente_obl_id].push(arch)
+          }
+          if (arch.formato_codigo) {
+            if (!idxFormato[arch.formato_codigo]) idxFormato[arch.formato_codigo] = []
+            idxFormato[arch.formato_codigo].push(arch)
+          }
         }
       }
       setDocs(idx)
+      setDocsPorFormato(idxFormato)
     } catch {}
   }, [])
 
   const cargar = useCallback(async (cid: string) => {
     setLoading(true)
     setDocs({})
+    setDocsPorFormato({})
     try {
       const res  = await fetch(`/api/obligaciones?clienteId=${cid}`)
       const json = await res.json()
@@ -163,6 +183,33 @@ export default function MapaClient({
       setUploadPanel(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } finally { setUploading(false) }
+  }
+
+  // ── Subir documento vinculado a un formato específico ────────────────────
+  async function subirDocumentoFormato(file: File) {
+    if (!uploadFormato || !clienteId) return
+    setUploadingFormato(true); setUploadFormatoError('')
+    try {
+      const form = new FormData()
+      form.append('clienteId',    clienteId)
+      form.append('clienteOblId', uploadFormato.oblId)
+      form.append('aspecto',      uploadFormato.aspecto)
+      form.append('obligacion',   uploadFormato.obligacion)
+      form.append('formatoCodigo', uploadFormato.formatoCodigo)
+      form.append('anio',         String(uploadFormatoAnio))
+      if (uploadFormatoTrim) form.append('trimestre', String(uploadFormatoTrim))
+      form.append('archivo', file)
+
+      const res = await fetch('/api/documentos', { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json()
+        setUploadFormatoError(err.error ?? 'Error al subir el archivo')
+        return
+      }
+      await cargarDocs(clienteId)
+      setUploadFormato(null)
+      if (fileInputFormatoRef.current) fileInputFormatoRef.current.value = ''
+    } finally { setUploadingFormato(false) }
   }
 
   // ── Descargar ZIP ─────────────────────────────────────────────────────────
@@ -443,6 +490,110 @@ export default function MapaClient({
 
                               {oOpen && (
                                 <div style={{ padding: '0.5rem 1.5rem 1rem 4.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+
+                                  {/* ── Formatos de reportes aplicables ── */}
+                                  {obl.nombre === 'REPORTES DE INFORMACIÓN' && (() => {
+                                    const entry = data?.reportes_aplicables?.find(r => r.servicio === obl.servicio_slug)
+                                    if (!entry?.formatos?.length) return null
+                                    // obl_id base = primer sub de esta obligación (para vincular docs)
+                                    const baseOblId = obl.subs[0]?.obl_id ?? ''
+                                    return (
+                                      <div style={{ background: 'rgba(150,134,34,0.07)', border: '1px solid rgba(150,134,34,0.2)', borderRadius: '8px', padding: '0.9rem 1rem', marginBottom: '0.2rem' }}>
+                                        <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.olivo, marginBottom: '0.6rem' }}>
+                                          Formatos aplicables — {obl.servicio}
+                                        </div>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                          <thead>
+                                            <tr style={{ color: 'rgba(231,223,202,0.45)' }}>
+                                              <th style={{ textAlign: 'left', fontWeight: 600, paddingBottom: '0.4rem', paddingRight: '1rem' }}>Formato</th>
+                                              <th style={{ textAlign: 'left', fontWeight: 600, paddingBottom: '0.4rem', paddingRight: '1rem' }}>Periodicidad</th>
+                                              <th style={{ textAlign: 'left', fontWeight: 600, paddingBottom: '0.4rem', paddingRight: '1rem' }}>Plazo</th>
+                                              <th style={{ textAlign: 'right', fontWeight: 600, paddingBottom: '0.4rem' }}></th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {entry.formatos.map((f, i) => {
+                                              const fDocs    = docsPorFormato[f.codigo] ?? []
+                                              const isActive = uploadFormato?.formatoCodigo === f.codigo && uploadFormato?.oblId === baseOblId
+                                              const necesitaQ = necesitaTrimestre(f.periodicidad)
+                                              return (
+                                                <React.Fragment key={i}>
+                                                  <tr style={{ borderTop: '1px solid rgba(231,223,202,0.06)', color: 'rgba(231,223,202,0.8)' }}>
+                                                    <td style={{ padding: '0.35rem 1rem 0.35rem 0', fontWeight: 500, verticalAlign: 'top' }}>
+                                                      {f.codigo}
+                                                      {fDocs.length > 0 && (
+                                                        <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                          {fDocs.map(d => (
+                                                            <a key={d.id} href={`/api/documentos/archivo?docId=${d.id}`} target="_blank" rel="noopener noreferrer"
+                                                              style={{ fontSize: '0.65rem', color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                              📄 {d.nombre_archivo}
+                                                            </a>
+                                                          ))}
+                                                        </div>
+                                                      )}
+                                                    </td>
+                                                    <td style={{ padding: '0.35rem 1rem 0.35rem 0', verticalAlign: 'top' }}>
+                                                      <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(150,134,34,0.15)', color: C.olivo, padding: '0.15rem 0.5rem', borderRadius: '8px' }}>{f.periodicidad}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.35rem 1rem 0.35rem 0', color: 'rgba(231,223,202,0.5)', fontSize: '0.72rem', verticalAlign: 'top' }}>{f.plazo}</td>
+                                                    <td style={{ padding: '0.35rem 0', textAlign: 'right', verticalAlign: 'top' }}>
+                                                      <button onClick={() => {
+                                                        setUploadFormato(isActive ? null : { oblId: baseOblId, aspecto: asp.nombre, obligacion: obl.nombre, formatoCodigo: f.codigo, periodicidad: f.periodicidad })
+                                                        setUploadFormatoError('')
+                                                      }}
+                                                        style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0.25rem 0.6rem', borderRadius: '6px', border: `1px solid ${isActive ? C.olivo : 'rgba(231,223,202,0.2)'}`, cursor: 'pointer', fontFamily: 'inherit', background: isActive ? 'rgba(150,134,34,0.15)' : 'transparent', color: isActive ? C.olivo : 'rgba(231,223,202,0.45)', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
+                                                        {isActive ? '✕' : '↑ Subir'}
+                                                      </button>
+                                                    </td>
+                                                  </tr>
+                                                  {isActive && (
+                                                    <tr>
+                                                      <td colSpan={4} style={{ padding: '0.6rem 0 0.8rem 0' }}>
+                                                        <div style={{ background: 'rgba(39,2,5,0.4)', border: '1px solid rgba(150,134,34,0.25)', borderRadius: '8px', padding: '0.8rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                          <div style={{ fontSize: '0.65rem', fontWeight: 700, color: C.olivo, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Subir documento — {f.codigo}</div>
+                                                          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                                            <div>
+                                                              <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '0.3rem' }}>Año</div>
+                                                              <select value={uploadFormatoAnio} onChange={e => setUploadFormatoAnio(Number(e.target.value))}
+                                                                style={{ background: 'rgba(39,2,5,0.8)', border: '1px solid rgba(150,134,34,0.3)', borderRadius: '6px', padding: '0.35rem 0.6rem', color: C.marfil, fontSize: '0.72rem', fontFamily: 'inherit' }}>
+                                                                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y} style={{ background: C.vino }}>{y}</option>)}
+                                                              </select>
+                                                            </div>
+                                                            {necesitaQ && (
+                                                              <div>
+                                                                <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '0.3rem' }}>Periodo</div>
+                                                                <select value={uploadFormatoTrim} onChange={e => setUploadFormatoTrim(e.target.value === '' ? '' : Number(e.target.value))}
+                                                                  style={{ background: 'rgba(39,2,5,0.8)', border: '1px solid rgba(150,134,34,0.3)', borderRadius: '6px', padding: '0.35rem 0.6rem', color: C.marfil, fontSize: '0.72rem', fontFamily: 'inherit' }}>
+                                                                  <option value="" style={{ background: C.vino }}>— selecciona —</option>
+                                                                  <option value={1} style={{ background: C.vino }}>Q1 · Ene–Mar</option>
+                                                                  <option value={2} style={{ background: C.vino }}>Q2 · Abr–Jun</option>
+                                                                  <option value={3} style={{ background: C.vino }}>Q3 · Jul–Sep</option>
+                                                                  <option value={4} style={{ background: C.vino }}>Q4 · Oct–Dic</option>
+                                                                </select>
+                                                              </div>
+                                                            )}
+                                                            <label style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(150,134,34,0.4)', cursor: 'pointer', color: C.olivo, background: 'rgba(150,134,34,0.08)', whiteSpace: 'nowrap' }}>
+                                                              {uploadingFormato ? 'Subiendo…' : 'Elegir archivo'}
+                                                              <input ref={fileInputFormatoRef} type="file" style={{ display: 'none' }} disabled={uploadingFormato}
+                                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                                                onChange={e => { const file = e.target.files?.[0]; if (file) subirDocumentoFormato(file) }} />
+                                                            </label>
+                                                          </div>
+                                                          {uploadFormatoError && <div style={{ fontSize: '0.7rem', color: '#f87171' }}>{uploadFormatoError}</div>}
+                                                          <div style={{ fontSize: '0.62rem', color: 'rgba(231,223,202,0.3)' }}>PDF, Word, Excel o imagen · máx. 20 MB</div>
+                                                        </div>
+                                                      </td>
+                                                    </tr>
+                                                  )}
+                                                </React.Fragment>
+                                              )
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )
+                                  })()}
+
                                   {obl.subs.map(sub => {
                                     const cfg      = ESTADO_CONFIG[sub.estado] ?? ESTADO_CONFIG.pendiente
                                     const subDocs  = docs[sub.obl_id] ?? []

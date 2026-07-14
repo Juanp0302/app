@@ -60,22 +60,22 @@ async function run() {
     process.exit(1)
   }
 
-  const existing_sa = await db.execute("SELECT id FROM users WHERE email = 'superadmin@owlcompliance.co' LIMIT 1")
+  const existing_sa = await db.execute("SELECT id FROM users WHERE email = 'contacto@owlcompliance.com' LIMIT 1")
   if (existing_sa.rows.length === 0) {
     const id = crypto.randomUUID()
     try {
       await db.execute(
         `INSERT INTO users (id, email, password, nombre, rol, activo) VALUES (?, ?, ?, ?, 'admin', 1)`,
-        [id, 'superadmin@owlcompliance.co', hashPwd(superadminPassword), 'SUPERADMIN']
+        [id, 'contacto@owlcompliance.com', hashPwd(superadminPassword), 'SUPERADMIN']
       )
-      console.log('✓ Superadmin creado: superadmin@owlcompliance.co')
+      console.log('✓ Superadmin creado: contacto@owlcompliance.com')
     } catch (e2) {
       console.log('  Error:', e2.message)
     }
   } else {
     // Actualizar contraseña si ya existe
     await db.execute(
-      `UPDATE users SET password = ? WHERE email = 'superadmin@owlcompliance.co'`,
+      `UPDATE users SET password = ? WHERE email = 'contacto@owlcompliance.com'`,
       [hashPwd(superadminPassword)]
     )
     console.log('✓ Contraseña de superadmin actualizada')
@@ -86,12 +86,12 @@ async function run() {
     await db.execute('ALTER TABLE users ADD COLUMN is_superadmin INTEGER NOT NULL DEFAULT 0')
     console.log('✓ Columna is_superadmin agregada a users')
     // Marcar el usuario superadmin
-    await db.execute("UPDATE users SET is_superadmin = 1 WHERE email = 'superadmin@owlcompliance.co'")
-    console.log('✓ is_superadmin = 1 para superadmin@owlcompliance.co')
+    await db.execute("UPDATE users SET is_superadmin = 1 WHERE email = 'contacto@owlcompliance.com'")
+    console.log('✓ is_superadmin = 1 para contacto@owlcompliance.com')
   } catch (e) {
     if (e.message?.includes('duplicate column')) {
       console.log('  is_superadmin ya existe, OK')
-      await db.execute("UPDATE users SET is_superadmin = 1 WHERE email = 'superadmin@owlcompliance.co'")
+      await db.execute("UPDATE users SET is_superadmin = 1 WHERE email = 'contacto@owlcompliance.com'")
     } else {
       console.log('  is_superadmin:', e.message)
     }

@@ -19,16 +19,21 @@ export interface GuardarParams {
   clienteId: string; clienteOblId: string | null; aspecto: string; obligacion: string
   anio: number; trimestre: number | null; nombreArchivo: string; buffer: Buffer
   mimeType: string; userId: string; userEmail: string
+  formatoCodigo?: string | null
 }
 
-/** Agrega columnas de revisión si aún no existen (migración segura). */
+/** Agrega columnas si aún no existen (migración segura). */
 async function ensureRevisionColumns(): Promise<void> {
-  const cols = ['estado_revision', 'revision_comentario', 'revisado_por', 'revisado_at']
+  const cols: { name: string; def: string }[] = [
+    { name: 'estado_revision',     def: "TEXT DEFAULT 'pendiente'" },
+    { name: 'revision_comentario', def: 'TEXT' },
+    { name: 'revisado_por',        def: 'TEXT' },
+    { name: 'revisado_at',         def: 'TEXT' },
+    { name: 'formato_codigo',      def: 'TEXT' },
+  ]
   for (const col of cols) {
     try {
-      let defaultVal = ''
-      if (col === 'estado_revision') defaultVal = `DEFAULT 'pendiente'`
-      await execute(`ALTER TABLE documentos ADD COLUMN ${col} TEXT ${defaultVal}`)
+      await execute(`ALTER TABLE documentos ADD COLUMN ${col.name} ${col.def}`)
     } catch {
       // La columna ya existe — ignorar
     }
@@ -50,9 +55,9 @@ export async function guardarDocumento(p: GuardarParams): Promise<string> {
   const docId       = crypto.randomUUID()
 
   await execute(
-    `INSERT INTO documentos (id, cliente_id, cliente_obl_id, nombre_archivo, ruta, anio, trimestre, uploaded_by, estado_revision)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`,
-    [docId, p.clienteId, p.clienteOblId ?? null, p.nombreArchivo, storageFile.ref, p.anio, p.trimestre ?? null, p.userId]
+    `INSERT INTO documentos (id, cliente_id, cliente_obl_id, nombre_archivo, ruta, anio, trimestre, uploaded_by, estado_revision, formato_codigo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente', ?)`,
+    [docId, p.clienteId, p.clienteOblId ?? null, p.nombreArchivo, storageFile.ref, p.anio, p.trimestre ?? null, p.userId, p.formatoCodigo ?? null]
   )
   await execute(
     `INSERT INTO audit_log (id, user_id, user_email, accion, entidad, entidad_id, detalle) VALUES (?, ?, ?, 'documento_subido', 'documento', ?, ?)`,

@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       cliente_obl_id: (d as any).cliente_obl_id, uploaded_at: (d as any).uploaded_at,
       subido_por: (d as any).subido_por_nombre, subido_por_email: (d as any).subido_por_email,
       periodicidad: (d as any).periodicidad,
+      formato_codigo:       (d as any).formato_codigo       ?? null,
       estado_revision:      (d as any).estado_revision      ?? 'pendiente',
       revision_comentario:  (d as any).revision_comentario  ?? null,
       revisado_por_nombre:  (d as any).revisado_por_nombre  ?? null,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
   const obligacion   = form.get('obligacion') as string
   const anio         = parseInt(form.get('anio') as string)
   const trimestre    = form.get('trimestre') ? parseInt(form.get('trimestre') as string) : null
+  const formatoCodigo = (form.get('formatoCodigo') as string | null) || null
   const archivo      = form.get('archivo') as File
 
   if (user.role === 'cliente') {
@@ -92,7 +94,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El archivo no puede superar 20 MB.' }, { status: 400 })
 
   const buffer = Buffer.from(await archivo.arrayBuffer())
-  const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '' })
+  const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '', formatoCodigo })
 
   // Determinar a quién notificar: 1) revisor manual del cliente, 2) asignación por especialidad, 3) todos
   const clienteRow = await queryOne(`

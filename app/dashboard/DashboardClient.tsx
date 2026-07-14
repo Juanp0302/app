@@ -1,4 +1,5 @@
 'use client'
+import Image from 'next/image'
 
 const C = { vino: '#270205', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -45,8 +46,8 @@ export default function DashboardClient({
 
       {/* Nav */}
       <nav style={{ background: 'rgba(39,2,5,0.97)', borderBottom: '1px solid rgba(150,134,34,0.2)', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.2rem', fontWeight: 700, color: C.marfil }}>
-          Owl Compliance
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <Image src="/logo.png" alt="Owl Compliance" width={160} height={57} style={{ objectFit: 'contain' }} priority />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <span style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.6)' }}>

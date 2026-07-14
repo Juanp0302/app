@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import crypto from 'crypto'
+import reportesCatalogo from '@/data/reportes_por_servicio.json'
+
+interface ReporteFormato { codigo: string; periodicidad: string; plazo: string }
+const REPORTES: Record<string, ReporteFormato[]> = reportesCatalogo as any
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -25,7 +29,7 @@ export async function GET(req: NextRequest) {
   const filas = await queryAll(`
     SELECT co.id AS obl_id, co.estado, co.fecha_limite, co.updated_at,
            oc.sub_id, oc.id AS cat_obl_id, oc.aspecto, oc.grupo, oc.obligacion,
-           oc.descripcion, oc.sub_titulo, oc.periodicidad, oc.servicio, oc.normatividad
+           oc.descripcion, oc.sub_titulo, oc.periodicidad, oc.servicio, oc.servicio_slug, oc.normatividad
     FROM cliente_obligaciones co
     JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
     WHERE co.cliente_id = ?
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
     const asp = aspectoMap[fila.aspecto]
     if (!asp.grupos[fila.grupo]) asp.grupos[fila.grupo] = { nombre: fila.grupo, obligaciones: {} }
     const grp = asp.grupos[fila.grupo]
-    if (!grp.obligaciones[fila.obligacion]) grp.obligaciones[fila.obligacion] = { nombre: fila.obligacion, descripcion: fila.descripcion, servicio: fila.servicio, subs: [] }
+    if (!grp.obligaciones[fila.obligacion]) grp.obligaciones[fila.obligacion] = { nombre: fila.obligacion, descripcion: fila.descripcion, servicio: fila.servicio, servicio_slug: fila.servicio_slug, subs: [] }
     grp.obligaciones[fila.obligacion].subs.push({ obl_id: fila.obl_id, sub_titulo: fila.sub_titulo, periodicidad: fila.periodicidad, estado: fila.estado, fecha_limite: fila.fecha_limite, updated_at: fila.updated_at, normatividad: JSON.parse(fila.normatividad || '[]') })
     asp.stats.total++
     if (fila.estado === 'cumplida')  asp.stats.cumplidas++
@@ -60,7 +64,15 @@ export async function GET(req: NextRequest) {
     return acc
   }, { total: 0, cumplidas: 0, vencidas: 0, pendientes: 0 })
 
-  return NextResponse.json({ cliente, servicios, aspectos, stats: { ...totalStats, pct: totalStats.total ? Math.round((totalStats.cumplidas / totalStats.total) * 100) : 0 } })
+  // Calcular reportes aplicables agrupados por servicio
+  const reportes_aplicables: { servicio: string; formatos: ReporteFormato[] }[] = []
+  for (const slug of servicios) {
+    if (REPORTES[slug]?.length) {
+      reportes_aplicables.push({ servicio: slug, formatos: REPORTES[slug] })
+    }
+  }
+
+  return NextResponse.json({ cliente, servicios, aspectos, reportes_aplicables, stats: { ...totalStats, pct: totalStats.total ? Math.round((totalStats.cumplidas / totalStats.total) * 100) : 0 } })
 }
 
 export async function PATCH(req: NextRequest) {
