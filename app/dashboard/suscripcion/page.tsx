@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { queryOne } from '@/lib/db'
 import { resumenUso, PLANES } from '@/lib/suscripcion'
+import { migrateContrato } from '@/lib/contrato-db'
 import { Suspense } from 'react'
 import SuscripcionClient from './SuscripcionClient'
 
@@ -19,11 +20,20 @@ export default async function SuscripcionPage() {
     redirect('/dashboard')
   }
 
+  await migrateContrato()
+
   const resumen = await resumenUso(clienteId!)
+
+  // Verificar si ya tiene contrato firmado
+  const contratoRow = await queryOne(
+    'SELECT contrato_aceptado_at FROM clientes WHERE id = ?',
+    [clienteId!]
+  ) as any
+  const contratoFirmado = !!contratoRow?.contrato_aceptado_at
 
   return (
     <Suspense>
-      <SuscripcionClient resumen={resumen} planes={PLANES} />
+      <SuscripcionClient resumen={{ ...resumen, contratoFirmado }} planes={PLANES} />
     </Suspense>
   )
 }

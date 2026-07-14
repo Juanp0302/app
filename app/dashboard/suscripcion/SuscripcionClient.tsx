@@ -1,8 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import NavLogo from '@/components/NavLogo'
 import { useSearchParams } from 'next/navigation'
+
+// ── Texto de Términos y Condiciones para mostrar en el modal ──────────────────
+const TYC_RESUMEN = [
+  { titulo: '1. Canales de atención', texto: 'El ticket es el canal principal para solicitudes que generen entregables, seguimiento o trazabilidad. El chat se usa para consultas rápidas; si requiere análisis, se convierte en ticket. El correo contacto@owlcompliance.com atiende comunicaciones contractuales y contingencias.' },
+  { titulo: '2. Tiempos de primera respuesta', texto: 'Crítica: 4h/2h/1h. Alta: 1 día/8h/4h. Normal: 2 días/1 día/8h. Baja: 5/3/2 días. (Básico/Pro/Premium respectivamente.) Los tiempos corren desde que la solicitud está completa y dentro del horario hábil.' },
+  { titulo: '3. Cuota de consultas', texto: 'Básico: 3/mes. Pro: 6/mes. Premium: 10/mes. No descuentan cuota: alertas, actualizaciones de calendario, comunicaciones administrativas. Al agotar cuota, nuevas solicitudes se atienden como servicio on-demand.' },
+  { titulo: '4. Exclusiones del plan', texto: 'No incluye: representación formal, recursos, demandas, audiencias, radicaciones con mandato, visitas presenciales no previstas, viáticos, emisión de dictámenes periciales, pago de tasas o servicios de terceros.' },
+  { titulo: '5. Entregables y revisiones', texto: 'Hasta dos rondas de revisión sin costo adicional si las observaciones se reciben en 5 días hábiles. Los entregables reflejan el marco normativo vigente a la fecha de elaboración.' },
+  { titulo: '6. Propiedad intelectual', texto: 'Los métodos, plantillas, vademécum y herramientas del PRESTADOR son de su propiedad exclusiva. El CLIENTE recibe licencia de uso limitada, no exclusiva, intransferible sobre los entregables generados específicamente para él.' },
+  { titulo: '7. Confidencialidad y datos personales', texto: 'Las partes mantienen reserva por 2 años post-terminación. Los datos personales se tratan conforme a la Ley 1581 de 2012. El PRESTADOR no usará información del CLIENTE para fines propios no autorizados.' },
+  { titulo: '8. Modificación de términos', texto: 'El PRESTADOR puede modificar estos T&C con 30 días de aviso. Si el CLIENTE no se opone en ese plazo, se entiende que acepta. Si se opone, puede terminar el contrato sin penalidad.' },
+]
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -50,6 +62,100 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
   const [cancelOk,      setCancelOk]      = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
 
+  // ── Modal de contrato ──────────────────────────────────────────────────────
+  const [modalPlan,       setModalPlan]       = useState<string | null>(null)
+  const [modalPaso,       setModalPaso]       = useState<1 | 2 | 3>(1)
+  const [modalTab,        setModalTab]        = useState<'contrato' | 'tyc'>('contrato')
+  const [modalError,      setModalError]      = useState<string | null>(null)
+  const [modalEnviando,   setModalEnviando]   = useState(false)
+  const [aceptoFinal,     setAceptoFinal]     = useState(false)
+
+  const [form, setForm] = useState({
+    nombreCliente:        '',
+    tipoPersona:          'juridica',
+    tipoIdentificacion:   'NIT',
+    numeroIdentificacion: '',
+    ciudadCliente:        'Bogotá',
+    nombreRepresentante:  '',
+    ccRepresentante:      '',
+    cuentaCobroSolicitada: false,
+  })
+
+  function setF(k: keyof typeof form, v: string | boolean) {
+    setForm(f => ({ ...f, [k]: v }))
+  }
+
+  function abrirModal(planKey: string) {
+    setModalPlan(planKey)
+    setModalPaso(1)
+    setModalTab('contrato')
+    setModalError(null)
+    setAceptoFinal(false)
+  }
+
+  function cerrarModal() {
+    setModalPlan(null)
+    setModalEnviando(false)
+    setModalError(null)
+  }
+
+  function paso1Valido() {
+    return (
+      form.nombreCliente.trim() &&
+      form.numeroIdentificacion.trim() &&
+      form.ciudadCliente.trim() &&
+      form.nombreRepresentante.trim() &&
+      form.ccRepresentante.trim()
+    )
+  }
+
+  async function confirmarContrato() {
+    if (!modalPlan || !aceptoFinal) return
+    setModalEnviando(true)
+    setModalError(null)
+    try {
+      const res  = await fetch('/api/contrato/aceptar', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...form, plan: modalPlan }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setModalError(data.error ?? 'Error al registrar la firma del contrato.')
+        setModalEnviando(false)
+        return
+      }
+      // Contrato firmado → ir a pagar
+      cerrarModal()
+      await irAPagar(modalPlan)
+    } catch {
+      setModalError('Error de conexión. Intenta nuevamente.')
+      setModalEnviando(false)
+    }
+  }
+
+  async function irAPagar(planKey: string) {
+    setErrorPago(null)
+    setCargando(planKey)
+    try {
+      const res  = await fetch('/api/mp/suscribir', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ plan: planKey }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setErrorPago(data.error ?? 'Error al iniciar el pago')
+        setCargando(null)
+        return
+      }
+      window.location.href = data.init_point
+    } catch {
+      setErrorPago('Error de conexión. Intenta nuevamente.')
+      setCargando(null)
+    }
+  }
+
   const estado      = resumen?.estado ?? 'trial'
   const estadoColor = ESTADO_COLOR[estado] ?? C.olivo
   const planActual  = resumen?.plan ?? null
@@ -74,26 +180,13 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
     }
   }
 
-  async function suscribirme(planKey: string) {
-    setErrorPago(null)
-    setCargando(planKey)
-    try {
-      const res  = await fetch('/api/mp/suscribir', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ plan: planKey }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setErrorPago(data.error ?? 'Error al iniciar el pago')
-        setCargando(null)
-        return
-      }
-      // Redirigir al checkout de Mercado Pago
-      window.location.href = data.init_point
-    } catch {
-      setErrorPago('Error de conexión. Intenta nuevamente.')
-      setCargando(null)
+  function suscribirme(planKey: string) {
+    // Los nuevos clientes deben firmar el contrato primero
+    // resumen?.contrato_aceptado_at vendría del servidor si ya firmaron
+    if (resumen?.contratoFirmado) {
+      irAPagar(planKey)
+    } else {
+      abrirModal(planKey)
     }
   }
 
@@ -317,6 +410,309 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
           Los contadores de tickets y chats se reinician automáticamente con cada pago mensual. El cobro se gestiona de forma segura a través de Mercado Pago — no almacenamos datos de tarjetas. Para dudas sobre tu suscripción, contacta a tu asesor de Owl Compliance.
         </div>
       </main>
+
+      {/* ── Modal de contrato ──────────────────────────────────────────── */}
+      {modalPlan && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '1rem',
+        }}>
+          <div style={{
+            background: '#1a0505', border: '1px solid rgba(150,134,34,0.3)',
+            borderRadius: '16px', width: '100%', maxWidth: '680px',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            fontFamily: "'Josefin Sans', sans-serif",
+          }}>
+            {/* Cabecera del modal */}
+            <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid rgba(150,134,34,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div>
+                <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: C.olivo, marginBottom: '0.2rem' }}>
+                  Plan {planes[modalPlan as keyof typeof planes]?.label}
+                </div>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', color: C.marfil }}>
+                  {modalPaso === 1 && 'Datos del contrato'}
+                  {modalPaso === 2 && 'Revisa los documentos'}
+                  {modalPaso === 3 && 'Confirmar firma electrónica'}
+                </div>
+              </div>
+              <button onClick={cerrarModal} style={{ background: 'none', border: 'none', color: 'rgba(231,223,202,0.4)', fontSize: '1.3rem', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Indicador de pasos */}
+            <div style={{ display: 'flex', padding: '0.8rem 1.5rem 0', gap: '0.5rem', flexShrink: 0 }}>
+              {(['Datos', 'Revisión', 'Confirmar'] as const).map((lbl, i) => (
+                <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', opacity: modalPaso === i + 1 ? 1 : 0.4 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: modalPaso > i ? C.olivo : 'rgba(150,134,34,0.2)', border: `1px solid ${C.olivo}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: C.vino }}>
+                    {modalPaso > i ? '✓' : i + 1}
+                  </div>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em', color: C.marfil }}>{lbl}</span>
+                  {i < 2 && <div style={{ width: 20, height: 1, background: 'rgba(150,134,34,0.3)' }} />}
+                </div>
+              ))}
+            </div>
+
+            {/* Contenido del modal (scrollable) */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '1.2rem 1.5rem' }}>
+
+              {/* ── Paso 1: Datos ── */}
+              {modalPaso === 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.6)', lineHeight: 1.6, margin: 0 }}>
+                    Ingresa los datos que aparecerán en el contrato de prestación de servicios.
+                  </p>
+
+                  {/* Nombre */}
+                  <div>
+                    <label style={labelStyle}>Nombre o razón social *</label>
+                    <input
+                      value={form.nombreCliente}
+                      onChange={e => setF('nombreCliente', e.target.value)}
+                      placeholder="Nombre de la empresa o persona"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Tipo persona + tipo ID */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                    <div>
+                      <label style={labelStyle}>Tipo de persona *</label>
+                      <select value={form.tipoPersona} onChange={e => setF('tipoPersona', e.target.value)} style={inputStyle}>
+                        <option value="juridica">Persona jurídica</option>
+                        <option value="natural">Persona natural</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Tipo de identificación *</label>
+                      <select value={form.tipoIdentificacion} onChange={e => setF('tipoIdentificacion', e.target.value)} style={inputStyle}>
+                        <option value="NIT">NIT</option>
+                        <option value="CC">Cédula de ciudadanía</option>
+                        <option value="CE">Cédula de extranjería</option>
+                        <option value="Pasaporte">Pasaporte</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Número ID + Ciudad */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                    <div>
+                      <label style={labelStyle}>Número de identificación *</label>
+                      <input
+                        value={form.numeroIdentificacion}
+                        onChange={e => setF('numeroIdentificacion', e.target.value)}
+                        placeholder="900123456-7"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Ciudad *</label>
+                      <input
+                        value={form.ciudadCliente}
+                        onChange={e => setF('ciudadCliente', e.target.value)}
+                        placeholder="Bogotá"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Representante */}
+                  <div>
+                    <label style={labelStyle}>Nombre del representante legal *</label>
+                    <input
+                      value={form.nombreRepresentante}
+                      onChange={e => setF('nombreRepresentante', e.target.value)}
+                      placeholder="Nombre completo"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* CC representante */}
+                  <div>
+                    <label style={labelStyle}>Cédula del representante legal *</label>
+                    <input
+                      value={form.ccRepresentante}
+                      onChange={e => setF('ccRepresentante', e.target.value)}
+                      placeholder="1234567890"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Cuenta de cobro */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', cursor: 'pointer', padding: '0.8rem', background: 'rgba(150,134,34,0.05)', border: '1px solid rgba(150,134,34,0.2)', borderRadius: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.cuentaCobroSolicitada}
+                      onChange={e => setF('cuentaCobroSolicitada', e.target.checked)}
+                      style={{ marginTop: '2px', accentColor: C.olivo, width: 15, height: 15, flexShrink: 0 }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: C.marfil, marginBottom: '0.2rem' }}>Solicitar cuenta de cobro</div>
+                      <div style={{ fontSize: '0.72rem', color: 'rgba(231,223,202,0.55)', lineHeight: 1.5 }}>
+                        Recibirás una cuenta de cobro con los datos de pago bancario, enviada junto con el contrato y con diez días de anticipación cada renovación mensual.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              {/* ── Paso 2: Revisión ── */}
+              {modalPaso === 2 && (
+                <div>
+                  {/* Tabs */}
+                  <div style={{ display: 'flex', gap: 0, marginBottom: '1rem', borderBottom: '1px solid rgba(150,134,34,0.2)' }}>
+                    {(['contrato', 'tyc'] as const).map(tab => (
+                      <button key={tab} onClick={() => setModalTab(tab)} style={{
+                        background: 'none', border: 'none', padding: '0.5rem 1rem',
+                        fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em',
+                        textTransform: 'uppercase', cursor: 'pointer',
+                        color: modalTab === tab ? C.olivo : 'rgba(231,223,202,0.4)',
+                        borderBottom: modalTab === tab ? `2px solid ${C.olivo}` : '2px solid transparent',
+                        marginBottom: '-1px', fontFamily: "'Josefin Sans', sans-serif",
+                      }}>
+                        {tab === 'contrato' ? 'Contrato' : 'Términos y condiciones'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.85)', lineHeight: 1.7 }}>
+                    {modalTab === 'contrato' && (
+                      <div>
+                        <p style={{ fontWeight: 700, color: C.marfil, marginBottom: '0.5rem' }}>Contrato de Prestación de Servicios — Plan {planes[modalPlan as keyof typeof planes]?.label}</p>
+                        <p style={{ color: 'rgba(231,223,202,0.6)', marginBottom: '1rem', fontSize: '0.73rem' }}>
+                          Las partes son: <strong>Juan Pablo Osorio Marín (Owl Compliance)</strong> como PRESTADOR, y{' '}
+                          <strong>{form.nombreCliente}</strong>, {form.tipoIdentificacion} {form.numeroIdentificacion}, representado por {form.nombreRepresentante}, como CLIENTE.
+                        </p>
+                        {[
+                          ['Objeto', 'El PRESTADOR presta servicios de gestión regulatoria, monitoreo, consultoría jurídica y técnico-regulatoria para PRST en Colombia según el plan contratado. La representación formal ante autoridades requiere orden de servicio independiente.'],
+                          ['Precio', `$${planes[modalPlan as keyof typeof planes]?.precio?.toLocaleString('es-CO')} COP/mes, más IVA si aplica. Pago mensual anticipado dentro de los primeros cinco días hábiles de cada mes.`],
+                          ['Duración', 'Mensual con renovación automática. Cualquiera de las partes puede terminar con 15 días de aviso.'],
+                          ['Propiedad intelectual', 'Los materiales del PRESTADOR son de su propiedad. El CLIENTE recibe licencia de uso limitada sobre los entregables generados para él, sin posibilidad de reventa o cesión.'],
+                          ['Responsabilidad', 'La responsabilidad máxima del PRESTADOR no excede tres mensualidades del plan contratado.'],
+                          ['Ley aplicable', 'Ley colombiana. Disputas: conciliación en Bogotá y, si fracasa, jueces ordinarios de Bogotá.'],
+                          ['Firma electrónica', 'La aceptación electrónica con registro de fecha, IP y correo es válida conforme al artículo 14 de la Ley 527 de 1999.'],
+                        ].map(([t, p]) => (
+                          <div key={t} style={{ marginBottom: '0.8rem' }}>
+                            <div style={{ fontWeight: 700, color: C.olivo, fontSize: '0.73rem', marginBottom: '0.2rem' }}>{t}</div>
+                            <div style={{ color: 'rgba(231,223,202,0.75)' }}>{p}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {modalTab === 'tyc' && (
+                      <div>
+                        <p style={{ fontWeight: 700, color: C.marfil, marginBottom: '0.8rem' }}>Términos y Condiciones — Anexo 1</p>
+                        {TYC_RESUMEN.map(s => (
+                          <div key={s.titulo} style={{ marginBottom: '0.8rem' }}>
+                            <div style={{ fontWeight: 700, color: C.olivo, fontSize: '0.73rem', marginBottom: '0.2rem' }}>{s.titulo}</div>
+                            <div style={{ color: 'rgba(231,223,202,0.75)' }}>{s.texto}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Paso 3: Confirmar ── */}
+              {modalPaso === 3 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ background: 'rgba(150,134,34,0.08)', border: '1px solid rgba(150,134,34,0.25)', borderRadius: '10px', padding: '1rem 1.2rem', fontSize: '0.78rem', color: 'rgba(231,223,202,0.8)', lineHeight: 1.7 }}>
+                    Al hacer clic en <strong style={{ color: C.marfil }}>Aceptar y continuar</strong>, estás firmando electrónicamente el contrato de prestación de servicios y los términos y condiciones de Owl Compliance. Esta firma tiene plena validez jurídica conforme al artículo 14 de la Ley 527 de 1999 (Ley de Comercio Electrónico).
+                  </div>
+
+                  <div style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.55)', lineHeight: 1.6 }}>
+                    <div>Firmante: <span style={{ color: C.marfil }}>{form.nombreRepresentante} — {form.nombreCliente}</span></div>
+                    <div>Plan: <span style={{ color: C.marfil }}>Plan {planes[modalPlan as keyof typeof planes]?.label} — ${planes[modalPlan as keyof typeof planes]?.precio?.toLocaleString('es-CO')} COP/mes</span></div>
+                    {form.cuentaCobroSolicitada && <div style={{ color: C.olivo }}>Incluye cuenta de cobro mensual</div>}
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={aceptoFinal}
+                      onChange={e => setAceptoFinal(e.target.checked)}
+                      style={{ marginTop: '3px', accentColor: C.olivo, width: 15, height: 15, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.8)', lineHeight: 1.5 }}>
+                      He leído y acepto el contrato de prestación de servicios y los términos y condiciones de Owl Compliance.
+                    </span>
+                  </label>
+
+                  {modalError && (
+                    <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '8px', padding: '0.7rem 1rem', fontSize: '0.78rem', color: '#f87171' }}>
+                      {modalError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Botones del modal */}
+            <div style={{ padding: '0.9rem 1.5rem', borderTop: '1px solid rgba(150,134,34,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              {modalPaso > 1 ? (
+                <button
+                  onClick={() => setModalPaso((p) => (p - 1) as 1 | 2 | 3)}
+                  style={{ background: 'transparent', color: 'rgba(231,223,202,0.5)', border: '1px solid rgba(231,223,202,0.15)', borderRadius: '8px', padding: '0.5rem 1rem', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'Josefin Sans', sans-serif" }}>
+                  Atrás
+                </button>
+              ) : (
+                <button onClick={cerrarModal} style={{ background: 'transparent', color: 'rgba(231,223,202,0.4)', border: 'none', fontSize: '0.72rem', cursor: 'pointer', fontFamily: "'Josefin Sans', sans-serif" }}>Cancelar</button>
+              )}
+
+              {modalPaso < 3 ? (
+                <button
+                  onClick={() => {
+                    if (modalPaso === 1 && !paso1Valido()) {
+                      setModalError('Por favor completa todos los campos.')
+                      return
+                    }
+                    setModalError(null)
+                    setModalPaso((p) => (p + 1) as 1 | 2 | 3)
+                  }}
+                  style={{ background: C.olivo, color: C.vino, border: 'none', borderRadius: '8px', padding: '0.55rem 1.4rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: "'Josefin Sans', sans-serif" }}>
+                  {modalPaso === 1 ? 'Ver contrato' : 'Continuar'}
+                </button>
+              ) : (
+                <button
+                  onClick={confirmarContrato}
+                  disabled={!aceptoFinal || modalEnviando}
+                  style={{ background: aceptoFinal && !modalEnviando ? C.olivo : 'rgba(150,134,34,0.2)', color: aceptoFinal && !modalEnviando ? C.vino : C.olivo, border: `1px solid ${C.olivo}`, borderRadius: '8px', padding: '0.55rem 1.4rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: aceptoFinal && !modalEnviando ? 'pointer' : 'not-allowed', fontFamily: "'Josefin Sans', sans-serif", transition: 'all 0.2s' }}>
+                  {modalEnviando ? 'Firmando…' : 'Aceptar y continuar al pago'}
+                </button>
+              )}
+            </div>
+
+            {/* Error paso 1 (inline) */}
+            {modalError && modalPaso === 1 && (
+              <div style={{ padding: '0 1.5rem 0.8rem', fontSize: '0.75rem', color: '#f87171' }}>{modalError}</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+// ── Estilos de inputs del modal ────────────────────────────────────────────────
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.65rem',
+  fontWeight: 700,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'rgba(231,223,202,0.5)',
+  marginBottom: '0.35rem',
+}
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(231,223,202,0.05)',
+  border: '1px solid rgba(150,134,34,0.25)',
+  borderRadius: '7px',
+  padding: '0.55rem 0.8rem',
+  fontSize: '0.82rem',
+  color: '#e7dfca',
+  fontFamily: "'Josefin Sans', sans-serif",
+  outline: 'none',
+  boxSizing: 'border-box',
 }
