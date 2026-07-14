@@ -30,6 +30,8 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   const now  = Math.floor(Date.now() / 1000)
   const exp  = now + 3600
 
+  const delegatedEmail = process.env.GOOGLE_DELEGATED_EMAIL
+
   const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url')
   const payload = Buffer.from(JSON.stringify({
     iss:   sa.client_email,
@@ -37,6 +39,7 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
     exp,
+    ...(delegatedEmail ? { sub: delegatedEmail } : {}),
   })).toString('base64url')
 
   const unsigned  = `${header}.${payload}`
