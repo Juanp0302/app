@@ -23,96 +23,101 @@ async function checkAuth() {
    Plazo legal: 10 días hábiles (Art. 14 Ley 1581)
 ────────────────────────────────────── */
 export async function GET(req: NextRequest) {
-  const admin = await checkAuth()
-  if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  try {
+    const admin = await checkAuth()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const email = req.nextUrl.searchParams.get('email')?.trim().toLowerCase()
-  if (!email) return NextResponse.json({ error: 'Parámetro email requerido' }, { status: 400 })
+    const email = req.nextUrl.searchParams.get('email')?.trim().toLowerCase()
+    if (!email) return NextResponse.json({ error: 'Parámetro email requerido' }, { status: 400 })
 
-  // 1. Usuario
-  const usuarios = await queryAll(
-    `SELECT id, email, nombre, rol, activo, created_at FROM users WHERE lower(email) = ?`,
-    [email]
-  ) as any[]
+    // 1. Usuario
+    const usuarios = await queryAll(
+      `SELECT id, email, nombre, rol, activo, created_at FROM users WHERE lower(email) = ?`,
+      [email]
+    ) as any[]
 
-  if (usuarios.length === 0) {
-    return NextResponse.json({ encontrado: false, email }, { status: 200 })
-  }
+    if (usuarios.length === 0) {
+      return NextResponse.json({ encontrado: false, email }, { status: 200 })
+    }
 
-  const user = usuarios[0]
-  const userId = user.id
+    const user = usuarios[0]
+    const userId = user.id
 
-  // 2. Cliente asociado (si es usuario de ISP)
-  const clientes = await queryAll(
-    `SELECT id, razon_social, nit, contacto, email, telefono, activo, created_at
-     FROM clientes WHERE user_id = ?`,
-    [userId]
-  ) as any[]
+    // 2. Cliente asociado (si es usuario de ISP)
+    const clientes = await queryAll(
+      `SELECT id, razon_social, nit, contacto, email, telefono, activo, created_at
+       FROM clientes WHERE user_id = ?`,
+      [userId]
+    ) as any[]
 
-  // 3. Mensajes de chat (contenido)
-  const mensajes = await queryAll(
-    `SELECT m.id, m.contenido, m.created_at, c.id AS conversacion_id
-     FROM mensajes m
-     JOIN conversaciones c ON c.id = m.conversacion_id
-     WHERE m.user_id = ?
-     ORDER BY m.created_at DESC LIMIT 100`,
-    [userId]
-  ) as any[]
+    // 3. Mensajes de chat (contenido)
+    const mensajes = await queryAll(
+      `SELECT m.id, m.contenido, m.created_at, c.id AS conversacion_id
+       FROM mensajes m
+       JOIN conversaciones c ON c.id = m.conversacion_id
+       WHERE m.user_id = ?
+       ORDER BY m.created_at DESC LIMIT 100`,
+      [userId]
+    ) as any[]
 
-  // 4. Respuestas de tickets
-  const ticketRespuestas = await queryAll(
-    `SELECT tr.id, tr.contenido, tr.created_at, tr.ticket_id
-     FROM ticket_respuestas tr WHERE tr.user_id = ?
-     ORDER BY tr.created_at DESC LIMIT 100`,
-    [userId]
-  ) as any[]
+    // 4. Respuestas de tickets
+    const ticketRespuestas = await queryAll(
+      `SELECT tr.id, tr.contenido, tr.created_at, tr.ticket_id
+       FROM ticket_respuestas tr WHERE tr.user_id = ?
+       ORDER BY tr.created_at DESC LIMIT 100`,
+      [userId]
+    ) as any[]
 
-  // 5. Audit log (acciones realizadas por el usuario)
-  const auditLog = await queryAll(
-    `SELECT id, accion, entidad, detalle, ip, created_at
-     FROM audit_log WHERE user_id = ?
-     ORDER BY created_at DESC LIMIT 200`,
-    [userId]
-  ) as any[]
+    // 5. Audit log (acciones realizadas por el usuario)
+    const auditLog = await queryAll(
+      `SELECT id, accion, entidad, detalle, ip, created_at
+       FROM audit_log WHERE user_id = ?
+       ORDER BY created_at DESC LIMIT 200`,
+      [userId]
+    ) as any[]
 
-  // 6. Recordatorios con su email
-  const recordatorios = await queryAll(
-    `SELECT r.id, r.email_destino, r.dias_antes, r.activo, r.created_at
-     FROM recordatorios r
-     JOIN clientes cl ON cl.id = r.cliente_id
-     WHERE cl.user_id = ? AND r.email_destino = ?`,
-    [userId, email]
-  ) as any[]
+    // 6. Recordatorios con su email
+    const recordatorios = await queryAll(
+      `SELECT r.id, r.email_destino, r.dias_antes, r.activo, r.created_at
+       FROM recordatorios r
+       JOIN clientes cl ON cl.id = r.cliente_id
+       WHERE cl.user_id = ? AND r.email_destino = ?`,
+      [userId, email]
+    ) as any[]
 
-  const resultado = {
-    encontrado: true,
-    email,
-    consultado_en: new Date().toISOString(),
-    datos: {
-      usuario: {
-        id: user.id,
-        email: user.email,
-        nombre: user.nombre,
-        rol: user.rol,
-        activo: user.activo,
-        created_at: user.created_at,
+    const resultado = {
+      encontrado: true,
+      email,
+      consultado_en: new Date().toISOString(),
+      datos: {
+        usuario: {
+          id: user.id,
+          email: user.email,
+          nombre: user.nombre,
+          rol: user.rol,
+          activo: user.activo,
+          created_at: user.created_at,
+        },
+        clientes,
+        mensajes_chat: mensajes,
+        respuestas_tickets: ticketRespuestas,
+        recordatorios,
+        audit_log: auditLog,
       },
-      clientes,
-      mensajes_chat: mensajes,
-      respuestas_tickets: ticketRespuestas,
-      recordatorios,
-      audit_log: auditLog,
-    },
-    resumen: {
-      clientes: clientes.length,
-      mensajes_chat: mensajes.length,
-      respuestas_tickets: ticketRespuestas.length,
-      registros_auditoria: auditLog.length,
-      recordatorios: recordatorios.length,
-    },
-  }
+      resumen: {
+        clientes: clientes.length,
+        mensajes_chat: mensajes.length,
+        respuestas_tickets: ticketRespuestas.length,
+        registros_auditoria: auditLog.length,
+        recordatorios: recordatorios.length,
+      },
+    }
 
-  return NextResponse.json(resultado)
+    return NextResponse.json(resultado)
+  } catch (err: any) {
+    console.error('[GET /api/habeas-data]', err)
+    return NextResponse.json({ error: err?.message ?? 'Error interno del servidor' }, { status: 500 })
+  }
 }
 
 /* ──────────────────────────────────────
@@ -121,6 +126,7 @@ export async function GET(req: NextRequest) {
    Se conserva el registro mínimo por obligación legal (Art. 17 lit. b Ley 1581).
 ────────────────────────────────────── */
 export async function DELETE(req: NextRequest) {
+  try {
   const admin = await checkAuth()
   if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
@@ -199,4 +205,8 @@ export async function DELETE(req: NextRequest) {
     ],
     nota: 'El registro de empresa (cliente) se conserva por obligaciones legales del ISP.',
   })
+  } catch (err: any) {
+    console.error('[DELETE /api/habeas-data]', err)
+    return NextResponse.json({ error: err?.message ?? 'Error interno del servidor' }, { status: 500 })
+  }
 }

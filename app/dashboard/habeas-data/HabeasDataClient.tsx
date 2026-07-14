@@ -83,7 +83,7 @@ export default function HabeasDataClient() {
         <p style={{ fontSize: '0.78rem', color: 'rgba(231,223,202,0.5)', marginTop: '0.4rem', lineHeight: 1.6 }}>
           Consulta y supresión de datos personales. Plazo legal: 10 días hábiles para consulta,
           15 días para supresión (Arts. 14-16 Ley 1581). Registra la solicitud en{' '}
-          <strong style={{ color: C.olivo }}>contacto@owlcompliance.co</strong> antes de ejecutar.
+          <strong style={{ color: C.olivo }}>contacto@owlcompliance.com</strong> antes de ejecutar.
         </p>
       </div>
 
