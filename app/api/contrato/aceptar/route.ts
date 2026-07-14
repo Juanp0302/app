@@ -15,7 +15,6 @@ import {
   migrateContrato,
   guardarAceptacionContrato,
   tieneContratoFirmado,
-  siguienteNumeroCuenta,
   crearCuentaCobro,
 } from '@/lib/contrato-db'
 import {
@@ -135,21 +134,28 @@ export async function POST(req: NextRequest) {
 
   // Cuenta de cobro (si el cliente la solicita)
   if (cuentaCobroSolicitada) {
-    numeroCuenta = await siguienteNumeroCuenta(ahora.getFullYear())
-    const datosCuenta: DatosCuentaCobro = {
-      numero: numeroCuenta,
-      fecha:  fechaISO,
-      nombreEmpresa:      nombreCliente,
-      nit:                numeroIdentificacion,
-      representanteLegal: nombreRepresentante,
-      plan:               planKey,
-      mes:                mesLabel(ahora),
-    }
     try {
+      // crearCuentaCobro inserta en DB y devuelve el número real basado en AUTOINCREMENT
+      numeroCuenta = await crearCuentaCobro({
+        clienteId:    cliente.id,
+        plan:         planKey,
+        monto:        planObj.precio,
+        concepto:     `Plan ${planObj.label} - ${mesLabel(ahora)}`,
+        mes:          ahora.toISOString().slice(0, 7),
+        fechaEmision: fechaISO,
+      })
+      const datosCuenta: DatosCuentaCobro = {
+        numero:             numeroCuenta,
+        fecha:              fechaISO,
+        nombreEmpresa:      nombreCliente,
+        nit:                numeroIdentificacion,
+        representanteLegal: nombreRepresentante,
+        plan:               planKey,
+        mes:                mesLabel(ahora),
+      }
       pdfCuenta = await generarPDFCuentaCobro(datosCuenta)
     } catch (e: any) {
       console.error('[contrato/aceptar] Error generando cuenta de cobro:', e)
-      // No falla todo el flujo por esto
     }
   }
 
@@ -164,22 +170,6 @@ export async function POST(req: NextRequest) {
       plan: planKey, cuentaCobroSolicitada: !!cuentaCobroSolicitada,
     },
   })
-
-  if (numeroCuenta && pdfCuenta) {
-    try {
-      await crearCuentaCobro({
-        numero:       numeroCuenta,
-        clienteId:    cliente.id,
-        plan:         planKey,
-        monto:        planObj.precio,
-        concepto:     `Plan ${planObj.label} - ${mesLabel(ahora)}`,
-        mes:          ahora.toISOString().slice(0, 7),
-        fechaEmision: fechaISO,
-      })
-    } catch (e) {
-      console.error('[contrato/aceptar] Error guardando cuenta cobro:', e)
-    }
-  }
 
   // ── Notificar vía Apps Script (correo + Drive) ──────────────────────────────
 
