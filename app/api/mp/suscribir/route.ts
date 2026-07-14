@@ -49,9 +49,10 @@ export async function POST(req: NextRequest) {
       backUrl:    `${BASE_URL}/dashboard/suscripcion?mp=ok`,
     })
   } catch (err: any) {
-    console.error('[mp/suscribir] Error MP:', err?.message ?? err)
+    const detalle = err?.message ?? String(err)
+    console.error('[mp/suscribir] Error MP:', detalle)
     return NextResponse.json(
-      { error: 'No se pudo conectar con Mercado Pago. Verifica que el token de acceso esté configurado correctamente en el servidor.' },
+      { error: `Error Mercado Pago: ${detalle}` },
       { status: 502 }
     )
   }
