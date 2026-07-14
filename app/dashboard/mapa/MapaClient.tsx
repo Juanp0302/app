@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import NavLogo from '@/components/NavLogo'
 import DonutChart from '@/components/DonutChart'
 
 // ─── Colores ─────────────────────────────────────────────────────────────────
@@ -278,7 +279,7 @@ export default function MapaClient({
       {/* ── NAV ── */}
       <nav style={{ background: 'rgba(39,2,5,0.97)', borderBottom: '1px solid rgba(150,134,34,0.2)', padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <a href="/dashboard" style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: C.marfil, textDecoration: 'none' }}>Owl Compliance</a>
+          <NavLogo />
           <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
           <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo }}>Mapa de Cumplimiento</span>
         </div>

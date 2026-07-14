@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import NavLogo from '@/components/NavLogo'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -120,8 +121,7 @@ export default function AsignacionClient() {
       <nav style={{ background: 'rgba(39,2,5,0.97)', borderBottom: '1px solid rgba(150,134,34,0.2)',
         padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1rem',
         position: 'sticky', top: 0, zIndex: 100 }}>
-        <a href="/dashboard/superadmin" style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem',
-          fontWeight: 700, color: C.marfil, textDecoration: 'none' }}>Owl Compliance</a>
+        <NavLogo href="/dashboard/superadmin" />
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <a href="/dashboard/superadmin" style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.1em',
           textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>

@@ -97,11 +97,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { razon_social, nit, contacto, email, telefono, user_email, user_nombre, user_password, servicios } = body
+  const { razon_social, nit, contacto, email, telefono, user_email, user_nombre, user_password, servicios, plan, suscripcion_vencimiento } = body
 
   if (!razon_social || !user_email || !user_nombre || !user_password || !servicios?.length) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
+
+  const planFinal        = plan || 'trial'
+  const vencimientoFinal = suscripcion_vencimiento || null
 
   const existe = await queryOne('SELECT id FROM users WHERE email = ?', [user_email])
   if (existe) return NextResponse.json({ error: 'El email ya está registrado' }, { status: 409 })
@@ -112,7 +115,7 @@ export async function POST(req: NextRequest) {
   // Construir el batch de inserts
   const stmts: { sql: string; args: any[] }[] = [
     { sql: `INSERT INTO users (id, email, password, nombre, rol) VALUES (?,?,?,?,'cliente')`, args: [userId, user_email, hashPassword(user_password), user_nombre] },
-    { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono) VALUES (?,?,?,?,?,?,?)`, args: [clienteId, userId, razon_social, nit ?? null, contacto ?? null, email ?? null, telefono ?? null] },
+    { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono, plan, suscripcion_estado, suscripcion_vencimiento) VALUES (?,?,?,?,?,?,?,?,'activa',?)`, args: [clienteId, userId, razon_social, nit ?? null, contacto ?? null, email ?? null, telefono ?? null, planFinal, vencimientoFinal] },
   ]
 
   let totalObl = 0

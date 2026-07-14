@@ -80,6 +80,11 @@ export async function obtenerSuscripcion(mpId: string) {
   return mpFetch('GET', `/preapproval/${mpId}`)
 }
 
+/** Cancela una suscripción en MP (no se vuelve a cobrar al vencimiento) */
+export async function cancelarSuscripcion(mpId: string) {
+  return mpFetch('PATCH', `/preapproval/${mpId}`, { status: 'cancelled' })
+}
+
 /** Obtiene el estado de un pago por su ID de MP */
 export async function obtenerPago(paymentId: string) {
   return mpFetch('GET', `/v1/payments/${paymentId}`)

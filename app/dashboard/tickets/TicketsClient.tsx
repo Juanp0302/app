@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import NavLogo from '@/components/NavLogo'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -68,6 +69,7 @@ export default function TicketsClient({
   const [adminDest,    setAdminDest]    = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda,     setBusqueda]     = useState('')
+  const [limiteError,  setLimiteError]  = useState<{ mensaje: string; plan: string } | null>(null)
 
   const cargarTickets = useCallback(async () => {
     const url = (isAdmin || isSuperadmin) ? '/api/tickets' : `/api/tickets?clienteId=${clienteId}`
@@ -93,6 +95,15 @@ export default function TicketsClient({
       body: JSON.stringify({ accion: 'crear', ...form, clienteId }),
     })
     const d = await r.json()
+    if (!r.ok) {
+      if (d.codigo === 'LIMITE_TICKETS' || d.codigo === 'SUSCRIPCION_SUSPENDIDA') {
+        setModalNuevo(false)
+        setLimiteError({ mensaje: d.error, plan: d.plan ?? '' })
+        return
+      }
+      return
+    }
+    setLimiteError(null)
     setModalNuevo(false); setForm(FORM_INIT)
     await cargarTickets(); await cargarDetalle(d.id)
   }
@@ -144,14 +155,23 @@ export default function TicketsClient({
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
 
       <nav style={{ background: C.vino, padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-        <a href="/dashboard" style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem',
-          fontWeight: 700, color: C.marfil, textDecoration: 'none' }}>Owl Compliance</a>
+        <NavLogo />
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em',
           textTransform: 'uppercase', color: C.olivo }}>
           Tickets{isSuperadmin ? ' — Vista global' : ''}
         </span>
       </nav>
+
+      {/* Banner límite de tickets */}
+      {limiteError && (
+        <div style={{ background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)', padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+          <div style={{ fontSize: '0.84rem', color: '#f87171' }}>{limiteError.mensaje}</div>
+          <a href="/dashboard/suscripcion" style={{ flexShrink: 0, background: '#968622', color: '#270205', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '8px' }}>
+            Ver planes
+          </a>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', height: 'calc(100vh - 52px)' }}>
 

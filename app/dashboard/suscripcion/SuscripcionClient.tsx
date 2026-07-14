@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import NavLogo from '@/components/NavLogo'
 import { useSearchParams } from 'next/navigation'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
@@ -42,8 +43,12 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
   const mpOk        = params.get('mp') === 'ok'
   const planParam   = params.get('plan') ?? null   // viene del sitio web
 
-  const [cargando,   setCargando]   = useState<string | null>(null)
-  const [errorPago,  setErrorPago]  = useState<string | null>(null)
+  const [cargando,      setCargando]      = useState<string | null>(null)
+  const [errorPago,     setErrorPago]     = useState<string | null>(null)
+  const [cancelando,    setCancelando]    = useState(false)
+  const [cancelError,   setCancelError]   = useState<string | null>(null)
+  const [cancelOk,      setCancelOk]      = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
   const estado      = resumen?.estado ?? 'trial'
   const estadoColor = ESTADO_COLOR[estado] ?? C.olivo
@@ -51,6 +56,23 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
   const suspendida  = estado === 'suspendida' || estado === 'cancelada'
 
   const planesOrden = ['basico', 'pro', 'premium'] as const
+
+  async function cancelarSuscripcion() {
+    setCancelando(true); setCancelError(null)
+    try {
+      const res  = await fetch('/api/mp/cancelar', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setCancelError(data.error ?? 'Error al cancelar'); return }
+      setCancelOk(true)
+      setConfirmCancel(false)
+      // Recargar para reflejar estado
+      setTimeout(() => window.location.reload(), 2000)
+    } catch {
+      setCancelError('Error de conexión. Intenta nuevamente.')
+    } finally {
+      setCancelando(false)
+    }
+  }
 
   async function suscribirme(planKey: string) {
     setErrorPago(null)
@@ -81,7 +103,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
 
       <nav style={{ background: 'rgba(39,2,5,0.97)', borderBottom: '1px solid rgba(150,134,34,0.2)', padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <a href="/dashboard" style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: C.marfil, textDecoration: 'none' }}>Owl Compliance</a>
+          <NavLogo />
           <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
           <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo }}>Mi Suscripción</span>
         </div>
@@ -169,6 +191,53 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
             </div>
           )}
         </div>
+
+        {/* Cancelación exitosa */}
+        {cancelOk && (
+          <div style={{ background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.35)', borderRadius: '12px', padding: '1.2rem 1.5rem', marginBottom: '2rem', fontSize: '0.84rem', color: '#4ade80' }}>
+            Suscripción cancelada. Tu acceso continúa hasta el fin del período pagado. Recargando…
+          </div>
+        )}
+
+        {/* Error cancelación */}
+        {cancelError && (
+          <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '10px', padding: '0.9rem 1.2rem', marginBottom: '1.5rem', fontSize: '0.82rem', color: '#f87171' }}>
+            {cancelError}
+          </div>
+        )}
+
+        {/* Botón cancelar (solo si está activa) */}
+        {estado === 'activa' && !cancelOk && (
+          <div style={{ marginBottom: '2rem', textAlign: 'right' }}>
+            {!confirmCancel ? (
+              <button
+                onClick={() => setConfirmCancel(true)}
+                style={{ background: 'transparent', color: 'rgba(231,223,202,0.4)', border: '1px solid rgba(231,223,202,0.15)', borderRadius: '8px', padding: '0.5rem 1.1rem', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: "'Josefin Sans', sans-serif" }}>
+                Cancelar suscripción
+              </button>
+            ) : (
+              <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: '12px', padding: '1.2rem 1.5rem', textAlign: 'left' }}>
+                <div style={{ fontWeight: 700, color: '#f87171', marginBottom: '0.4rem', fontSize: '0.9rem' }}>¿Confirmas la cancelación?</div>
+                <div style={{ fontSize: '0.82rem', color: 'rgba(231,223,202,0.65)', marginBottom: '1rem', lineHeight: 1.6 }}>
+                  Tu suscripción se cancelará en Mercado Pago y no se realizará ningún cobro adicional. Mantendrás el acceso hasta el final del período ya pagado.
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    onClick={cancelarSuscripcion}
+                    disabled={cancelando}
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.6rem 1.2rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: cancelando ? 'not-allowed' : 'pointer', fontFamily: "'Josefin Sans', sans-serif", opacity: cancelando ? 0.7 : 1 }}>
+                    {cancelando ? 'Cancelando…' : 'Sí, cancelar'}
+                  </button>
+                  <button
+                    onClick={() => { setConfirmCancel(false); setCancelError(null) }}
+                    style={{ background: 'transparent', color: C.marfil, border: '1px solid rgba(231,223,202,0.2)', borderRadius: '8px', padding: '0.6rem 1.2rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: "'Josefin Sans', sans-serif" }}>
+                    Volver
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Comparativa de planes */}
         <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.4)', marginBottom: '1.2rem' }}>

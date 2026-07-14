@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       const c = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [user.id]) as any
       if (!c || ticket.cliente_id !== c.id)
         return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
-    } else if (user.role === 'admin') {
+    } else if (user.role === 'admin' && !user.is_superadmin) {
       if (ticket.admin_id && ticket.admin_id !== user.id)
         return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
     }
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
       `SELECT t.*, c.razon_social, u.nombre AS admin_nombre
        FROM tickets t JOIN clientes c ON c.id = t.cliente_id
        LEFT JOIN users u ON u.id = t.admin_id
-       ORDER BY CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+       ORDER BY t.updated_at DESC, CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
                 t.updated_at DESC`
     )
   } else if (user.role === 'admin') {
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
        FROM tickets t JOIN clientes c ON c.id = t.cliente_id
        LEFT JOIN users u ON u.id = t.admin_id
        WHERE t.admin_id = ? OR t.admin_id IS NULL
-       ORDER BY CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+       ORDER BY t.updated_at DESC, CASE t.prioridad WHEN 'urgente' THEN 0 WHEN 'alta' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
                 t.updated_at DESC`,
       [user.id]
     )

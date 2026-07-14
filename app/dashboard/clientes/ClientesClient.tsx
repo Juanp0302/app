@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import NavLogo from '@/components/NavLogo'
 import DonutChart from '@/components/DonutChart'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
@@ -71,6 +72,8 @@ const SERVICIO_FORM_INIT = {
   razon_social: '', nit: '', contacto: '', email: '', telefono: '',
   user_email: '', user_nombre: '', user_password: '',
   servicios: [] as string[],
+  plan: 'trial' as string,
+  suscripcion_vencimiento: '',
 }
 
 export default function ClientesClient({
@@ -319,7 +322,7 @@ export default function ClientesClient({
       {/* NAV */}
       <nav style={{ background:'rgba(39,2,5,0.97)', borderBottom:'1px solid rgba(150,134,34,0.2)', padding:'0.9rem 2rem', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'1.5rem' }}>
-          <a href="/dashboard" style={{ fontFamily:"'Playfair Display', serif", fontSize:'1.1rem', fontWeight:700, color:C.marfil, textDecoration:'none' }}>Owl Compliance</a>
+          <NavLogo />
           <span style={{ color:'rgba(231,223,202,0.3)' }}>›</span>
           <span style={{ fontSize:'0.72rem', fontWeight:600, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo }}>Panel de Clientes</span>
         </div>
@@ -668,6 +671,33 @@ export default function ClientesClient({
                       {showPwd ? '🙈' : '👁️'}
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan y vigencia */}
+            <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.2rem', marginBottom:'1.5rem' }}>
+              <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'1rem' }}>
+                Acceso y suscripción
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
+                <div>
+                  <label style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.5)', display:'block', marginBottom:'0.4rem' }}>Plan</label>
+                  <select value={form.plan} onChange={e => setForm(f => ({...f, plan:e.target.value}))}
+                    style={{ ...inputStyle, width:'100%' }}>
+                    <option value="trial">Prueba (sin cobro)</option>
+                    <option value="basico">Básico</option>
+                    <option value="pro">Pro</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.5)', display:'block', marginBottom:'0.4rem' }}>
+                    Vigencia hasta <span style={{ fontWeight:400, color:'rgba(231,223,202,0.35)' }}>(vacío = sin límite)</span>
+                  </label>
+                  <input type="date" value={form.suscripcion_vencimiento}
+                    onChange={e => setForm(f => ({...f, suscripcion_vencimiento:e.target.value}))}
+                    style={{ ...inputStyle, width:'100%', boxSizing:'border-box' }} />
                 </div>
               </div>
             </div>

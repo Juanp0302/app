@@ -40,12 +40,21 @@ export async function POST(req: NextRequest) {
   }
 
   // Crear la suscripción en Mercado Pago
-  const suscripcion = await crearSuscripcion({
-    planKey,
-    clienteId:  cliente.id,
-    payerEmail: user.email ?? cliente.email,
-    backUrl:    `${BASE_URL}/dashboard/suscripcion?mp=ok`,
-  })
+  let suscripcion
+  try {
+    suscripcion = await crearSuscripcion({
+      planKey,
+      clienteId:  cliente.id,
+      payerEmail: user.email ?? cliente.email,
+      backUrl:    `${BASE_URL}/dashboard/suscripcion?mp=ok`,
+    })
+  } catch (err: any) {
+    console.error('[mp/suscribir] Error MP:', err?.message ?? err)
+    return NextResponse.json(
+      { error: 'No se pudo conectar con Mercado Pago. Verifica que el token de acceso esté configurado correctamente en el servidor.' },
+      { status: 502 }
+    )
+  }
 
   // Guardar ID de MP y plan elegido (aún no activo, esperamos webhook)
   await execute(
