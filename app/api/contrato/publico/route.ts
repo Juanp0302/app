@@ -2,11 +2,11 @@
  * POST /api/contrato/publico
  * Endpoint PÚBLICO — sin autenticación.
  * Genera PDFs del contrato + T&C (+ cuenta de cobro si aplica),
- * los envía al cliente por correo y los guarda en Drive vía Apps Script.
- * Se llama desde la página pública /suscribirse ANTES de ir a Mercado Pago.
+ * los envía directamente por SMTP (nodemailer) y los sube a Drive vía Apps Script.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import nodemailer from 'nodemailer'
 import {
   generarPDFContrato,
   generarPDFTyC,
@@ -28,7 +28,13 @@ function mesLabel(fecha: Date): string {
   return fecha.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
 }
 
-async function enviarAlWebhook(payload: object): Promise<void> {
+function numeroCuentaTemp(anio: number): string {
+  const seq = String(Date.now()).slice(-5)
+  return `OWL-${String(anio).slice(-2)}-T${seq}`
+}
+
+/** Sube los archivos a Drive vía Apps Script (sin adjuntos de email) */
+async function subirADrive(payload: object): Promise<void> {
   const url = process.env.SHEETS_WEBHOOK_URL
   if (!url) return
   try {
@@ -38,16 +44,84 @@ async function enviarAlWebhook(payload: object): Promise<void> {
       body:    JSON.stringify(payload),
     })
   } catch (e) {
-    console.error('[contrato/publico] Error webhook:', e)
+    console.error('[contrato/publico] Error webhook Drive:', e)
   }
 }
 
-// Numeración temporal para clientes web (sin cuenta aún)
-// Usamos timestamp para evitar colisiones; cuando el cliente active su cuenta
-// se puede asignar número definitivo si es necesario.
-function numeroCuentaTemp(anio: number): string {
-  const seq = String(Date.now()).slice(-5)
-  return `OWL-${String(anio).slice(-2)}-T${seq}`
+/** Envía el correo con los PDFs adjuntos directamente por SMTP */
+async function enviarCorreo(opts: {
+  destinatario: string
+  planLabel:    string
+  cliente:      string
+  fechaFmt:     string
+  numeroCuenta: string | null
+  adjuntos:     Array<{ filename: string; content: Buffer }>
+}): Promise<void> {
+  const gmailUser = process.env.GMAIL_USER
+  const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, '')
+  if (!gmailUser || !gmailPass) {
+    console.error('[contrato/publico] GMAIL_USER o GMAIL_APP_PASSWORD no configurados')
+    return
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: gmailUser, pass: gmailPass },
+  })
+
+  const listaDocs = `
+    <ul>
+      <li>Contrato de Prestación de Servicios — Plan ${opts.planLabel}</li>
+      <li>Términos y Condiciones (Anexo 1)</li>
+      ${opts.numeroCuenta ? `<li>Cuenta de Cobro No. ${opts.numeroCuenta}</li>` : ''}
+    </ul>`
+
+  const cuentaTexto = opts.numeroCuenta
+    ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con los datos bancarios para el pago.</p>`
+    : ''
+
+  const htmlCliente = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;color:#1a1a1a;">
+      <img src="https://owlcompliance.onrender.com/buho.png" width="120" style="margin-bottom:16px;"/>
+      <h2 style="color:#712529;">Contrato firmado — Owl Compliance</h2>
+      <p>Hola <strong>${opts.cliente}</strong>,</p>
+      <p>Tu contrato de prestación de servicios ha sido firmado electrónicamente el <strong>${opts.fechaFmt}</strong>.</p>
+      <p>Adjuntamos a este correo:</p>
+      ${listaDocs}
+      ${cuentaTexto}
+      <p>Guarda estos documentos para tu archivo. Tu suscripción quedará activa una vez se procese el primer pago a través de Mercado Pago.</p>
+      <p>Para cualquier duda escríbenos a <a href="mailto:contacto@owlcompliance.com">contacto@owlcompliance.com</a> o al +57 301 795 4547.</p>
+      <br/><p>Atentamente,<br/><strong>Juan Pablo Osorio Marín</strong><br/>Owl Compliance</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:16px 0;"/>
+      <p style="font-size:11px;color:#888;">www.owlcompliance.com · contacto@owlcompliance.com · +57 301 795 4547 · Bogotá, Colombia</p>
+    </div>`
+
+  // Correo al cliente
+  await transporter.sendMail({
+    from:        `"Owl Compliance" <${gmailUser}>`,
+    to:          opts.destinatario,
+    subject:     `Contrato firmado — Plan ${opts.planLabel} · Owl Compliance`,
+    html:        htmlCliente,
+    attachments: opts.adjuntos,
+  })
+
+  // Notificación al superadmin (sin adjuntos)
+  const superadmin = process.env.SUPERADMIN_EMAIL ?? 'contacto@owlcompliance.com'
+  await transporter.sendMail({
+    from:    `"Owl Compliance Sistema" <${gmailUser}>`,
+    to:      superadmin,
+    subject: `[CONTRATO FIRMADO] ${opts.cliente} — Plan ${opts.planLabel}`,
+    html:    `
+      <div style="font-family:Arial,sans-serif;max-width:600px;">
+        <h3 style="color:#712529;">[CONTRATO FIRMADO] ${opts.cliente}</h3>
+        <p><strong>Cliente:</strong> ${opts.cliente} (${opts.destinatario})</p>
+        <p><strong>Plan:</strong> ${opts.planLabel}</p>
+        <p><strong>Fecha:</strong> ${opts.fechaFmt}</p>
+        ${opts.numeroCuenta ? `<p><strong>Cuenta de cobro:</strong> ${opts.numeroCuenta}</p>` : ''}
+      </div>`,
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -58,7 +132,6 @@ export async function POST(req: NextRequest) {
     ccRepresentante, plan, email, cuentaCobroSolicitada,
   } = body
 
-  // Validar campos requeridos
   const requeridos: Record<string, string> = {
     nombreCliente, tipoPersona, tipoIdentificacion,
     numeroIdentificacion, ciudadCliente, nombreRepresentante,
@@ -74,19 +147,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Plan inválido' }, { status: 400 })
   }
 
-  const ip      = getIP(req)
-  const ahora   = new Date()
+  const ip       = getIP(req)
+  const ahora    = new Date()
   const fechaISO = ahora.toISOString()
   const planKey  = plan as PlanKey
   const planObj  = PLANES[planKey]
 
-  // ── Generar PDFs ──────────────────────────────────────────────────────────
+  const fechaFmt = ahora.toLocaleDateString('es-CO', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })
+
+  // ── Generar PDFs ────────────────────────────────────────────────────────────
 
   const datosContrato: DatosContrato = {
     nombreCliente, tipoPersona, tipoIdentificacion,
     numeroIdentificacion, ciudadCliente, nombreRepresentante, ccRepresentante,
-    plan: planKey, fechaAceptacion: fechaISO,
-    ip, clienteEmail: email,
+    plan: planKey, fechaAceptacion: fechaISO, ip, clienteEmail: email,
   }
 
   let pdfContrato: Buffer
@@ -104,11 +180,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error generando documentos: ' + e.message }, { status: 500 })
   }
 
+  const nombreArchivoContrato = `Contrato-${nombreCliente.replace(/\s+/g, '_')}-${ahora.toISOString().slice(0, 10)}.pdf`
+  const nombreArchivoTyC      = `TyC-OWL-Compliance-${ahora.toISOString().slice(0, 10)}.pdf`
+
+  const adjuntosEmail: Array<{ filename: string; content: Buffer }> = [
+    { filename: nombreArchivoContrato, content: pdfContrato },
+    { filename: nombreArchivoTyC,      content: pdfTyC },
+  ]
+
   if (cuentaCobroSolicitada) {
     numeroCuenta = numeroCuentaTemp(ahora.getFullYear())
     const datosCuenta: DatosCuentaCobro = {
-      numero: numeroCuenta,
-      fecha:  fechaISO,
+      numero:             numeroCuenta,
+      fecha:              fechaISO,
       nombreEmpresa:      nombreCliente,
       nit:                numeroIdentificacion,
       representanteLegal: nombreRepresentante,
@@ -117,29 +201,37 @@ export async function POST(req: NextRequest) {
     }
     try {
       pdfCuenta = await generarPDFCuentaCobro(datosCuenta)
+      if (pdfCuenta) {
+        adjuntosEmail.push({ filename: `CuentaCobro-${numeroCuenta}.pdf`, content: pdfCuenta })
+      }
     } catch (e) {
       console.error('[contrato/publico] Error cuenta de cobro:', e)
     }
   }
 
-  // ── Enviar vía Apps Script (correo + Drive) ───────────────────────────────
-
-  const nombreArchivoContrato = `Contrato-${nombreCliente.replace(/\s+/g, '_')}-${ahora.toISOString().slice(0, 10)}.pdf`
-  const nombreArchivoTyC      = `TyC-OWL-Compliance-${ahora.toISOString().slice(0, 10)}.pdf`
-
-  const adjuntos: Array<{ nombre: string; base64: string }> = [
-    { nombre: nombreArchivoContrato, base64: pdfContrato.toString('base64') },
-    { nombre: nombreArchivoTyC,      base64: pdfTyC.toString('base64') },
-  ]
-
-  if (pdfCuenta && numeroCuenta) {
-    adjuntos.push({
-      nombre: `CuentaCobro-${numeroCuenta}.pdf`,
-      base64: pdfCuenta.toString('base64'),
+  // ── Enviar correo por SMTP ──────────────────────────────────────────────────
+  try {
+    await enviarCorreo({
+      destinatario: email,
+      planLabel:    planObj.label,
+      cliente:      nombreCliente,
+      fechaFmt,
+      numeroCuenta,
+      adjuntos:     adjuntosEmail,
     })
+  } catch (e: any) {
+    console.error('[contrato/publico] Error enviando correo:', e)
+    // No falla el flujo completo — los docs se generaron, solo falló el envío
   }
 
-  await enviarAlWebhook({
+  // ── Subir a Drive vía Apps Script (solo metadatos + base64, en background) ─
+  const adjuntosBase64 = adjuntosEmail.map(a => ({
+    nombre: a.filename,
+    base64: (a.content as Buffer).toString('base64'),
+  }))
+
+  // Fire-and-forget — no bloquea la respuesta
+  subirADrive({
     tipo_entidad:        'contrato_firmado',
     cliente:             nombreCliente,
     cliente_email:       email,
@@ -147,10 +239,12 @@ export async function POST(req: NextRequest) {
     plan_label:          planObj.label,
     fecha:               fechaISO,
     ip,
-    adjuntos,
+    adjuntos:            adjuntosBase64,
     carpeta_drive:       nombreCliente.replace(/[^a-zA-Z0-9\s]/g, '').trim(),
     cuenta_cobro_numero: numeroCuenta ?? null,
-  })
+    // Sin envío de email desde Apps Script — solo guardar en Drive
+    solo_drive:          true,
+  }).catch(e => console.error('[contrato/publico] Error Drive:', e))
 
   return NextResponse.json({ ok: true, numeroCuenta: numeroCuenta ?? null })
 }
