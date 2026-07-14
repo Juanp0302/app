@@ -16,6 +16,11 @@ import {
 } from '@/lib/pdf-contrato'
 import { PLANES, PlanKey } from '@/lib/suscripcion'
 import { subirContratoADrive } from '@/lib/drive-upload'
+import {
+  migrateContrato,
+  siguienteNumeroCuenta,
+  crearCuentaCobro,
+} from '@/lib/contrato-db'
 
 function getIP(req: NextRequest): string {
   return (
@@ -27,11 +32,6 @@ function getIP(req: NextRequest): string {
 
 function mesLabel(fecha: Date): string {
   return fecha.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
-}
-
-function numeroCuentaTemp(anio: number): string {
-  const seq = String(Date.now()).slice(-5)
-  return `OWL-${String(anio).slice(-2)}-T${seq}`
 }
 
 /** Envía el correo con los PDFs adjuntos directamente por SMTP */
@@ -65,7 +65,7 @@ async function enviarCorreo(opts: {
     </ul>`
 
   const cuentaTexto = opts.numeroCuenta
-    ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con los datos bancarios para el pago.</p>`
+    ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con el enlace de pago a través de Mercado Pago.</p>`
     : ''
 
   const htmlCliente = `
@@ -175,7 +175,8 @@ export async function POST(req: NextRequest) {
   ]
 
   if (cuentaCobroSolicitada) {
-    numeroCuenta = numeroCuentaTemp(ahora.getFullYear())
+    await migrateContrato()
+    numeroCuenta = await siguienteNumeroCuenta(ahora.getFullYear())
     const datosCuenta: DatosCuentaCobro = {
       numero:             numeroCuenta,
       fecha:              fechaISO,
@@ -189,6 +190,16 @@ export async function POST(req: NextRequest) {
       pdfCuenta = await generarPDFCuentaCobro(datosCuenta)
       if (pdfCuenta) {
         adjuntosEmail.push({ filename: `CuentaCobro-${numeroCuenta}.pdf`, content: pdfCuenta })
+        // Guardar en DB (fire-and-forget — no bloqueamos la respuesta)
+        crearCuentaCobro({
+          numero:       numeroCuenta,
+          clienteId:    email,
+          plan:         planKey,
+          monto:        planObj.precio,
+          concepto:     `Plan ${planObj.label} — ${mesLabel(ahora)}`,
+          mes:          ahora.toISOString().slice(0, 7),
+          fechaEmision: fechaISO,
+        }).catch(e => console.error('[contrato/publico] Error guardando cuenta en DB:', e))
       }
     } catch (e) {
       console.error('[contrato/publico] Error cuenta de cobro:', e)

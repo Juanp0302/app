@@ -1,57 +1,41 @@
 /**
  * lib/numero-letras.ts
- * Convierte un número entero a texto en español (para cuentas de cobro).
+ * Convierte un monto numérico a su representación en letras (pesos colombianos).
  */
 
-const UNIDADES = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve']
-const ESPECIALES = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis',
-  'diecisiete', 'dieciocho', 'diecinueve']
-const DECENAS = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa']
+const UNIDADES = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve',
+  'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve']
+const DECENAS  = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa']
 const CENTENAS = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos',
   'seiscientos', 'setecientos', 'ochocientos', 'novecientos']
 
-function menosDeMil(n: number): string {
-  if (n === 0) return ''
+function centenas(n: number): string {
   if (n === 100) return 'cien'
-  if (n < 10) return UNIDADES[n]
-  if (n < 20) return ESPECIALES[n - 10]
-  if (n < 100) {
-    const d = Math.floor(n / 10)
-    const u = n % 10
-    return u === 0 ? DECENAS[d] : `${DECENAS[d]} y ${UNIDADES[u]}`
-  }
-  const c = Math.floor(n / 100)
+  const c     = Math.floor(n / 100)
   const resto = n % 100
-  const centena = CENTENAS[c]
-  return resto === 0 ? centena : `${centena} ${menosDeMil(resto)}`
+  const parteC = CENTENAS[c] ?? ''
+  if (resto === 0) return parteC
+  if (resto < 20) return [parteC, UNIDADES[resto]].filter(Boolean).join(' ')
+  const d = Math.floor(resto / 10)
+  const u = resto % 10
+  const parteD = u === 0 ? DECENAS[d] : `${DECENAS[d]} y ${UNIDADES[u]}`
+  return [parteC, parteD].filter(Boolean).join(' ')
 }
 
-export function numeroALetras(n: number): string {
+function enLetras(n: number): string {
   if (n === 0) return 'cero'
-  if (n < 0) return `menos ${numeroALetras(-n)}`
-
   const millones = Math.floor(n / 1_000_000)
-  const miles = Math.floor((n % 1_000_000) / 1_000)
-  const resto = n % 1_000
-
+  const resto1   = n % 1_000_000
+  const mils     = Math.floor(resto1 / 1000)
+  const resto2   = resto1 % 1000
   const partes: string[] = []
-
-  if (millones > 0) {
-    partes.push(millones === 1 ? 'un millón' : `${menosDeMil(millones)} millones`)
-  }
-  if (miles > 0) {
-    partes.push(miles === 1 ? 'mil' : `${menosDeMil(miles)} mil`)
-  }
-  if (resto > 0) {
-    partes.push(menosDeMil(resto))
-  }
-
+  if (millones > 0) partes.push(millones === 1 ? 'un millón' : `${centenas(millones)} millones`)
+  if (mils     > 0) partes.push(mils === 1 ? 'mil' : `${centenas(mils)} mil`)
+  if (resto2   > 0) partes.push(centenas(resto2))
   return partes.join(' ')
 }
 
-/** Devuelve el monto en letras para cuenta de cobro colombiana */
+/** Devuelve la representación en letras de un monto en pesos colombianos. */
 export function montoCOP(n: number): string {
-  const letras = numeroALetras(n)
-  // Capitalizar primera letra
-  return letras.charAt(0).toUpperCase() + letras.slice(1) + ' pesos m/cte.'
+  return `${enLetras(Math.floor(n))} pesos colombianos (${n.toLocaleString('es-CO')} COP)`
 }

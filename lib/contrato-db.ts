@@ -49,7 +49,7 @@ export async function siguienteNumeroCuenta(anio: number): Promise<string> {
     [`${prefijo}%`]
   ) as any
   const siguiente = (row?.cnt ?? 0) + 1
-  return `${prefijo}${String(siguiente).padStart(5, '0')}`
+  return `${prefijo}${String(siguiente).padStart(6, '0')}`
 }
 
 export interface CuentaCobroData {
