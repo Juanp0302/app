@@ -76,14 +76,17 @@ export async function GET(req: NextRequest) {
       [userId]
     ) as any[]
 
-    // 6. Recordatorios con su email
-    const recordatorios = await queryAll(
-      `SELECT r.id, r.email_destino, r.dias_antes, r.activo, r.created_at
-       FROM recordatorios r
-       JOIN clientes cl ON cl.id = r.cliente_id
-       WHERE cl.user_id = ? AND r.email_destino = ?`,
-      [userId, email]
-    ) as any[]
+    // 6. Recordatorios con su email (tabla opcional)
+    let recordatorios: any[] = []
+    try {
+      recordatorios = await queryAll(
+        `SELECT r.id, r.email_destino, r.dias_antes, r.activo, r.created_at
+         FROM recordatorios r
+         JOIN clientes cl ON cl.id = r.cliente_id
+         WHERE cl.user_id = ? AND r.email_destino = ?`,
+        [userId, email]
+      ) as any[]
+    } catch { /* tabla no existe aún */ }
 
     const resultado = {
       encontrado: true,
