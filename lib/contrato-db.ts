@@ -3,7 +3,7 @@
  * Operaciones de base de datos para contratos y cuentas de cobro.
  */
 
-import { execute, queryOne, queryAll } from './db'
+import { db, execute, queryOne, queryAll } from './db'
 
 // ── Migración ─────────────────────────────────────────────────────────────────
 
@@ -41,19 +41,7 @@ export async function migrateContrato() {
 
 // ── Cuentas de cobro ──────────────────────────────────────────────────────────
 
-/** Genera el siguiente número de cuenta de cobro para el año dado (ej. 2026 → "OWL-26-00001") */
-export async function siguienteNumeroCuenta(anio: number): Promise<string> {
-  const prefijo = `OWL-${String(anio).slice(-2)}-`
-  const row = await queryOne(
-    `SELECT COUNT(*) as cnt FROM cuentas_cobro WHERE numero LIKE ?`,
-    [`${prefijo}%`]
-  ) as any
-  const siguiente = (row?.cnt ?? 0) + 1
-  return `${prefijo}${String(siguiente).padStart(6, '0')}`
-}
-
 export interface CuentaCobroData {
-  numero:       string
   clienteId:    string
   plan:         string
   monto:        number
@@ -63,13 +51,34 @@ export interface CuentaCobroData {
   driveUrl?:    string
 }
 
-export async function crearCuentaCobro(data: CuentaCobroData) {
-  await execute(
-    `INSERT INTO cuentas_cobro (numero, cliente_id, plan, monto, concepto, mes, fecha_emision, drive_url, enviada_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [data.numero, data.clienteId, data.plan, data.monto, data.concepto,
-     data.mes, data.fechaEmision, data.driveUrl ?? null, new Date().toISOString()]
-  )
+/**
+ * Inserta una cuenta de cobro y devuelve el número consecutivo real
+ * basado en el AUTOINCREMENT id de la fila, garantizando unicidad
+ * incluso con solicitudes concurrentes.
+ * Formato: OWL-{AA}-{000001}
+ */
+export async function crearCuentaCobro(data: CuentaCobroData): Promise<string> {
+  const anio   = new Date(data.fechaEmision).getFullYear()
+  const prefijo = `OWL-${String(anio).slice(-2)}-`
+
+  // 1. Insertar con número provisional
+  const result = await db.execute({
+    sql:  `INSERT INTO cuentas_cobro (numero, cliente_id, plan, monto, concepto, mes, fecha_emision, drive_url, enviada_at)
+           VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [data.clienteId, data.plan, data.monto, data.concepto,
+           data.mes, data.fechaEmision, data.driveUrl ?? null, new Date().toISOString()],
+  })
+
+  const id     = Number(result.lastInsertRowid)
+  const numero = `${prefijo}${String(id).padStart(6, '0')}`
+
+  // 2. Actualizar con el número definitivo
+  await db.execute({
+    sql:  `UPDATE cuentas_cobro SET numero = ? WHERE id = ?`,
+    args: [numero, id],
+  })
+
+  return numero
 }
 
 // ── Contrato ──────────────────────────────────────────────────────────────────

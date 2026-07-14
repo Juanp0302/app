@@ -18,7 +18,6 @@ import { PLANES, PlanKey } from '@/lib/suscripcion'
 import { subirContratoADrive } from '@/lib/drive-upload'
 import {
   migrateContrato,
-  siguienteNumeroCuenta,
   crearCuentaCobro,
 } from '@/lib/contrato-db'
 
@@ -176,30 +175,29 @@ export async function POST(req: NextRequest) {
 
   if (cuentaCobroSolicitada) {
     await migrateContrato()
-    numeroCuenta = await siguienteNumeroCuenta(ahora.getFullYear())
-    const datosCuenta: DatosCuentaCobro = {
-      numero:             numeroCuenta,
-      fecha:              fechaISO,
-      nombreEmpresa:      nombreCliente,
-      nit:                numeroIdentificacion,
-      representanteLegal: nombreRepresentante,
-      plan:               planKey,
-      mes:                mesLabel(ahora),
-    }
     try {
+      // crearCuentaCobro inserta en DB y devuelve el número basado en el id real (sin race condition)
+      numeroCuenta = await crearCuentaCobro({
+        clienteId:    email,
+        plan:         planKey,
+        monto:        planObj.precio,
+        concepto:     `Plan ${planObj.label} — ${mesLabel(ahora)}`,
+        mes:          ahora.toISOString().slice(0, 7),
+        fechaEmision: fechaISO,
+      })
+
+      const datosCuenta: DatosCuentaCobro = {
+        numero:             numeroCuenta,
+        fecha:              fechaISO,
+        nombreEmpresa:      nombreCliente,
+        nit:                numeroIdentificacion,
+        representanteLegal: nombreRepresentante,
+        plan:               planKey,
+        mes:                mesLabel(ahora),
+      }
       pdfCuenta = await generarPDFCuentaCobro(datosCuenta)
       if (pdfCuenta) {
         adjuntosEmail.push({ filename: `CuentaCobro-${numeroCuenta}.pdf`, content: pdfCuenta })
-        // Guardar en DB (fire-and-forget — no bloqueamos la respuesta)
-        crearCuentaCobro({
-          numero:       numeroCuenta,
-          clienteId:    email,
-          plan:         planKey,
-          monto:        planObj.precio,
-          concepto:     `Plan ${planObj.label} — ${mesLabel(ahora)}`,
-          mes:          ahora.toISOString().slice(0, 7),
-          fechaEmision: fechaISO,
-        }).catch(e => console.error('[contrato/publico] Error guardando cuenta en DB:', e))
       }
     } catch (e) {
       console.error('[contrato/publico] Error cuenta de cobro:', e)
