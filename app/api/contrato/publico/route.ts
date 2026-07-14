@@ -15,6 +15,7 @@ import {
   DatosCuentaCobro,
 } from '@/lib/pdf-contrato'
 import { PLANES, PlanKey } from '@/lib/suscripcion'
+import { subirContratoADrive } from '@/lib/drive-upload'
 
 function getIP(req: NextRequest): string {
   return (
@@ -31,21 +32,6 @@ function mesLabel(fecha: Date): string {
 function numeroCuentaTemp(anio: number): string {
   const seq = String(Date.now()).slice(-5)
   return `OWL-${String(anio).slice(-2)}-T${seq}`
-}
-
-/** Sube los archivos a Drive vía Apps Script (sin adjuntos de email) */
-async function subirADrive(payload: object): Promise<void> {
-  const url = process.env.SHEETS_WEBHOOK_URL
-  if (!url) return
-  try {
-    await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    })
-  } catch (e) {
-    console.error('[contrato/publico] Error webhook Drive:', e)
-  }
 }
 
 /** Envía el correo con los PDFs adjuntos directamente por SMTP */
@@ -224,26 +210,10 @@ export async function POST(req: NextRequest) {
     // No falla el flujo completo — los docs se generaron, solo falló el envío
   }
 
-  // ── Subir a Drive vía Apps Script (solo metadatos + base64, en background) ─
-  const adjuntosBase64 = adjuntosEmail.map(a => ({
-    nombre: a.filename,
-    base64: (a.content as Buffer).toString('base64'),
-  }))
-
-  // Fire-and-forget — no bloquea la respuesta
-  subirADrive({
-    tipo_entidad:        'contrato_firmado',
-    cliente:             nombreCliente,
-    cliente_email:       email,
-    plan:                planKey,
-    plan_label:          planObj.label,
-    fecha:               fechaISO,
-    ip,
-    adjuntos:            adjuntosBase64,
-    carpeta_drive:       nombreCliente.replace(/[^a-zA-Z0-9\s]/g, '').trim(),
-    cuenta_cobro_numero: numeroCuenta ?? null,
-    // Sin envío de email desde Apps Script — solo guardar en Drive
-    solo_drive:          true,
+  // ── Subir a Drive directamente vía Drive API (fire-and-forget) ────────────
+  subirContratoADrive({
+    nombreCliente,
+    adjuntos: adjuntosEmail,
   }).catch(e => console.error('[contrato/publico] Error Drive:', e))
 
   return NextResponse.json({ ok: true, numeroCuenta: numeroCuenta ?? null })
