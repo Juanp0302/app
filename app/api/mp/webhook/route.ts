@@ -126,6 +126,9 @@ async function handlePreapproval(mpId: string) {
   await migrateSuscripcion()
   const sub = await obtenerSuscripcion(mpId)
 
+  console.log('[mp/webhook] preapproval status=%s ref=%s payer=%s raw=%s',
+    sub.status, sub.external_reference, sub.payer_email ?? sub.payer?.email, JSON.stringify(sub))
+
   const ref = sub.external_reference as string | undefined
   if (!ref) return
 
@@ -228,6 +231,9 @@ async function handlePayment(paymentId: string) {
   await migrateSuscripcion()
   const pago = await obtenerPago(paymentId)
 
+  console.log('[mp/webhook] pago status=%s status_detail=%s ref=%s raw=%s',
+    pago.status, pago.status_detail, pago.external_reference, JSON.stringify(pago))
+
   if (pago.status !== 'approved') return
   const ref = pago.external_reference as string | undefined
   if (!ref || ref.startsWith('new:')) return   // nuevo cliente ya se maneja en preapproval
@@ -266,17 +272,27 @@ export async function POST(req: NextRequest) {
     const tipo   = body.type     as string | undefined
     const dataId = body.data?.id as string | undefined
 
-    if (!tipo || !dataId) return NextResponse.json({ ok: true })
+    // Log completo para diagnóstico en Render
+    console.log('[mp/webhook] RECIBIDO tipo=%s dataId=%s body=%s', tipo, dataId, JSON.stringify(body))
+
+    if (!tipo || !dataId) {
+      console.log('[mp/webhook] Ignorado — sin tipo o dataId')
+      return NextResponse.json({ ok: true })
+    }
 
     if (tipo === 'subscription_preapproval') {
+      console.log('[mp/webhook] Procesando preapproval id=%s', dataId)
       await handlePreapproval(dataId)
     } else if (tipo === 'payment' || tipo === 'subscription_authorized_payment') {
+      console.log('[mp/webhook] Procesando pago id=%s', dataId)
       await handlePayment(dataId)
+    } else {
+      console.log('[mp/webhook] Tipo no manejado: %s', tipo)
     }
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    console.error('[mp/webhook]', err?.message ?? err)
+    console.error('[mp/webhook] ERROR', err?.message ?? err)
     return NextResponse.json({ ok: true })
   }
 }
