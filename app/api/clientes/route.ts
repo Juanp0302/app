@@ -35,7 +35,7 @@ export async function GET() {
            c.admin_revision_id,
            ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
            c.plan, c.suscripcion_estado, c.suscripcion_vencimiento,
-           c.mp_subscription_id,
+           c.mp_subscription_id, c.auto_cuenta_cobro,
            c.tickets_mes, c.chats_mes,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,
@@ -200,6 +200,14 @@ export async function PATCH(req: NextRequest) {
   // ── Cambiar plan ──────────────────────────────────────────────────────────────
   if (typeof body.plan !== 'undefined') {
     await execute(`UPDATE clientes SET plan = ?, updated_at = datetime('now') WHERE id = ?`, [body.plan, clienteId])
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Toggle auto cuenta de cobro ───────────────────────────────────────────────
+  if (typeof body.auto_cuenta_cobro !== 'undefined') {
+    await migrateSuscripcion()
+    await execute(`UPDATE clientes SET auto_cuenta_cobro = ?, updated_at = datetime('now') WHERE id = ?`,
+      [body.auto_cuenta_cobro ? 1 : 0, clienteId])
     return NextResponse.json({ ok: true })
   }
 

@@ -50,6 +50,7 @@ export default function SuperadminClient() {
   const [planGuardando, setPlanGuardando] = useState<string | null>(null)
   const [planSel,       setPlanSel]       = useState<Record<string, string>>({})
   const [estadoSel,     setEstadoSel]     = useState<Record<string, string>>({})
+  const [accToggling,   setAccToggling]   = useState<string | null>(null)
 
   async function cargar() {
     try {
@@ -69,6 +70,20 @@ export default function SuperadminClient() {
   }
 
   useEffect(() => { cargar() }, [])
+
+  async function toggleAutoCuentaCobro(clienteId: string, valor: boolean) {
+    setAccToggling(clienteId)
+    try {
+      await fetch(`/api/clientes?id=${clienteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_cuenta_cobro: valor }),
+      })
+      await cargar()
+    } finally {
+      setAccToggling(null)
+    }
+  }
 
   async function guardarPlan(clienteId: string) {
     const plan   = planSel[clienteId]
@@ -551,6 +566,28 @@ export default function SuperadminClient() {
                       fontFamily: 'inherit', transition: 'all 0.15s' }}>
                     {busy ? '…' : 'Guardar'}
                   </button>
+                  {/* Toggle auto cuenta de cobro */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                    <button
+                      onClick={() => toggleAutoCuentaCobro(c.id, !c.auto_cuenta_cobro)}
+                      disabled={accToggling === c.id}
+                      title={c.auto_cuenta_cobro ? 'Desactivar envío automático de cuenta de cobro' : 'Activar envío automático de cuenta de cobro'}
+                      style={{
+                        width: 36, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer',
+                        background: c.auto_cuenta_cobro ? '#16a34a' : 'rgba(231,223,202,0.12)',
+                        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                      }}>
+                      <span style={{
+                        position: 'absolute', top: 2, left: c.auto_cuenta_cobro ? 18 : 2,
+                        width: 16, height: 16, borderRadius: '50%',
+                        background: c.auto_cuenta_cobro ? '#fff' : 'rgba(231,223,202,0.4)',
+                        transition: 'left 0.2s',
+                      }} />
+                    </button>
+                    <span style={{ fontSize: '0.6rem', color: c.auto_cuenta_cobro ? '#16a34a' : 'rgba(231,223,202,0.3)', whiteSpace: 'nowrap' }}>
+                      Cta. cobro auto
+                    </span>
+                  </div>
                 </div>
               )
             })}

@@ -6,7 +6,7 @@
  * Auth: Authorization: Bearer INTERNAL_SECRET
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { queryAll, queryOne, execute } from '@/lib/db'
+import { queryAll } from '@/lib/db'
 import { crearCuentaCobro, migrateContrato } from '@/lib/contrato-db'
 import { generarPDFCuentaCobro, DatosCuentaCobro } from '@/lib/pdf-contrato'
 import { PLANES, PlanKey } from '@/lib/suscripcion'
@@ -52,19 +52,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // Verificar setting global
-  try {
-    await execute(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)`)
-  } catch { /* already exists */ }
-
-  const setting = await queryOne(`SELECT value FROM app_settings WHERE key = 'auto_cuenta_cobro'`) as any
-  if (!setting || setting.value !== 'true') {
-    return NextResponse.json({ ok: true, omitido: true, razon: 'auto_cuenta_cobro desactivado' })
-  }
-
   await migrateContrato()
 
-  // Buscar clientes cuyo vencimiento es en exactamente DIAS_ANTES días
+  // Buscar clientes cuyo vencimiento es en exactamente DIAS_ANTES días Y tienen auto_cuenta_cobro activado
   const clientes = await queryAll(
     `SELECT c.id, c.razon_social, c.nit, c.contacto AS representante_legal,
             c.plan, c.suscripcion_vencimiento,
@@ -74,6 +64,7 @@ export async function POST(req: NextRequest) {
      WHERE c.suscripcion_estado = 'activa'
        AND c.plan IS NOT NULL
        AND c.plan != 'trial'
+       AND c.auto_cuenta_cobro = 1
        AND DATE(c.suscripcion_vencimiento) = DATE('now', '+${DIAS_ANTES} days')`,
     []
   ) as any[]
