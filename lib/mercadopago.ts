@@ -56,6 +56,7 @@ export async function crearSuscripcion(opts: {
   const plan = PLANES[opts.planKey]
   const body: Record<string, any> = {
     preapproval_plan_id: plan.mp_plan_id,
+    reason:              `Owl Compliance — Plan ${plan.label}`,
     external_reference:  opts.clienteId,
     back_url:            opts.backUrl,
   }
