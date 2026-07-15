@@ -16,6 +16,18 @@ function addDays(n: number) {
   return d.toISOString().slice(0, 10)
 }
 
+/** Añade 1 mes exacto preservando el día del ciclo.
+ *  Si el vencimiento actual es futuro, extiende desde ahí.
+ *  Si es pasado o null, extiende desde hoy.
+ */
+function siguienteVencimiento(vencimientoActual: string | null): string {
+  const base = vencimientoActual && new Date(vencimientoActual) > new Date()
+    ? new Date(vencimientoActual)
+    : new Date()
+  base.setMonth(base.getMonth() + 1)
+  return base.toISOString().slice(0, 10)
+}
+
 function hashPassword(pwd: string) {
   return crypto.createHash('sha256').update(pwd + 'owl_salt_2026').digest('hex')
 }
@@ -103,7 +115,7 @@ async function crearCuentaNueva(opts: {
 
 async function getCliente(clienteId: string) {
   return queryOne(
-    `SELECT c.id, c.plan, c.razon_social, u.email
+    `SELECT c.id, c.plan, c.razon_social, c.suscripcion_vencimiento, u.email
      FROM clientes c JOIN users u ON u.id = c.user_id
      WHERE c.id = ?`,
     [clienteId]
@@ -143,11 +155,44 @@ async function handlePreapproval(mpId: string) {
     return
   }
 
+  // ── Cliente existente por email (external_reference = "planKey:email") ──
+  // Formato usado por el checkout público cuando el cliente ya existe (firmó contrato)
+  if (ref.includes(':') && !ref.startsWith('new:')) {
+    const colonIdx = ref.indexOf(':')
+    const planKey  = ref.slice(0, colonIdx) as PlanKey
+    const email    = ref.slice(colonIdx + 1)
+    if (PLANES[planKey] && email) {
+      const clientePorEmail = await queryOne(
+        `SELECT c.id, c.suscripcion_vencimiento, c.razon_social, u.email
+         FROM clientes c JOIN users u ON u.id = c.user_id
+         WHERE u.email = ?`,
+        [email]
+      ) as any
+      if (clientePorEmail && nuevoEstado === 'activa') {
+        const nuevoVenc = siguienteVencimiento(clientePorEmail.suscripcion_vencimiento)
+        await execute(
+          `UPDATE clientes
+           SET mp_subscription_id     = ?,
+               suscripcion_estado      = 'activa',
+               plan                   = ?,
+               suscripcion_vencimiento = ?,
+               tickets_mes             = 0,
+               chats_mes               = 0,
+               conteo_reset_at         = strftime('%Y-%m', 'now')
+           WHERE id = ?`,
+          [mpId, planKey, nuevoVenc, clientePorEmail.id]
+        )
+      }
+      return
+    }
+  }
+
   // ── Cliente existente (external_reference = clienteId UUID) ──
   const cliente = await getCliente(ref)
   if (!cliente) return
 
   if (nuevoEstado === 'activa') {
+    const nuevoVenc = siguienteVencimiento(cliente.suscripcion_vencimiento ?? null)
     await execute(
       `UPDATE clientes
        SET mp_subscription_id      = ?,
@@ -158,7 +203,7 @@ async function handlePreapproval(mpId: string) {
            chats_mes                = 0,
            conteo_reset_at          = strftime('%Y-%m', 'now')
        WHERE id = ?`,
-      [mpId, addDays(30), ref]
+      [mpId, nuevoVenc, ref]
     )
   } else {
     await execute(
@@ -190,6 +235,8 @@ async function handlePayment(paymentId: string) {
   const cliente = await getCliente(ref)
   if (!cliente) return
 
+  const nuevoVenc = siguienteVencimiento(cliente.suscripcion_vencimiento ?? null)
+
   await execute(
     `UPDATE clientes
      SET suscripcion_estado      = 'activa',
@@ -198,7 +245,7 @@ async function handlePayment(paymentId: string) {
          chats_mes               = 0,
          conteo_reset_at         = strftime('%Y-%m', 'now')
      WHERE id = ?`,
-    [addDays(30), ref]
+    [nuevoVenc, ref]
   )
 
   try {
