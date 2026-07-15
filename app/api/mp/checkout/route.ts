@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const mpToken = process.env.MP_ACCESS_TOKEN
   if (!mpToken) return NextResponse.json({ error: 'MP no configurado' }, { status: 500 })
 
-  const body: Record<string, any> = {
+  const preapprovalBody: Record<string, any> = {
     preapproval_plan_id: plan.mp_plan_id,
     reason:              `Owl Compliance — Plan ${plan.label}`,
     external_reference:  `${planKey}:${email}`,
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       Authorization:  `Bearer ${mpToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(preapprovalBody),
     cache: 'no-store',
   })
 
