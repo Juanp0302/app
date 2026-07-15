@@ -1,7 +1,7 @@
 /**
  * POST /api/mp/checkout
  * Endpoint PÚBLICO — no requiere login.
- * Recibe { plan, email, nombre }, crea suscripción en MP y devuelve init_point.
+ * Recibe { plan, email }, devuelve init_point de checkout de suscripción MP.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { PLANES, PlanKey } from '@/lib/suscripcion'
@@ -10,8 +10,8 @@ const BASE_URL = 'https://owlcompliance.onrender.com'
 
 export async function POST(req: NextRequest) {
   const body    = await req.json()
-  const planKey = body.plan   as PlanKey | null
-  const email   = body.email  as string  | null
+  const planKey = body.plan  as PlanKey | null
+  const email   = body.email as string  | null
 
   if (!planKey || !PLANES[planKey]) {
     return NextResponse.json({ error: 'Plan inválido' }, { status: 400 })
@@ -20,38 +20,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El correo es requerido' }, { status: 400 })
   }
 
-  const plan = PLANES[planKey]
+  const plan    = PLANES[planKey]
+  const isTest  = process.env.MP_ACCESS_TOKEN?.startsWith('TEST-') ?? false
 
-  // Crea el preapproval vía API para obtener un init_point válido en test y producción
-  const mpToken = process.env.MP_ACCESS_TOKEN
-  if (!mpToken) return NextResponse.json({ error: 'MP no configurado' }, { status: 500 })
-
-  const preapprovalBody: Record<string, any> = {
+  // En producción se pasa payer_email para pre-llenar el checkout.
+  // En modo prueba se omite para evitar el error "una de las partes es de prueba"
+  // cuando el email del cliente no es una cuenta de prueba de MP.
+  const params = new URLSearchParams({
     preapproval_plan_id: plan.mp_plan_id,
-    reason:              `Owl Compliance — Plan ${plan.label}`,
-    external_reference:  `${planKey}:${email}`,
     back_url:            `${BASE_URL}/pago-exitoso`,
-    payer_email:         email,
-  }
-
-  const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
-    method:  'POST',
-    headers: {
-      Authorization:  `Bearer ${mpToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(preapprovalBody),
-    cache: 'no-store',
+    external_reference:  `${planKey}:${email}`,
   })
 
-  if (!mpRes.ok) {
-    const err = await mpRes.text()
-    console.error('[mp/checkout] Error MP:', err)
-    return NextResponse.json({ error: 'Error creando suscripción: ' + err }, { status: 500 })
+  if (!isTest) {
+    params.set('payer_email', email)
   }
 
-  const data       = await mpRes.json()
-  const init_point = data.init_point
+  const init_point = `https://www.mercadopago.com.co/subscriptions/checkout?${params.toString()}`
 
   return NextResponse.json({ init_point })
 }
