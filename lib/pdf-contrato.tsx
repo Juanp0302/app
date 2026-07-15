@@ -19,12 +19,11 @@ const BORDO       = '#712529'
 const OLIVO       = '#7a6e1a'
 const GRIS        = '#555555'
 const NEGRO       = '#1a1a1a'
-const DARK_FOOTER = '#1a1413'
 const BG_TABLE_H  = '#f0ebe0'
 
 // ── Rutas ─────────────────────────────────────────────────────────────────────
-const logoFile = () => path.join(process.cwd(), 'public', 'logo.png')
-const buhoFile = () => path.join(process.cwd(), 'public', 'buho.png')
+const headerFile = () => path.join(process.cwd(), 'public', 'membrete-header.png')
+const footerFile = () => path.join(process.cwd(), 'public', 'membrete-footer.png')
 
 // ── Links de pago por plan ────────────────────────────────────────────────────
 const PAYMENT_LINKS: Record<PlanKey, string> = {
@@ -36,43 +35,30 @@ const PAYMENT_LINKS: Record<PlanKey, string> = {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   page: {
-    paddingTop:        50,
-    paddingBottom:     50,
+    paddingTop:        75,
+    paddingBottom:     65,
     paddingHorizontal: 55,
     fontSize:          9,
     fontFamily:        'Helvetica',
     color:             NEGRO,
     lineHeight:        1.55,
   },
-  logo: {
-    width:       140,
-    height:      50,
-    objectFit:   'contain',
-    marginBottom: 18,
+  membereteHeader: {
+    position:  'absolute',
+    top:        0,
+    left:       0,
+    right:      0,
+    height:     62,
+    objectFit: 'contain',
+    objectPositionX: 'left',
   },
-  ghost: {
-    position: 'absolute',
-    bottom:   45,
-    right:    -15,
-    width:    280,
-    height:   280,
-    opacity:  0.07,
-  },
-  footer: {
-    position:        'absolute',
-    bottom:           0,
-    left:             0,
-    right:            0,
-    backgroundColor:  DARK_FOOTER,
-    paddingVertical:  8,
-    paddingHorizontal: 55,
-    flexDirection:    'row',
-    justifyContent:   'space-between',
-    alignItems:       'center',
-  },
-  footerText: {
-    fontSize: 7.5,
-    color:    '#ffffff',
+  membreteFooter: {
+    position:  'absolute',
+    bottom:     0,
+    left:       0,
+    right:      0,
+    height:     52,
+    objectFit: 'contain',
   },
   h1: {
     fontSize:      11,
@@ -127,30 +113,14 @@ const s = StyleSheet.create({
 
 // ── Componentes compartidos ───────────────────────────────────────────────────
 
-function Header() {
-  return (
-    <View>
-      {fs.existsSync(logoFile())
-        ? <Image src={logoFile()} style={s.logo} />
-        : <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: BORDO, marginBottom: 18 }}>OWL COMPLIANCE</Text>
-      }
-    </View>
-  )
+function MembreteHeader() {
+  if (!fs.existsSync(headerFile())) return null
+  return <Image src={headerFile()} style={s.membereteHeader} fixed />
 }
 
-function GhostOwl() {
-  if (!fs.existsSync(buhoFile())) return null
-  return <Image src={buhoFile()} style={s.ghost} fixed />
-}
-
-function Footer() {
-  return (
-    <View style={s.footer} fixed>
-      <Text style={s.footerText}>+57 301 795 4547</Text>
-      <Text style={s.footerText}>www.owlcompliance.com  |  contacto@owlcompliance.com</Text>
-      <Text style={s.footerText}>Bogotá, Colombia.</Text>
-    </View>
-  )
+function MembreteFooter() {
+  if (!fs.existsSync(footerFile())) return null
+  return <Image src={footerFile()} style={s.membreteFooter} fixed />
 }
 
 // ── CONTRATO ─────────────────────────────────────────────────────────────────
@@ -202,8 +172,8 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
   return (
     <Document>
       <Page size="LETTER" style={s.page}>
-        <GhostOwl />
-        <Header />
+        <MembreteHeader />
+        <MembreteFooter />
 
         <Text style={s.h1}>OWL COMPLIANCE — Gestión Regulatoria para PRST en Colombia</Text>
         <Text style={s.h1}>Contrato de Prestación de Servicios Profesionales de Gestión Regulatoria</Text>
@@ -438,7 +408,6 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
           </Text>
         </View>
 
-        <Footer />
       </Page>
     </Document>
   )
@@ -458,8 +427,8 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
   return (
     <Document>
       <Page size="LETTER" style={s.page}>
-        <GhostOwl />
-        <Header />
+        <MembreteHeader />
+        <MembreteFooter />
 
         <Text style={s.h1}>Términos y Condiciones de Prestación del Servicio</Text>
         <Text style={s.h2}>Anexo 1 del Contrato de Prestación de Servicios Profesionales de Gestión Regulatoria</Text>
@@ -641,7 +610,6 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
           </Text>
         </View>
 
-        <Footer />
       </Page>
     </Document>
   )
@@ -752,8 +720,8 @@ function CuentaCobroDoc({ d }: { d: DatosCuentaCobro }) {
   return (
     <Document>
       <Page size="LETTER" style={{ ...s.page, paddingBottom: 55 }}>
-        <GhostOwl />
-        <Header />
+        <MembreteHeader />
+        <MembreteFooter />
 
         <Text style={{ ...s.h1, marginBottom: 16 }}>Cuenta de Cobro</Text>
 
@@ -813,7 +781,6 @@ function CuentaCobroDoc({ d }: { d: DatosCuentaCobro }) {
           <Text style={{ color: GRIS, fontSize: 8 }}>C.C. 1.053.824.988</Text>
         </View>
 
-        <Footer />
       </Page>
     </Document>
   )
