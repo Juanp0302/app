@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
 import { migrateSuscripcion } from '@/lib/suscripcion'
+import { cancelarSuscripcion } from '@/lib/mercadopago'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -34,6 +35,7 @@ export async function GET() {
            c.admin_revision_id,
            ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
            c.plan, c.suscripcion_estado, c.suscripcion_vencimiento,
+           c.mp_subscription_id,
            c.tickets_mes, c.chats_mes,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,
@@ -175,6 +177,38 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // ── Cancelar en MercadoPago ──────────────────────────────────────────────────
+  if (body.cancelar_mp) {
+    const clienteRow = await queryOne('SELECT mp_subscription_id FROM clientes WHERE id = ?', [clienteId]) as any
+    if (!clienteRow) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    const mpId = clienteRow.mp_subscription_id
+    if (mpId) {
+      try { await cancelarSuscripcion(mpId) } catch (e: any) {
+        console.error('[clientes PATCH] cancelarSuscripcion error:', e)
+      }
+    }
+    await execute(`UPDATE clientes SET suscripcion_estado = 'cancelada', updated_at = datetime('now') WHERE id = ?`, [clienteId])
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Actualizar estado de suscripción ─────────────────────────────────────────
+  if (typeof body.suscripcion_estado !== 'undefined') {
+    await execute(`UPDATE clientes SET suscripcion_estado = ?, updated_at = datetime('now') WHERE id = ?`, [body.suscripcion_estado, clienteId])
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Cambiar plan ──────────────────────────────────────────────────────────────
+  if (typeof body.plan !== 'undefined') {
+    await execute(`UPDATE clientes SET plan = ?, updated_at = datetime('now') WHERE id = ?`, [body.plan, clienteId])
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Actualizar vencimiento ────────────────────────────────────────────────────
+  if (typeof body.suscripcion_vencimiento !== 'undefined') {
+    await execute(`UPDATE clientes SET suscripcion_vencimiento = ?, updated_at = datetime('now') WHERE id = ?`, [body.suscripcion_vencimiento || null, clienteId])
+    return NextResponse.json({ ok: true })
+  }
+
   if (body.nuevo_servicio) {
     const slug    = body.nuevo_servicio
     const yaExiste = await queryOne('SELECT id FROM cliente_servicios WHERE cliente_id=? AND servicio=? AND activo=1', [clienteId, slug])
@@ -188,6 +222,38 @@ export async function PATCH(req: NextRequest) {
     await db.batch(stmts, 'write')
     return NextResponse.json({ ok: true, nuevasObligaciones: subs.length })
   }
+
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await auth()
+  const sessionUser = session?.user as any
+  if (!sessionUser?.is_superadmin) return NextResponse.json({ error: 'Solo superadmin puede eliminar clientes' }, { status: 403 })
+
+  const clienteId = req.nextUrl.searchParams.get('id')
+  if (!clienteId) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+
+  const cliente = await queryOne('SELECT user_id FROM clientes WHERE id = ?', [clienteId]) as any
+  if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+
+  const userId = cliente.user_id
+
+  // Eliminar datos relacionados en orden para respetar posibles FK
+  const tablas = [
+    { sql: `DELETE FROM cliente_obligaciones WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM cliente_servicios WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM tickets WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM conversaciones WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM cuentas_cobro WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM clientes WHERE id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM users WHERE id = ?`, args: [userId] },
+  ]
+
+  // Eliminar contratos si la tabla existe
+  try { await execute(`DELETE FROM contratos WHERE cliente_id = ?`, [clienteId]) } catch { /* tabla puede no existir */ }
+
+  await db.batch(tablas, 'write')
 
   return NextResponse.json({ ok: true })
 }

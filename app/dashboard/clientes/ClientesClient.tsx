@@ -57,6 +57,10 @@ interface Cliente {
   admin_revision_id:      string | null
   admin_revision_nombre:  string | null
   admin_revision_email:   string | null
+  plan:                   string | null
+  suscripcion_estado:     string | null
+  suscripcion_vencimiento:string | null
+  mp_subscription_id:     string | null
 }
 
 function formatHoras(h: number | null | undefined): string {
@@ -103,6 +107,20 @@ export default function ClientesClient({
   const [showPwd,     setShowPwd]     = useState(false)
   const [showEditPwd, setShowEditPwd] = useState(false)
 
+  // ── Suscripción ──────────────────────────────────────────────────────────────
+  const [suscPlan,      setSuscPlan]      = useState('')
+  const [suscEstado,    setSuscEstado]    = useState('')
+  const [suscVenc,      setSuscVenc]      = useState('')
+  const [suscSaving,    setSuscSaving]    = useState(false)
+  // Cuenta de cobro inline form
+  const [ccForm,        setCcForm]        = useState({ nit: '', representanteLegal: '' })
+  const [ccShow,        setCcShow]        = useState(false)
+  const [ccSending,     setCcSending]     = useState(false)
+  // Config global
+  const [autoCobranza,  setAutoCobranza]  = useState(false)
+  const [settingsLoaded,setSettingsLoaded]= useState(false)
+  const [settingsSaving,setSettingsSaving]= useState(false)
+
   const cargar = useCallback(async () => {
     setLoading(true)
     try {
@@ -130,6 +148,22 @@ export default function ClientesClient({
         setStorageEdit({ basePath: d.basePath ?? '', siteUrl: d.site_url ?? '' })
       })
       .catch(() => setStorageCfg(null))
+  }, [modalDetalle])
+
+  // Cargar settings globales
+  useEffect(() => {
+    fetch('/api/superadmin/settings')
+      .then(r => r.json())
+      .then(d => { setAutoCobranza(!!d.auto_cuenta_cobro); setSettingsLoaded(true) })
+      .catch(() => setSettingsLoaded(true))
+  }, [])
+
+  // Inicializar campos suscripción cuando se abre modal
+  useEffect(() => {
+    if (!modalDetalle) { setCcShow(false); setCcForm({ nit: '', representanteLegal: '' }); return }
+    setSuscPlan(modalDetalle.plan ?? 'trial')
+    setSuscEstado(modalDetalle.suscripcion_estado ?? 'trial')
+    setSuscVenc(modalDetalle.suscripcion_vencimiento ?? '')
   }, [modalDetalle])
 
   const clientesFiltrados = clientes.filter(c =>
@@ -266,6 +300,110 @@ export default function ClientesClient({
     } finally {
       setAsignandoRev(false)
     }
+  }
+
+  // ── Suscripción ──────────────────────────────────────────────────────────────
+  async function guardarPlan() {
+    if (!modalDetalle) return
+    setSuscSaving(true)
+    try {
+      await fetch(`/api/clientes?id=${modalDetalle.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: suscPlan }),
+      })
+      cargar()
+      setModalDetalle(prev => prev ? { ...prev, plan: suscPlan } : prev)
+    } finally { setSuscSaving(false) }
+  }
+
+  async function guardarEstado() {
+    if (!modalDetalle) return
+    setSuscSaving(true)
+    try {
+      await fetch(`/api/clientes?id=${modalDetalle.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suscripcion_estado: suscEstado }),
+      })
+      cargar()
+      setModalDetalle(prev => prev ? { ...prev, suscripcion_estado: suscEstado } : prev)
+    } finally { setSuscSaving(false) }
+  }
+
+  async function guardarVencimiento() {
+    if (!modalDetalle) return
+    setSuscSaving(true)
+    try {
+      await fetch(`/api/clientes?id=${modalDetalle.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suscripcion_vencimiento: suscVenc || null }),
+      })
+      cargar()
+      setModalDetalle(prev => prev ? { ...prev, suscripcion_vencimiento: suscVenc || null } : prev)
+    } finally { setSuscSaving(false) }
+  }
+
+  async function cancelarEnMP() {
+    if (!modalDetalle) return
+    if (!window.confirm(`¿Cancelar la suscripción de ${modalDetalle.razon_social} en MercadoPago? Esta acción no se puede deshacer.`)) return
+    setSuscSaving(true)
+    try {
+      const res = await fetch(`/api/clientes?id=${modalDetalle.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelar_mp: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error ?? 'Error'); return }
+      cargar()
+      setModalDetalle(prev => prev ? { ...prev, suscripcion_estado: 'cancelada' } : prev)
+      setSuscEstado('cancelada')
+    } finally { setSuscSaving(false) }
+  }
+
+  async function enviarCuentaCobro() {
+    if (!modalDetalle) return
+    const { nit, representanteLegal } = ccForm
+    if (!nit || !representanteLegal) { alert('Completa NIT y representante legal'); return }
+    setCcSending(true)
+    try {
+      const res = await fetch('/api/superadmin/cuenta-cobro', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: modalDetalle.id,
+          plan: suscPlan || modalDetalle.plan || 'basico',
+          nombreEmpresa: modalDetalle.razon_social,
+          nit,
+          representanteLegal,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error ?? 'Error'); return }
+      alert(`✓ Cuenta de cobro ${json.numero} enviada`)
+      setCcShow(false)
+      setCcForm({ nit: '', representanteLegal: '' })
+    } finally { setCcSending(false) }
+  }
+
+  async function eliminarCliente() {
+    if (!modalDetalle) return
+    if (!window.confirm(`¿Eliminar permanentemente a ${modalDetalle.razon_social}? Esta acción no se puede deshacer.`)) return
+    try {
+      const res = await fetch(`/api/clientes?id=${modalDetalle.id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error ?? 'Error al eliminar'); return }
+      setModalDetalle(null)
+      cargar()
+    } catch { alert('Error al eliminar') }
+  }
+
+  async function toggleAutoCobranza(val: boolean) {
+    setAutoCobranza(val)
+    setSettingsSaving(true)
+    try {
+      await fetch('/api/superadmin/settings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_cuenta_cobro: val }),
+      })
+    } finally { setSettingsSaving(false) }
   }
 
   async function guardarEdicionCliente(e: React.FormEvent) {
@@ -406,6 +544,33 @@ export default function ClientesClient({
             ))}
           </div>
         )}
+        {/* ── CONFIGURACIÓN GLOBAL ── */}
+        {settingsLoaded && (
+          <div style={{ marginTop:'2.5rem', background:'rgba(231,223,202,0.04)', border:'1px solid rgba(150,134,34,0.2)', borderRadius:'12px', padding:'1.2rem 1.5rem', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'1rem', flexWrap:'wrap' }}>
+            <div>
+              <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'0.3rem' }}>Configuración global</div>
+              <div style={{ fontSize:'0.82rem', color:'rgba(231,223,202,0.7)' }}>Generar cuenta de cobro automáticamente al vencimiento</div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
+              {settingsSaving && <span style={{ fontSize:'0.68rem', color:'rgba(231,223,202,0.45)' }}>Guardando…</span>}
+              <button onClick={() => toggleAutoCobranza(!autoCobranza)} disabled={settingsSaving}
+                style={{
+                  width:52, height:28, borderRadius:14, border:'none', cursor: settingsSaving ? 'not-allowed' : 'pointer',
+                  background: autoCobranza ? C.olivo : 'rgba(231,223,202,0.15)',
+                  position:'relative', transition:'background 0.2s', flexShrink:0,
+                }}>
+                <span style={{
+                  position:'absolute', top:3, left: autoCobranza ? 27 : 3, width:22, height:22,
+                  borderRadius:'50%', background: autoCobranza ? C.vino : 'rgba(231,223,202,0.6)',
+                  transition:'left 0.2s',
+                }} />
+              </button>
+              <span style={{ fontSize:'0.72rem', color: autoCobranza ? C.olivo : 'rgba(231,223,202,0.4)', fontWeight:600 }}>
+                {autoCobranza ? 'Activado' : 'Desactivado'}
+              </span>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ── MODAL DETALLE CLIENTE ── */}
@@ -482,6 +647,139 @@ export default function ClientesClient({
               </select>
               {asignandoRev && <span style={{ fontSize:'0.7rem', color:C.olivo }}>Guardando…</span>}
             </div>
+          </div>
+
+          {/* ── SUSCRIPCIÓN ── */}
+          <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
+            <div style={labelStyle}>Suscripción</div>
+
+            {/* Badges informativos */}
+            <div style={{ display:'flex', gap:'0.6rem', flexWrap:'wrap', margin:'0.75rem 0' }}>
+              {/* Plan badge */}
+              {(() => {
+                const p = modalDetalle.plan
+                const colors: Record<string, { bg: string; color: string }> = {
+                  trial:   { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' },
+                  basico:  { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
+                  pro:     { bg: 'rgba(150,134,34,0.15)',  color: '#968622' },
+                  premium: { bg: 'rgba(39,2,5,0.4)',       color: '#e7dfca' },
+                }
+                const c = colors[p ?? 'trial'] ?? colors.trial
+                return (
+                  <span style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', padding:'0.25rem 0.75rem', borderRadius:'20px', border:'1px solid', background:c.bg, color:c.color, borderColor:c.color }}>
+                    Plan: {p ?? 'trial'}
+                  </span>
+                )
+              })()}
+              {/* Estado badge */}
+              {(() => {
+                const e = modalDetalle.suscripcion_estado
+                const colors: Record<string, { bg: string; color: string }> = {
+                  activa:    { bg: 'rgba(22,163,74,0.15)',   color: '#16a34a' },
+                  suspendida:{ bg: 'rgba(245,158,11,0.15)',  color: '#f59e0b' },
+                  cancelada: { bg: 'rgba(220,38,38,0.15)',   color: '#dc2626' },
+                  trial:     { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af' },
+                }
+                const c = colors[e ?? 'trial'] ?? colors.trial
+                return (
+                  <span style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', padding:'0.25rem 0.75rem', borderRadius:'20px', border:'1px solid', background:c.bg, color:c.color, borderColor:c.color }}>
+                    {e ?? 'trial'}
+                  </span>
+                )
+              })()}
+              {modalDetalle.suscripcion_vencimiento && (
+                <span style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.5)' }}>
+                  Vence: {new Date(modalDetalle.suscripcion_vencimiento).toLocaleDateString('es-CO')}
+                </span>
+              )}
+              {modalDetalle.mp_subscription_id && (
+                <span style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.35)', fontStyle:'italic' }}>
+                  MP: {modalDetalle.mp_subscription_id.slice(0, 16)}…
+                </span>
+              )}
+            </div>
+
+            {/* Cambiar plan */}
+            <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', marginBottom:'0.65rem' }}>
+              <select value={suscPlan} onChange={e => setSuscPlan(e.target.value)} disabled={suscSaving}
+                style={{ ...inputStyle, flex:1 }}>
+                <option value="trial">Trial</option>
+                <option value="basico">Básico</option>
+                <option value="pro">Pro</option>
+                <option value="premium">Premium</option>
+              </select>
+              <button onClick={guardarPlan} disabled={suscSaving}
+                style={{ ...btnStyle, background: suscSaving ? 'rgba(150,134,34,0.4)' : C.olivo, flexShrink:0 }}>
+                Guardar plan
+              </button>
+            </div>
+
+            {/* Cambiar estado */}
+            <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', marginBottom:'0.65rem' }}>
+              <select value={suscEstado} onChange={e => setSuscEstado(e.target.value)} disabled={suscSaving}
+                style={{ ...inputStyle, flex:1 }}>
+                <option value="activa">Activa</option>
+                <option value="trial">Trial</option>
+                <option value="suspendida">Suspendida</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+              <button onClick={guardarEstado} disabled={suscSaving}
+                style={{ ...btnStyle, background: suscSaving ? 'rgba(150,134,34,0.4)' : C.olivo, flexShrink:0 }}>
+                Guardar estado
+              </button>
+            </div>
+
+            {/* Vencimiento */}
+            <div style={{ display:'flex', gap:'0.5rem', alignItems:'center', marginBottom:'0.65rem' }}>
+              <input type="date" value={suscVenc} onChange={e => setSuscVenc(e.target.value)} disabled={suscSaving}
+                style={{ ...inputStyle, flex:1, boxSizing:'border-box' as const }} />
+              <button onClick={guardarVencimiento} disabled={suscSaving}
+                style={{ ...btnStyle, background: suscSaving ? 'rgba(150,134,34,0.4)' : C.olivo, flexShrink:0 }}>
+                Guardar fecha
+              </button>
+            </div>
+
+            {/* Cancelar en MP */}
+            {modalDetalle.mp_subscription_id && modalDetalle.suscripcion_estado !== 'cancelada' && (
+              <button onClick={cancelarEnMP} disabled={suscSaving}
+                style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', background:'rgba(220,38,38,0.12)', color:'#f87171', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'8px', padding:'0.5rem 1rem', cursor: suscSaving ? 'not-allowed' : 'pointer', fontFamily:'inherit', marginBottom:'0.65rem', display:'block' }}>
+                Cancelar en MercadoPago
+              </button>
+            )}
+
+            {/* Cuenta de cobro */}
+            {!ccShow ? (
+              <button onClick={() => setCcShow(true)}
+                style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', background:'rgba(150,134,34,0.12)', color:C.olivo, border:'1px solid rgba(150,134,34,0.3)', borderRadius:'8px', padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit' }}>
+                Enviar cuenta de cobro
+              </button>
+            ) : (
+              <div style={{ background:'rgba(0,0,0,0.2)', borderRadius:'10px', padding:'1rem', marginTop:'0.5rem' }}>
+                <div style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:'rgba(231,223,202,0.45)', marginBottom:'0.6rem' }}>Datos para cuenta de cobro</div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.6rem', marginBottom:'0.6rem' }}>
+                  <div>
+                    <label style={labelStyle}>NIT *</label>
+                    <input value={ccForm.nit} onChange={e => setCcForm(f => ({ ...f, nit: e.target.value }))}
+                      style={{ ...inputStyle, width:'100%', boxSizing:'border-box' as const }} placeholder="900.123.456-7" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Representante legal *</label>
+                    <input value={ccForm.representanteLegal} onChange={e => setCcForm(f => ({ ...f, representanteLegal: e.target.value }))}
+                      style={{ ...inputStyle, width:'100%', boxSizing:'border-box' as const }} placeholder="Nombre completo" />
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:'0.5rem' }}>
+                  <button onClick={enviarCuentaCobro} disabled={ccSending}
+                    style={{ ...btnStyle, background: ccSending ? 'rgba(150,134,34,0.4)' : C.olivo }}>
+                    {ccSending ? 'Enviando…' : 'Enviar PDF'}
+                  </button>
+                  <button onClick={() => { setCcShow(false); setCcForm({ nit: '', representanteLegal: '' }) }}
+                    style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', background:'rgba(231,223,202,0.08)', color:'rgba(231,223,202,0.6)', border:'1px solid rgba(231,223,202,0.15)', borderRadius:'8px', padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit' }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Gráfica de cumplimiento */}
@@ -580,6 +878,14 @@ export default function ClientesClient({
                 {btn.label}
               </a>
             ))}
+          </div>
+
+          {/* Eliminar cliente */}
+          <div style={{ borderTop:'1px solid rgba(220,38,38,0.2)', paddingTop:'1.3rem', marginTop:'1.5rem' }}>
+            <button onClick={eliminarCliente}
+              style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', background:'rgba(220,38,38,0.08)', color:'#f87171', border:'1px solid rgba(220,38,38,0.25)', borderRadius:'8px', padding:'0.6rem 1.2rem', cursor:'pointer', fontFamily:'inherit', width:'100%' }}>
+              Eliminar cliente permanentemente
+            </button>
           </div>
         </Modal>
       )}
