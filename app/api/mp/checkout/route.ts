@@ -22,16 +22,36 @@ export async function POST(req: NextRequest) {
 
   const plan = PLANES[planKey]
 
-  // Redirige directo al checkout del plan en MP.
-  // MP cobra y notifica por webhook — no necesitamos crear el preapproval desde el servidor.
-  const params = new URLSearchParams({
+  // Crea el preapproval vía API para obtener un init_point válido en test y producción
+  const mpToken = process.env.MP_ACCESS_TOKEN
+  if (!mpToken) return NextResponse.json({ error: 'MP no configurado' }, { status: 500 })
+
+  const body: Record<string, any> = {
     preapproval_plan_id: plan.mp_plan_id,
-    payer_email:         email,
-    back_url:            `${BASE_URL}/pago-exitoso`,
+    reason:              `Owl Compliance — Plan ${plan.label}`,
     external_reference:  `${planKey}:${email}`,
+    back_url:            `${BASE_URL}/pago-exitoso`,
+    payer_email:         email,
+  }
+
+  const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
+    method:  'POST',
+    headers: {
+      Authorization:  `Bearer ${mpToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    cache: 'no-store',
   })
 
-  const init_point = `https://www.mercadopago.com.co/subscriptions/checkout?${params.toString()}`
+  if (!mpRes.ok) {
+    const err = await mpRes.text()
+    console.error('[mp/checkout] Error MP:', err)
+    return NextResponse.json({ error: 'Error creando suscripción: ' + err }, { status: 500 })
+  }
+
+  const data       = await mpRes.json()
+  const init_point = data.init_point
 
   return NextResponse.json({ init_point })
 }

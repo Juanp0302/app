@@ -7,9 +7,9 @@ import { queryOne, execute } from './db'
 // ── Definición de planes ──────────────────────────────────────────────────────
 
 export const PLANES = {
-  basico:  { label: 'Básico',  tickets: 3,  chats: 6,  precio: 199000,  mp_plan_id: '04db35b06a644ea7a2b7c9bb89539699' },
-  pro:     { label: 'Pro',     tickets: 6,  chats: 12, precio: 890000,  mp_plan_id: '4fa839fbacbe4f298679559913a48337' },
-  premium: { label: 'Premium', tickets: 10, chats: 20, precio: 2490000, mp_plan_id: '790ed1d7bdd04122b3f55c0c46deb7b8' },
+  basico:  { label: 'Básico',  tickets: 3,  chats: 6,  precio: 199000,  mp_plan_id: 'bad7a3ee6979492984b4aaec46eb1eca' },
+  pro:     { label: 'Pro',     tickets: 6,  chats: 12, precio: 890000,  mp_plan_id: 'c996b4b69af24ee796f9ef24308da596' },
+  premium: { label: 'Premium', tickets: 10, chats: 20, precio: 2490000, mp_plan_id: '4d648d2acfdb4567b0aa7fdd28c09397' },
 } as const
 
 export type PlanKey = keyof typeof PLANES
