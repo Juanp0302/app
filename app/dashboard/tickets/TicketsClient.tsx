@@ -151,10 +151,10 @@ export default function TicketsClient({
   const botonesEstado = ESTADOS_MANUALES.filter(e => e.key !== activo?.estado)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f3ee', fontFamily: "'Josefin Sans', sans-serif" }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ee', fontFamily: "'Josefin Sans', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
 
-      <nav style={{ background: C.vino, padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+      <nav style={{ flexShrink: 0, background: C.vino, padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <NavLogo />
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em',
@@ -165,7 +165,7 @@ export default function TicketsClient({
 
       {/* Banner límite de tickets */}
       {limiteError && (
-        <div style={{ background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)', padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+        <div style={{ flexShrink: 0, background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)', padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
           <div style={{ fontSize: '0.84rem', color: '#f87171' }}>{limiteError.mensaje}</div>
           <a href="/dashboard/suscripcion" style={{ flexShrink: 0, background: '#968622', color: '#270205', fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '8px' }}>
             Ver planes
@@ -173,7 +173,7 @@ export default function TicketsClient({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', height: 'calc(100vh - 52px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', flex: 1, overflow: 'hidden' }}>
 
         {/* ── Lista tickets ── */}
         <div style={{ background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>

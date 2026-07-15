@@ -118,17 +118,17 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
   const btn = (bg: string, color = '#fff'): React.CSSProperties => ({ background: bg, color, border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600 })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f3ee', fontFamily: "'Josefin Sans', sans-serif" }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f5f3ee', fontFamily: "'Josefin Sans', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Josefin+Sans:wght@300;400;600;700&display=swap" rel="stylesheet" />
 
       {/* Nav */}
-      <nav style={{ background: C.vino, padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+      <nav style={{ flexShrink: 0, background: C.vino, padding: '0.9rem 2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <NavLogo />
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo }}>Chat</span>
       </nav>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', height: 'calc(100vh - 52px)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', flex: 1, overflow: 'hidden' }}>
 
         {/* Lista conversaciones */}
         <div style={{ background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
@@ -162,7 +162,7 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
 
         {/* Área de chat */}
         {activa ? (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Header */}
             <div style={{ padding: '1rem 1.5rem', background: '#fff', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
