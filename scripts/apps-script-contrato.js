@@ -13,6 +13,8 @@
 // ── Constante — edita con el ID real de tu carpeta en Drive ──────────────────
 const CONTRATOS_FOLDER_ID = 'PEGA_AQUI_EL_ID_DE_LA_CARPETA'
 
+const LOGO_URL = 'https://owlcompliance.onrender.com/logo.png'
+
 // ── Handler para tipo_entidad === 'contrato_firmado' ─────────────────────────
 // Agrega esto dentro de tu función doPost(), en el bloque if/else o switch:
 
@@ -60,33 +62,66 @@ function manejarContratoFirmado(data) {
     "d 'de' MMMM 'de' yyyy"
   )
 
-  var cuentaCobroTexto = data.cuenta_cobro_numero
-    ? '<p>Adjuntamos también tu <strong>cuenta de cobro No. ' + data.cuenta_cobro_numero + '</strong> con los datos bancarios para el pago.</p>'
+  var itemsCuenta = data.cuenta_cobro_numero
+    ? '<li style="margin-bottom:6px;">Cuenta de Cobro No. ' + data.cuenta_cobro_numero + '</li>'
     : ''
 
-  var htmlCliente = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
-      <img src="https://owlcompliance.onrender.com/buho.png" width="120" style="margin-bottom: 16px;" />
-      <h2 style="color: #712529;">Bienvenido a Owl Compliance</h2>
-      <p>Hola <strong>${data.cliente}</strong>,</p>
-      <p>Tu contrato de prestación de servicios profesionales de gestión regulatoria ha sido firmado exitosamente el <strong>${fechaFormateada}</strong>.</p>
-      <p>Encontrarás adjuntos a este correo:</p>
-      <ul>
-        <li>Contrato de Prestación de Servicios — Plan ${data.plan_label}</li>
-        <li>Términos y Condiciones (Anexo 1)</li>
-        ${data.cuenta_cobro_numero ? '<li>Cuenta de Cobro No. ' + data.cuenta_cobro_numero + '</li>' : ''}
-      </ul>
-      ${cuentaCobroTexto}
-      <p>Guarda estos documentos para tu archivo. Tu suscripción quedará activa una vez se procese el primer pago a través de Mercado Pago.</p>
-      <p>Para cualquier duda, escríbenos a <a href="mailto:contacto@owlcompliance.com">contacto@owlcompliance.com</a> o al +57 301 795 4547.</p>
-      <br/>
-      <p>Atentamente,<br/><strong>Juan Pablo Osorio Marín</strong><br/>Owl Compliance</p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
-      <p style="font-size: 11px; color: #888;">
-        www.owlcompliance.com · contacto@owlcompliance.com · +57 301 795 4547 · Bogotá, Colombia
-      </p>
-    </div>
-  `
+  var notaCuenta = data.cuenta_cobro_numero
+    ? '<div style="margin:20px 0;padding:14px 18px;background:#f9f6f0;border-left:3px solid #968622;border-radius:4px;">' +
+        '<p style="margin:0;font-size:13px;color:#270205;">Adjuntamos también tu <strong>Cuenta de Cobro No. ' + data.cuenta_cobro_numero + '</strong> con el enlace de pago por MercadoPago.</p>' +
+      '</div>'
+    : ''
+
+  var htmlCliente =
+    '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;background:#ffffff;">' +
+
+      // Header
+      '<div style="background:#270205;padding:24px 32px;border-radius:8px 8px 0 0;">' +
+        '<img src="' + LOGO_URL + '" width="160" style="display:block;max-height:56px;object-fit:contain;" />' +
+      '</div>' +
+
+      // Body
+      '<div style="padding:32px;border:1px solid #e0d8c8;border-top:none;">' +
+        '<h2 style="font-size:20px;color:#270205;margin:0 0 6px;">Bienvenido a Owl Compliance</h2>' +
+        '<p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#968622;margin:0 0 24px;">Gestión Regulatoria para PRSTs en Colombia</p>' +
+
+        '<p style="font-size:14px;color:#270205;margin:0 0 12px;">Hola <strong>' + data.cliente + '</strong>,</p>' +
+        '<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 16px;">' +
+          'Tu contrato de prestación de servicios de gestión regulatoria ha sido firmado exitosamente el <strong style="color:#270205;">' + fechaFormateada + '</strong>.' +
+        '</p>' +
+
+        '<p style="font-size:13px;color:#270205;font-weight:700;margin:0 0 8px;">Documentos adjuntos:</p>' +
+        '<ul style="font-size:13px;color:#555;line-height:1.8;margin:0 0 20px;padding-left:20px;">' +
+          '<li style="margin-bottom:6px;">Contrato de Prestación de Servicios — Plan ' + data.plan_label + '</li>' +
+          '<li style="margin-bottom:6px;">Términos y Condiciones (Anexo 1)</li>' +
+          itemsCuenta +
+        '</ul>' +
+
+        notaCuenta +
+
+        '<p style="font-size:13px;color:#555;line-height:1.7;margin:0 0 16px;">' +
+          'Tu suscripción quedará activa una vez se procese el primer pago. Guarda estos documentos para tu archivo.' +
+        '</p>' +
+
+        '<p style="font-size:13px;color:#555;line-height:1.7;margin:0 0 24px;">' +
+          'Para cualquier duda, escríbenos a <a href="mailto:contacto@owlcompliance.com" style="color:#712529;">contacto@owlcompliance.com</a> o al +57 301 795 4547.' +
+        '</p>' +
+
+        '<div style="border-top:1px solid #e0d8c8;padding-top:20px;">' +
+          '<p style="font-size:13px;color:#270205;margin:0;">Atentamente,</p>' +
+          '<p style="font-size:13px;font-weight:700;color:#270205;margin:4px 0 2px;">Juan Pablo Osorio Marín</p>' +
+          '<p style="font-size:12px;color:#968622;margin:0;">Owl Compliance</p>' +
+        '</div>' +
+      '</div>' +
+
+      // Footer
+      '<div style="background:#1a1413;padding:14px 32px;border-radius:0 0 8px 8px;display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:11px;color:rgba(231,223,202,0.7);">+57 301 795 4547</span>' +
+        '<span style="font-size:11px;color:rgba(231,223,202,0.7);">www.owlcompliance.com</span>' +
+        '<span style="font-size:11px;color:rgba(231,223,202,0.7);">Bogotá, Colombia</span>' +
+      '</div>' +
+
+    '</div>'
 
   GmailApp.sendEmail(
     data.cliente_email,
@@ -101,17 +136,29 @@ function manejarContratoFirmado(data) {
 
   // 4. Notificar al superadmin
   var superadminEmail = 'contacto@owlcompliance.com'
-  var htmlAdmin = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1a1a1a;">
-      <img src="https://owlcompliance.onrender.com/buho.png" width="80" style="margin-bottom: 12px;" />
-      <h3 style="color: #712529;">[CONTRATO FIRMADO] ${data.cliente}</h3>
-      <p><strong>Cliente:</strong> ${data.cliente} (${data.cliente_email})</p>
-      <p><strong>Plan:</strong> ${data.plan_label}</p>
-      <p><strong>Fecha:</strong> ${fechaFormateada}</p>
-      ${data.cuenta_cobro_numero ? '<p><strong>Cuenta de cobro:</strong> ' + data.cuenta_cobro_numero + '</p>' : ''}
-      <p>Los documentos han sido guardados en Drive → Contratos OWL → ${data.carpeta_drive}</p>
-    </div>
-  `
+  var htmlAdmin =
+    '<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;background:#ffffff;">' +
+
+      '<div style="background:#270205;padding:20px 28px;border-radius:8px 8px 0 0;">' +
+        '<img src="' + LOGO_URL + '" width="140" style="display:block;max-height:50px;object-fit:contain;" />' +
+      '</div>' +
+
+      '<div style="padding:28px;border:1px solid #e0d8c8;border-top:none;">' +
+        '<h3 style="font-size:16px;color:#712529;margin:0 0 16px;">[CONTRATO FIRMADO] ' + data.cliente + '</h3>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+          '<tr><td style="padding:6px 0;color:#968622;font-weight:700;width:140px;">Cliente</td><td style="color:#270205;">' + data.cliente + ' (' + data.cliente_email + ')</td></tr>' +
+          '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Plan</td><td style="color:#270205;">' + data.plan_label + '</td></tr>' +
+          '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Fecha</td><td style="color:#270205;">' + fechaFormateada + '</td></tr>' +
+          (data.cuenta_cobro_numero ? '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Cuenta de cobro</td><td style="color:#270205;">' + data.cuenta_cobro_numero + '</td></tr>' : '') +
+          '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Drive</td><td style="color:#270205;">Contratos OWL → ' + data.carpeta_drive + '</td></tr>' +
+        '</table>' +
+      '</div>' +
+
+      '<div style="background:#1a1413;padding:12px 28px;border-radius:0 0 8px 8px;">' +
+        '<span style="font-size:11px;color:rgba(231,223,202,0.6);">Owl Compliance · Sistema interno</span>' +
+      '</div>' +
+
+    '</div>'
 
   GmailApp.sendEmail(
     superadminEmail,
