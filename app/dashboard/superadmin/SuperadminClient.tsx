@@ -46,6 +46,7 @@ export default function SuperadminClient() {
   const [asignando,     setAsignando]     = useState<string | null>(null)
   const [selAdmin,      setSelAdmin]      = useState<Record<string, string>>({})
   const [expandidos,    setExpandidos]    = useState<Set<string>>(new Set())
+  const [seccionesOpen, setSeccionesOpen] = useState({ urgentes: true, porAdmin: true, suscripciones: true })
   const [clientes,      setClientes]      = useState<any[]>([])
   const [planGuardando, setPlanGuardando] = useState<string | null>(null)
   const [planSel,       setPlanSel]       = useState<Record<string, string>>({})
@@ -155,6 +156,21 @@ export default function SuperadminClient() {
     )
   }
 
+  function SeccionHeader({ label, count, color, keyName }: { label: string; count?: number; color?: string; keyName: keyof typeof seccionesOpen }) {
+    const open = seccionesOpen[keyName]
+    return (
+      <button
+        onClick={() => setSeccionesOpen(s => ({ ...s, [keyName]: !s[keyName] }))}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'none', border: 'none',
+          cursor: 'pointer', fontFamily: 'inherit', padding: 0, marginBottom: open ? '1rem' : 0 }}>
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: color ?? C.olivo }}>
+          {label}{count !== undefined ? ` (${count})` : ''}
+        </span>
+        <span style={{ fontSize: '0.65rem', color: color ?? C.olivo, opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+      </button>
+    )
+  }
+
   if (loading) return (
     <div style={{ minHeight: '100vh', background: C.vino, display: 'flex', alignItems: 'center',
       justifyContent: 'center', color: 'rgba(231,223,202,0.4)', fontFamily: "'Josefin Sans', sans-serif" }}>
@@ -242,11 +258,8 @@ export default function SuperadminClient() {
         {/* Alertas: urgentes */}
         {urgentes.length > 0 && (
           <div style={{ marginBottom: '2rem' }}>
-            <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: '#dc2626', marginBottom: '0.8rem' }}>
-              Tickets urgentes activos ({urgentes.length})
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <SeccionHeader label="Tickets urgentes activos" count={urgentes.length} color="#dc2626" keyName="urgentes" />
+            {seccionesOpen.urgentes && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {urgentes.map((t: any) => (
                 <div key={t.id} style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)',
                   borderRadius: 10, padding: '0.75rem 1.1rem', display: 'flex', alignItems: 'center',
@@ -263,7 +276,7 @@ export default function SuperadminClient() {
                   </span>
                 </div>
               ))}
-            </div>
+            </div>}
           </div>
         )}
 
@@ -349,11 +362,10 @@ export default function SuperadminClient() {
         )}
 
         {/* Por administrador */}
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-          color: C.olivo, marginBottom: '1rem' }}>
-          Por administrador ({porAdmin.length})
+        <div style={{ marginBottom: '0.5rem' }}>
+          <SeccionHeader label="Por administrador" count={porAdmin.length} keyName="porAdmin" />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {seccionesOpen.porAdmin && <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {porAdmin.map((a: any) => (
             <div key={a.id} style={{ background: 'rgba(231,223,202,0.04)', border: '1px solid rgba(150,134,34,0.2)',
               borderRadius: 14, padding: '1.25rem 1.5rem' }}>
@@ -498,15 +510,14 @@ export default function SuperadminClient() {
               No hay administradores configurados.
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── Suscripciones de clientes ── */}
         <div style={{ marginTop: '2.5rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase',
-            color: C.olivo, marginBottom: '1.2rem' }}>
-            Suscripciones de clientes ({clientes.length})
+          <div style={{ marginBottom: '1.2rem' }}>
+            <SeccionHeader label="Suscripciones de clientes" count={clientes.length} keyName="suscripciones" />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          {seccionesOpen.suscripciones && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {clientes.map((c: any) => {
               const planActual   = c.plan ?? null
               const estadoActual = c.suscripcion_estado ?? 'trial'
@@ -515,13 +526,26 @@ export default function SuperadminClient() {
               const busy         = planGuardando === c.id
               const hayCambios   = planSel[c.id] !== undefined || estadoSel[c.id] !== undefined
 
+              // Ciclo de facturación
+              const inicio      = c.suscripcion_inicio ? new Date(c.suscripcion_inicio) : null
+              const vencimiento = c.suscripcion_vencimiento ? new Date(c.suscripcion_vencimiento) : null
+              const fmtFecha    = (d: Date) => d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+              const ciclo       = inicio && vencimiento ? `${fmtFecha(inicio)} → ${fmtFecha(vencimiento)}` : vencimiento ? `hasta ${fmtFecha(vencimiento)}` : null
+              const diasRestantes = vencimiento ? Math.ceil((vencimiento.getTime() - Date.now()) / 86400000) : null
+              const alertaVence   = diasRestantes !== null && diasRestantes >= 0 && diasRestantes <= 10
+
               return (
-                <div key={c.id} style={{ background: 'rgba(231,223,202,0.04)', border: '1px solid rgba(150,134,34,0.15)',
+                <div key={c.id} style={{ background: 'rgba(231,223,202,0.04)', border: `1px solid ${alertaVence ? 'rgba(245,158,11,0.35)' : 'rgba(150,134,34,0.15)'}`,
                   borderRadius: 10, padding: '0.9rem 1.2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                   {/* Nombre */}
                   <div style={{ flex: 1, minWidth: 160 }}>
                     <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{c.razon_social}</div>
                     <div style={{ fontSize: '0.65rem', color: 'rgba(231,223,202,0.4)' }}>{c.user_email}</div>
+                    {ciclo && (
+                      <div style={{ fontSize: '0.6rem', color: alertaVence ? '#f59e0b' : 'rgba(231,223,202,0.3)', marginTop: 3 }}>
+                        {ciclo}{alertaVence && diasRestantes !== null ? ` · vence en ${diasRestantes}d` : ''}
+                      </div>
+                    )}
                   </div>
                   {/* Estado actual */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
@@ -530,11 +554,6 @@ export default function SuperadminClient() {
                       padding: '0.2rem 0.7rem', borderRadius: 20 }}>
                       {planLabel} · {estadoActual}
                     </span>
-                    {c.suscripcion_vencimiento && (
-                      <span style={{ fontSize: '0.62rem', color: 'rgba(231,223,202,0.35)' }}>
-                        hasta {c.suscripcion_vencimiento}
-                      </span>
-                    )}
                   </div>
                   {/* Selectores */}
                   <select value={planSel[c.id] ?? planActual ?? ''}
@@ -596,7 +615,7 @@ export default function SuperadminClient() {
                 No hay clientes registrados.
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
       </main>
