@@ -24,6 +24,7 @@ export default function DashboardClient({
     { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',               href: '/dashboard/admins',      icono: '🛡️' },
     { titulo: 'Leads',            desc: 'Métricas de contactos web y atribución UTM',        href: '/dashboard/leads',       icono: '📊' },
     { titulo: 'Habeas Data',      desc: 'Consultar y suprimir datos personales (Ley 1581)', href: '/dashboard/habeas-data', icono: '🔐' },
+    { titulo: 'Repositorio PQR',  desc: 'Normativa, plantillas de respuesta y guías por tipología de PQR', href: '/dashboard/pqr', icono: '📨' },
   ] : [
     ...(isAdmin ? [
       { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
@@ -33,6 +34,7 @@ export default function DashboardClient({
     { titulo: 'Mapa de Cumplimiento', desc: 'Matriz de obligaciones regulatorias y estados de cumplimiento', href: '/dashboard/mapa',       icono: '📋' },
     { titulo: 'Calendario',           desc: 'Vencimientos del mes y próximos recordatorios',               href: '/dashboard/calendario', icono: '📅' },
     { titulo: 'Documentos',       desc: 'Acreditación de cumplimiento ante el Ministerio',          href: '/dashboard/documentos',      icono: '📁' },
+    { titulo: 'Repositorio PQR',  desc: isAdmin ? 'Normativa, plantillas de respuesta y guías por tipología de PQR' : 'Consulta normativa, plantillas de respuesta y guías, y propón nuevas respuestas tipo', href: '/dashboard/pqr', icono: '📨' },
     ...(!isAdmin ? [{ titulo: 'Almacenamiento', desc: 'Conecta Google Drive, OneDrive o SharePoint para guardar tus documentos', href: '/dashboard/almacenamiento', icono: '☁️' }] : []),
     ...(isAdmin ? [{ titulo: 'Revisiones', desc: 'Revisar y aprobar documentos subidos por los clientes', href: '/dashboard/revisiones', icono: '🔍' }] : []),
     ...(isAdmin ? [{ titulo: 'Mensajería interna', desc: 'Canal general y mensajes directos entre administradores', href: '/dashboard/mensajeria', icono: '🗨️' }] : []),
