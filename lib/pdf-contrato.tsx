@@ -25,12 +25,6 @@ const BG_TABLE_H  = '#f0ebe0'
 const headerFile = () => path.join(process.cwd(), 'public', 'membrete-header.png')
 const footerFile = () => path.join(process.cwd(), 'public', 'membrete-footer.png')
 
-// ── Links de pago por plan ────────────────────────────────────────────────────
-const PAYMENT_LINKS: Record<PlanKey, string> = {
-  basico:  'https://mpago.la/2DyPB4T',
-  pro:     'https://mpago.la/2NYuAub',
-  premium: 'https://mpago.la/1nKdbZc',
-}
 
 // ── Estilos ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -274,7 +268,7 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
         <Text style={s.section}>Cláusula 3. Precio, Facturación, Impuestos y Forma de Pago</Text>
         <Text style={s.p}>El CLIENTE pagará la retribución mensual correspondiente al plan contratado. El pago será mensual anticipado, dentro de los primeros cinco días hábiles de cada mes de servicio. El primer pago se realizará al momento de la aceptación del contrato o de la activación del servicio.</Text>
         <Text style={s.p}>El PRESTADOR emitirá factura electrónica o documento equivalente cuando esté obligado a ello, según su régimen tributario. El CLIENTE asumirá IVA, retenciones, impuestos, tasas y demás cargas aplicables de acuerdo con la ley. El CLIENTE deberá entregar la información tributaria requerida, incluido RUT cuando sea necesario.</Text>
-        <Text style={s.p}>Los pagos se harán por transferencia bancaria, PSE, pasarela de pagos, débito autorizado o el medio que el PRESTADOR informe por escrito. Si se usa una pasarela, esta actuará únicamente como medio de recaudo y no como parte del contrato ni como responsable del servicio profesional. Las condiciones técnicas de la pasarela serán las propias de su proveedor.</Text>
+        <Text style={s.p}>Los pagos se harán por transferencia bancaria, PSE, la pasarela de pagos Trazo (trazo.co), débito autorizado o el medio que el PRESTADOR informe por escrito. Si se usa una pasarela, esta actuará únicamente como medio de recaudo y no como parte del contrato ni como responsable del servicio profesional. Las condiciones técnicas de la pasarela serán las propias de su proveedor.</Text>
         <Text style={s.p}>Si el pago es rechazado, reversado o no se acredita oportunamente, el PRESTADOR podrá suspender el servicio previo aviso por escrito. La mora causará intereses a la tasa máxima legal permitida en Colombia, sin perjuicio de la terminación por incumplimiento. La retribución mensual podrá ajustarse al inicio de cada anualidad con aviso de treinta días calendario. Si el CLIENTE no acepta el ajuste, podrá terminar el contrato sin penalidad, pagando los servicios causados hasta la fecha efectiva de terminación.</Text>
 
         {/* CLÁUSULA 4 */}
@@ -715,7 +709,6 @@ function CuentaCobroDoc({ d }: { d: DatosCuentaCobro }) {
   const monto   = plan.precio
   const letras  = montoCOP(monto)
   const concepto = `Plan ${plan.label} - ${d.mes}`
-  const payLink  = PAYMENT_LINKS[d.plan]
 
   return (
     <Document>
@@ -764,9 +757,8 @@ function CuentaCobroDoc({ d }: { d: DatosCuentaCobro }) {
             </View>
             <View style={ccS.paymentBox}>
               <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8.5 }}>
-                Realiza tu pago en el siguiente enlace de Mercado Pago:
+                Realiza tu pago a través de Trazo (trazo.co). Te enviaremos el enlace de pago correspondiente.
               </Text>
-              <Text style={{ color: BORDO, fontSize: 8.5 }}>{payLink}</Text>
             </View>
           </View>
           <Text style={ccS.declaracion}>

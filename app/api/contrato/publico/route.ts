@@ -64,7 +64,7 @@ async function enviarCorreo(opts: {
     </ul>`
 
   const cuentaTexto = opts.numeroCuenta
-    ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con el enlace de pago a través de Mercado Pago.</p>`
+    ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con el enlace de pago a través de Trazo (trazo.co).</p>`
     : ''
 
   const htmlCliente = `
@@ -76,7 +76,7 @@ async function enviarCorreo(opts: {
       <p>Adjuntamos a este correo:</p>
       ${listaDocs}
       ${cuentaTexto}
-      <p>Guarda estos documentos para tu archivo. Tu suscripción quedará activa una vez se procese el primer pago a través de Mercado Pago.</p>
+      <p>Guarda estos documentos para tu archivo. Tu suscripción quedará activa una vez se procese el primer pago a través de Trazo (trazo.co).</p>
       <p>Para cualquier duda escríbenos a <a href="mailto:contacto@owlcompliance.com">contacto@owlcompliance.com</a> o al +57 301 795 4547.</p>
       <br/><p>Atentamente,<br/><strong>Juan Pablo Osorio Marín</strong><br/>Owl Compliance</p>
       <hr style="border:none;border-top:1px solid #eee;margin:16px 0;"/>

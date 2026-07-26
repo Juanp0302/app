@@ -92,7 +92,7 @@ function manejarContratoFirmado(data) {
 
   var notaCuenta = data.cuenta_cobro_numero
     ? '<div style="margin:20px 0;padding:14px 18px;background:#f9f6f0;border-left:3px solid #968622;border-radius:4px;">'
-      + '<p style="margin:0;font-size:13px;color:#270205;">Adjuntamos también tu <strong>Cuenta de Cobro No. ' + data.cuenta_cobro_numero + '</strong> con el enlace de pago por MercadoPago.</p>'
+      + '<p style="margin:0;font-size:13px;color:#270205;">Adjuntamos también tu <strong>Cuenta de Cobro No. ' + data.cuenta_cobro_numero + '</strong> con el enlace de pago a través de Trazo (trazo.co).</p>'
       + '</div>'
     : ''
 

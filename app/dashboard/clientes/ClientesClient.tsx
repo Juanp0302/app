@@ -60,7 +60,7 @@ interface Cliente {
   plan:                   string | null
   suscripcion_estado:     string | null
   suscripcion_vencimiento:string | null
-  mp_subscription_id:     string | null
+  suscripcion_externa_id: string | null
 }
 
 function formatHoras(h: number | null | undefined): string {
@@ -342,14 +342,14 @@ export default function ClientesClient({
     } finally { setSuscSaving(false) }
   }
 
-  async function cancelarEnMP() {
+  async function cancelarSuscripcionCliente() {
     if (!modalDetalle) return
-    if (!window.confirm(`¿Cancelar la suscripción de ${modalDetalle.razon_social} en MercadoPago? Esta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Cancelar la suscripción de ${modalDetalle.razon_social}? Esta acción no se puede deshacer.`)) return
     setSuscSaving(true)
     try {
       const res = await fetch(`/api/clientes?id=${modalDetalle.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancelar_mp: true }),
+        body: JSON.stringify({ cancelar_suscripcion: true }),
       })
       const json = await res.json()
       if (!res.ok) { alert(json.error ?? 'Error'); return }
@@ -692,9 +692,9 @@ export default function ClientesClient({
                   Vence: {new Date(modalDetalle.suscripcion_vencimiento).toLocaleDateString('es-CO')}
                 </span>
               )}
-              {modalDetalle.mp_subscription_id && (
+              {modalDetalle.suscripcion_externa_id && (
                 <span style={{ fontSize:'0.62rem', color:'rgba(231,223,202,0.35)', fontStyle:'italic' }}>
-                  MP: {modalDetalle.mp_subscription_id.slice(0, 16)}…
+                  Ref: {modalDetalle.suscripcion_externa_id.slice(0, 16)}…
                 </span>
               )}
             </div>
@@ -739,11 +739,11 @@ export default function ClientesClient({
               </button>
             </div>
 
-            {/* Cancelar en MP */}
-            {modalDetalle.mp_subscription_id && modalDetalle.suscripcion_estado !== 'cancelada' && (
-              <button onClick={cancelarEnMP} disabled={suscSaving}
+            {/* Cancelar suscripción */}
+            {modalDetalle.suscripcion_estado !== 'cancelada' && (
+              <button onClick={cancelarSuscripcionCliente} disabled={suscSaving}
                 style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', background:'rgba(220,38,38,0.12)', color:'#f87171', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'8px', padding:'0.5rem 1rem', cursor: suscSaving ? 'not-allowed' : 'pointer', fontFamily:'inherit', marginBottom:'0.65rem', display:'block' }}>
-                Cancelar en MercadoPago
+                Cancelar suscripción
               </button>
             )}
 

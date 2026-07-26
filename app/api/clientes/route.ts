@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
 import { migrateSuscripcion } from '@/lib/suscripcion'
-import { cancelarSuscripcion } from '@/lib/mercadopago'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -35,7 +34,7 @@ export async function GET() {
            c.admin_revision_id,
            ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
            c.plan, c.suscripcion_estado, c.suscripcion_inicio, c.suscripcion_vencimiento,
-           c.mp_subscription_id, c.auto_cuenta_cobro,
+           c.suscripcion_externa_id, c.auto_cuenta_cobro,
            c.tickets_mes, c.chats_mes,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,
@@ -177,16 +176,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // ── Cancelar en MercadoPago ──────────────────────────────────────────────────
-  if (body.cancelar_mp) {
-    const clienteRow = await queryOne('SELECT mp_subscription_id FROM clientes WHERE id = ?', [clienteId]) as any
+  // ── Cancelar suscripción ──────────────────────────────────────────────────────
+  if (body.cancelar_suscripcion) {
+    const clienteRow = await queryOne('SELECT id FROM clientes WHERE id = ?', [clienteId]) as any
     if (!clienteRow) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
-    const mpId = clienteRow.mp_subscription_id
-    if (mpId) {
-      try { await cancelarSuscripcion(mpId) } catch (e: any) {
-        console.error('[clientes PATCH] cancelarSuscripcion error:', e)
-      }
-    }
     await execute(`UPDATE clientes SET suscripcion_estado = 'cancelada', updated_at = datetime('now') WHERE id = ?`, [clienteId])
     return NextResponse.json({ ok: true })
   }

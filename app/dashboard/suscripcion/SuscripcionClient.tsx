@@ -52,11 +52,11 @@ function BarraUso({ usado, limite, color }: { usado: number; limite: number | nu
 
 export default function SuscripcionClient({ resumen, planes }: { resumen: any; planes: any }) {
   const params      = useSearchParams()
-  const mpOk        = params.get('mp') === 'ok'
   const planParam   = params.get('plan') ?? null   // viene del sitio web
 
-  const [cargando,      setCargando]      = useState<string | null>(null)
-  const [errorPago,     setErrorPago]     = useState<string | null>(null)
+  const [cargando,        setCargando]        = useState<string | null>(null)
+  const [errorPago,       setErrorPago]       = useState<string | null>(null)
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false)
   const [cancelando,    setCancelando]    = useState(false)
   const [cancelError,   setCancelError]   = useState<string | null>(null)
   const [cancelOk,      setCancelOk]      = useState(false)
@@ -138,18 +138,19 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
     setErrorPago(null)
     setCargando(planKey)
     try {
-      const res  = await fetch('/api/mp/suscribir', {
+      const res  = await fetch('/api/suscripcion/solicitar', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ plan: planKey }),
       })
       const data = await res.json()
       if (!res.ok) {
-        setErrorPago(data.error ?? 'Error al iniciar el pago')
+        setErrorPago(data.error ?? 'Error al registrar la solicitud')
         setCargando(null)
         return
       }
-      window.location.href = data.init_point
+      setSolicitudEnviada(true)
+      setCargando(null)
     } catch {
       setErrorPago('Error de conexión. Intenta nuevamente.')
       setCargando(null)
@@ -166,7 +167,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
   async function cancelarSuscripcion() {
     setCancelando(true); setCancelError(null)
     try {
-      const res  = await fetch('/api/mp/cancelar', { method: 'POST' })
+      const res  = await fetch('/api/suscripcion/cancelar', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) { setCancelError(data.error ?? 'Error al cancelar'); return }
       setCancelOk(true)
@@ -205,21 +206,21 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2.5rem 2rem' }}>
 
-        {/* Confirmación de pago exitoso */}
-        {mpOk && (
+        {/* Confirmación de solicitud enviada */}
+        {solicitudEnviada && (
           <div style={{ background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.35)', borderRadius: '12px', padding: '1.2rem 1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <span style={{ fontSize: '1.3rem' }}>✅</span>
             <div>
-              <div style={{ fontWeight: 700, color: '#4ade80', marginBottom: '0.2rem' }}>Pago procesado correctamente</div>
+              <div style={{ fontWeight: 700, color: '#4ade80', marginBottom: '0.2rem' }}>Solicitud registrada</div>
               <div style={{ fontSize: '0.82rem', color: 'rgba(231,223,202,0.7)' }}>
-                Tu suscripción se activará en segundos. Si el estado no cambia en un minuto, recarga la página.
+                Nuestro equipo se pondrá en contacto contigo para coordinar el pago y activar tu plan.
               </div>
             </div>
           </div>
         )}
 
         {/* Alerta suspendida */}
-        {suspendida && !mpOk && (
+        {suspendida && !solicitudEnviada && (
           <div style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', borderRadius: '12px', padding: '1.2rem 1.5rem', marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>⚠️</span>
             <div>
@@ -312,7 +313,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
               <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: '12px', padding: '1.2rem 1.5rem', textAlign: 'left' }}>
                 <div style={{ fontWeight: 700, color: '#f87171', marginBottom: '0.4rem', fontSize: '0.9rem' }}>¿Confirmas la cancelación?</div>
                 <div style={{ fontSize: '0.82rem', color: 'rgba(231,223,202,0.65)', marginBottom: '1rem', lineHeight: 1.6 }}>
-                  Tu suscripción se cancelará en Mercado Pago y no se realizará ningún cobro adicional. Mantendrás el acceso hasta el final del período ya pagado.
+                  Tu suscripción se cancelará y no se realizará ningún cobro adicional. Mantendrás el acceso hasta el final del período ya pagado.
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button
@@ -407,7 +408,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
         </div>
 
         <div style={{ marginTop: '2.5rem', padding: '1.2rem 1.5rem', background: 'rgba(231,223,202,0.03)', border: '1px solid rgba(150,134,34,0.15)', borderRadius: '10px', fontSize: '0.78rem', color: 'rgba(231,223,202,0.45)', lineHeight: 1.7 }}>
-          Los contadores de tickets y chats se reinician automáticamente con cada pago mensual. El cobro se gestiona de forma segura a través de Mercado Pago — no almacenamos datos de tarjetas. Para dudas sobre tu suscripción, contacta a tu asesor de Owl Compliance.
+          Los contadores de tickets y chats se reinician automáticamente con cada pago mensual. Para dudas sobre tu suscripción o el proceso de pago, contacta a tu asesor de Owl Compliance.
         </div>
       </main>
 
@@ -678,7 +679,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
                   onClick={confirmarContrato}
                   disabled={!aceptoFinal || modalEnviando}
                   style={{ background: aceptoFinal && !modalEnviando ? C.olivo : 'rgba(150,134,34,0.2)', color: aceptoFinal && !modalEnviando ? C.vino : C.olivo, border: `1px solid ${C.olivo}`, borderRadius: '8px', padding: '0.55rem 1.4rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: aceptoFinal && !modalEnviando ? 'pointer' : 'not-allowed', fontFamily: "'Josefin Sans', sans-serif", transition: 'all 0.2s' }}>
-                  {modalEnviando ? 'Firmando…' : 'Aceptar y continuar al pago'}
+                  {modalEnviando ? 'Firmando…' : 'Aceptar y continuar'}
                 </button>
               )}
             </div>

@@ -7,9 +7,9 @@ import { queryOne, execute } from './db'
 // ── Definición de planes ──────────────────────────────────────────────────────
 
 export const PLANES = {
-  basico:  { label: 'Básico',  tickets: 3,  chats: 6,  precio: 199000,  mp_plan_id: '04db35b06a644ea7a2b7c9bb89539699' },
-  pro:     { label: 'Pro',     tickets: 6,  chats: 12, precio: 890000,  mp_plan_id: '4fa839fbacbe4f298679559913a48337' },
-  premium: { label: 'Premium', tickets: 10, chats: 20, precio: 2490000, mp_plan_id: '790ed1d7bdd04122b3f55c0c46deb7b8' },
+  basico:  { label: 'Básico',  tickets: 3,  chats: 6,  precio: 199000 },
+  pro:     { label: 'Pro',     tickets: 6,  chats: 12, precio: 890000 },
+  premium: { label: 'Premium', tickets: 10, chats: 20, precio: 2490000 },
 } as const
 
 export type PlanKey = keyof typeof PLANES
@@ -27,7 +27,7 @@ export async function migrateSuscripcion() {
     `ALTER TABLE clientes ADD COLUMN suscripcion_estado TEXT DEFAULT 'trial'`,
     `ALTER TABLE clientes ADD COLUMN suscripcion_inicio TEXT`,
     `ALTER TABLE clientes ADD COLUMN suscripcion_vencimiento TEXT`,
-    `ALTER TABLE clientes ADD COLUMN mp_subscription_id TEXT`,
+    `ALTER TABLE clientes ADD COLUMN suscripcion_externa_id TEXT`,
     `ALTER TABLE clientes ADD COLUMN tickets_mes INTEGER DEFAULT 0`,
     `ALTER TABLE clientes ADD COLUMN chats_mes INTEGER DEFAULT 0`,
     `ALTER TABLE clientes ADD COLUMN conteo_reset_at TEXT`,
