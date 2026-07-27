@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import { notificarAsignacion, notificarSinAsignar } from '@/lib/notificaciones'
+import { notificarPush } from '@/lib/push-notify'
 import { adminParaAsignacion } from '@/lib/asignacion'
 import { puedeCrearChat, incrementarContador } from '@/lib/suscripcion'
+import { getUserFromRequest } from '@/lib/auth-any'
 import crypto from 'crypto'
 
 const TIPOS = ['financiera','tecnica','juridica','transversal']
 
-async function getSession() {
-  const session = await auth()
-  if (!session?.user) return null
-  return session.user as any
+async function getSession(req: NextRequest) {
+  return getUserFromRequest(req)
 }
 
 async function resolveClienteId(user: any, param: string | null) {
@@ -30,7 +29,7 @@ async function adminParaTipo(tipo: string) {
 // GET /api/chat?clienteId=xxx  → lista conversaciones
 // GET /api/chat?id=xxx         → mensajes de una conversación
 export async function GET(req: NextRequest) {
-  const user = await getSession()
+  const user = await getSession(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const convId    = req.nextUrl.searchParams.get('id')
@@ -85,7 +84,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/chat → crear conversación o enviar mensaje
 export async function POST(req: NextRequest) {
-  const user = await getSession()
+  const user = await getSession(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
@@ -129,7 +128,7 @@ export async function POST(req: NextRequest) {
       notificarAsignacion({
         id, tipo_entidad: 'chat', especialidad: tipo, asunto,
         cliente: razonSocial, admin_nombre: adminInfo?.nombre,
-        admin_email: adminInfo?.email, estado: 'activa', fecha,
+        admin_email: adminInfo?.email, admin_id: adminId, estado: 'activa', fecha,
       })
     } else {
       notificarSinAsignar({ tipo: 'chat', id, asunto, cliente: razonSocial, especialidad: tipo, fecha })
@@ -150,6 +149,17 @@ export async function POST(req: NextRequest) {
     await execute(`INSERT INTO mensajes (id, conversacion_id, user_id, contenido) VALUES (?,?,?,?)`,
       [id, conversacionId, user.id, contenido.trim()])
     await execute(`UPDATE conversaciones SET updated_at = datetime('now') WHERE id = ?`, [conversacionId])
+
+    // Si quien escribe es el cliente, avisar por push al admin asignado
+    if (user.role === 'cliente' && conv.admin_id) {
+      const cliente = await queryOne('SELECT razon_social FROM clientes WHERE id = ?', [conv.cliente_id]) as any
+      notificarPush(conv.admin_id, {
+        titulo: `Nuevo mensaje de ${cliente?.razon_social ?? 'un cliente'}`,
+        cuerpo: contenido.trim().slice(0, 120),
+        data: { tipo_entidad: 'chat', id: conversacionId },
+      })
+    }
+
     return NextResponse.json({ ok: true, id })
   }
 
@@ -175,6 +185,7 @@ export async function POST(req: NextRequest) {
       cliente: (cliente as any)?.razon_social ?? '',
       admin_nombre: (adminInfo as any)?.nombre,
       admin_email:  (adminInfo as any)?.email,
+      admin_id:     adminId,
       estado: 'reasignada',
       fecha: new Date().toLocaleString('es-CO'),
     })

@@ -1,8 +1,10 @@
 /**
  * lib/notificaciones.ts
  * Envía notificaciones al webhook de Google Apps Script
- * que registra en el Sheet y envía email al responsable.
+ * que registra en el Sheet y envía email al responsable, y notificaciones
+ * push a la app móvil cuando corresponde.
  */
+import { notificarPush } from './push-notify'
 
 export interface NotificacionParams {
   id:            string
@@ -12,6 +14,8 @@ export interface NotificacionParams {
   cliente:       string
   admin_nombre?: string
   admin_email?:  string
+  /** ID del admin asignado — habilita la notificación push a su app móvil */
+  admin_id?:     string
   /** Para documento_revisado: email del cliente al que notificar */
   cliente_email?: string
   /** Para documento_revisado: 'aprobado' | 'rechazado' */
@@ -37,7 +41,16 @@ async function enviar(params: NotificacionParams): Promise<void> {
 }
 
 export async function notificarAsignacion(params: NotificacionParams): Promise<void> {
-  return enviar(params)
+  await enviar(params)
+
+  if (params.admin_id && (params.tipo_entidad === 'ticket' || params.tipo_entidad === 'chat')) {
+    const tipoLabel = params.tipo_entidad === 'ticket' ? 'ticket' : 'chat'
+    await notificarPush(params.admin_id, {
+      titulo: `Nuevo ${tipoLabel} de ${params.cliente}`,
+      cuerpo: params.asunto,
+      data: { tipo_entidad: params.tipo_entidad, id: params.id },
+    })
+  }
 }
 
 export async function notificarSinAsignar(params: {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import { notificarAsignacion, notificarSinAsignar } from '@/lib/notificaciones'
+import { notificarPush } from '@/lib/push-notify'
 import { adminParaAsignacion } from '@/lib/asignacion'
 import { puedeCrearTicket, incrementarContador } from '@/lib/suscripcion'
+import { getUserFromRequest } from '@/lib/auth-any'
 import crypto from 'crypto'
 
 const TIPOS       = ['financiera','tecnica','juridica','transversal']
@@ -11,10 +12,8 @@ const PRIORIDADES = ['baja','normal','alta','urgente']
 // 'cerrado' solo se asigna automáticamente; el admin puede cambiar a cualquier otro estado
 const ESTADOS_MANUALES = ['abierto','en_progreso','resuelto']
 
-async function getSession() {
-  const session = await auth()
-  if (!session?.user) return null
-  return session.user as any
+async function getSession(req: NextRequest) {
+  return getUserFromRequest(req)
 }
 
 async function resolveClienteId(user: any, param: string | null) {
@@ -43,7 +42,7 @@ async function autoCerrarInactivos() {
 // GET /api/tickets             → lista tickets
 // GET /api/tickets?id=xxx      → detalle + respuestas
 export async function GET(req: NextRequest) {
-  const user = await getSession()
+  const user = await getSession(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   // Cierre automático por inactividad antes de responder
@@ -123,7 +122,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/tickets
 export async function POST(req: NextRequest) {
-  const user = await getSession()
+  const user = await getSession(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
@@ -170,7 +169,7 @@ export async function POST(req: NextRequest) {
       notificarAsignacion({
         id, tipo_entidad: 'ticket', especialidad: tipo, asunto,
         cliente: razonSocial, admin_nombre: adminInfo?.nombre,
-        admin_email: adminInfo?.email, estado: 'abierto', fecha,
+        admin_email: adminInfo?.email, admin_id: adminId, estado: 'abierto', fecha,
       })
     } else {
       notificarSinAsignar({ tipo: 'ticket', id, asunto, cliente: razonSocial, especialidad: tipo, fecha })
@@ -187,6 +186,22 @@ export async function POST(req: NextRequest) {
     await execute(`INSERT INTO ticket_respuestas (id,ticket_id,user_id,contenido) VALUES (?,?,?,?)`,
       [id, ticketId, user.id, contenido.trim()])
     await execute(`UPDATE tickets SET updated_at=datetime('now') WHERE id=?`, [ticketId])
+
+    // Si quien responde es el cliente, avisar por push al admin asignado
+    if (user.role === 'cliente') {
+      const ticket = await queryOne(
+        `SELECT t.admin_id, t.asunto, c.razon_social FROM tickets t JOIN clientes c ON c.id = t.cliente_id WHERE t.id = ?`,
+        [ticketId]
+      ) as any
+      if (ticket?.admin_id) {
+        notificarPush(ticket.admin_id, {
+          titulo: `Nueva respuesta de ${ticket.razon_social}`,
+          cuerpo: contenido.trim().slice(0, 120),
+          data: { tipo_entidad: 'ticket', id: ticketId },
+        })
+      }
+    }
+
     return NextResponse.json({ ok: true })
   }
 
@@ -225,6 +240,7 @@ export async function POST(req: NextRequest) {
       cliente:      (cliente as any)?.razon_social ?? '',
       admin_nombre: (adminInfo as any)?.nombre,
       admin_email:  (adminInfo as any)?.email,
+      admin_id:     adminId,
       estado: 'reasignado',
       fecha: new Date().toLocaleString('es-CO'),
     })
