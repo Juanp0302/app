@@ -273,9 +273,6 @@ function ProyectoCard({
         {proyecto.enlace && (
           <a href={proyecto.enlace} target="_blank" rel="noopener noreferrer" style={{ color: C.olivo, textDecoration: 'underline' }}>Ver documento oficial →</a>
         )}
-        {!isAdmin && (
-          <div style={{ color: 'rgba(231,223,202,0.4)' }}>{proyecto.total_interesados} cliente{proyecto.total_interesados !== 1 ? 's' : ''} interesado{proyecto.total_interesados !== 1 ? 's' : ''}</div>
-        )}
       </div>
 
       {userRole === 'cliente' && (
