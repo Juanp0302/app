@@ -6,12 +6,13 @@ import NavLogo from '@/components/NavLogo'
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
 interface Proyecto {
-  id:                string
-  entidad:           string
-  titulo:            string
-  estado:            string
-  fecha_limite:      string | null
-  total_interesados: number
+  id:                   string
+  entidad:              string
+  titulo:               string
+  etapa:                string
+  abierto_comentarios:  number
+  fecha_limite:         string | null
+  total_interesados:    number
 }
 
 interface Participacion {
@@ -22,17 +23,17 @@ interface Participacion {
   updated_at:   string
 }
 
-const ESTADO_LABEL: Record<string, string> = {
-  en_tramite:          'En trámite',
-  abierto_comentarios: 'Abierto para comentarios',
-  cerrado:             'Cerrado',
-  publicado:           'Publicado / Expedido',
+const ETAPA_LABEL: Record<string, string> = {
+  definicion_problema:     'Definición del problema',
+  definicion_alternativas: 'Definición de alternativas',
+  propuesta_regulatoria:   'Propuesta regulatoria',
+  publicado:               'Publicado',
 }
-const ESTADO_COLOR: Record<string, string> = {
-  en_tramite:          '#3b82f6',
-  abierto_comentarios: '#f59e0b',
-  cerrado:             '#6b7280',
-  publicado:           '#16a34a',
+const ETAPA_COLOR: Record<string, string> = {
+  definicion_problema:     '#3b82f6',
+  definicion_alternativas: '#f59e0b',
+  propuesta_regulatoria:   '#8b5cf6',
+  publicado:               '#16a34a',
 }
 const PLAN_LABEL: Record<string, string> = { basico: 'Básico', pro: 'Pro', premium: 'Premium' }
 
@@ -123,8 +124,8 @@ export default function InteresadosClient() {
                     <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.olivo, background: 'rgba(150,134,34,0.12)', border: `1px solid ${C.olivo}`, borderRadius: '20px', padding: '0.18rem 0.65rem' }}>
                       {p.entidad}
                     </span>
-                    <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ESTADO_COLOR[p.estado] ?? C.marfil }}>
-                      ● {ESTADO_LABEL[p.estado] ?? p.estado}
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ETAPA_COLOR[p.etapa] ?? C.marfil }}>
+                      ● {ETAPA_LABEL[p.etapa] ?? p.etapa}
                     </span>
                   </div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.05rem', fontWeight: 700 }}>{p.titulo}</div>

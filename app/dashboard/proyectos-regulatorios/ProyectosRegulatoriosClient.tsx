@@ -6,14 +6,16 @@ import NavLogo from '@/components/NavLogo'
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
 interface Proyecto {
-  id:                string
-  entidad:           string
-  titulo:            string
-  descripcion:       string
-  estado:            string
-  fecha_limite:      string | null
-  enlace:            string | null
-  total_interesados: number
+  id:                   string
+  entidad:              string
+  titulo:               string
+  descripcion:          string
+  etapa:                string
+  resumen_etapa:        string | null
+  abierto_comentarios:  number
+  fecha_limite:         string | null
+  enlace:               string | null
+  total_interesados:    number
 }
 
 interface Participacion {
@@ -23,17 +25,17 @@ interface Participacion {
   comentario:  string | null
 }
 
-const ESTADO_LABEL: Record<string, string> = {
-  en_tramite:          'En trámite',
-  abierto_comentarios: 'Abierto para comentarios',
-  cerrado:             'Cerrado',
-  publicado:           'Publicado / Expedido',
+const ETAPA_LABEL: Record<string, string> = {
+  definicion_problema:     'Definición del problema',
+  definicion_alternativas: 'Definición de alternativas',
+  propuesta_regulatoria:   'Propuesta regulatoria',
+  publicado:               'Publicado',
 }
-const ESTADO_COLOR: Record<string, string> = {
-  en_tramite:          '#3b82f6',
-  abierto_comentarios: '#f59e0b',
-  cerrado:             '#6b7280',
-  publicado:           '#16a34a',
+const ETAPA_COLOR: Record<string, string> = {
+  definicion_problema:     '#3b82f6',
+  definicion_alternativas: '#f59e0b',
+  propuesta_regulatoria:   '#8b5cf6',
+  publicado:               '#16a34a',
 }
 
 const inputStyle: React.CSSProperties = {
@@ -57,7 +59,8 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
   const [items,     setItems]     = useState<Proyecto[]>([])
   const [mias,      setMias]      = useState<Record<string, Participacion>>({})
   const [cargando,  setCargando]  = useState(true)
-  const [filtro,    setFiltro]    = useState('todos')
+  const [filtroEtapa, setFiltroEtapa] = useState('todos')
+  const [soloAbiertos, setSoloAbiertos] = useState(false)
   const [showForm,  setShowForm]  = useState<{ modo: 'crear' | 'editar'; item: Proyecto | null } | null>(null)
   const [verParticipantes, setVerParticipantes] = useState<string | null>(null)
 
@@ -78,9 +81,11 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
   }
 
   const filtrados = useMemo(() => {
-    if (filtro === 'todos') return items
-    return items.filter(p => p.estado === filtro)
-  }, [items, filtro])
+    let r = items
+    if (filtroEtapa !== 'todos') r = r.filter(p => p.etapa === filtroEtapa)
+    if (soloAbiertos) r = r.filter(p => p.abierto_comentarios === 1)
+    return r
+  }, [items, filtroEtapa, soloAbiertos])
 
   async function eliminar(id: string) {
     if (!window.confirm('¿Eliminar este proyecto regulatorio? Esta acción no se puede deshacer.')) return
@@ -125,19 +130,32 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
           )}
         </div>
 
-        {/* Filtro por estado */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.6rem' }}>
-          {(['todos', 'abierto_comentarios', 'en_tramite', 'publicado', 'cerrado'] as const).map(key => (
-            <button key={key} onClick={() => setFiltro(key)} style={{
+        {/* Filtro por etapa */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
+          {(['todos', ...Object.keys(ETAPA_LABEL)] as const).map(key => (
+            <button key={key} onClick={() => setFiltroEtapa(key)} style={{
               fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
               padding: '0.4rem 0.9rem', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit',
-              background: filtro === key ? C.olivo : 'transparent',
-              color: filtro === key ? C.vino : 'rgba(231,223,202,0.6)',
-              border: `1px solid ${filtro === key ? C.olivo : 'rgba(150,134,34,0.3)'}`,
+              background: filtroEtapa === key ? C.olivo : 'transparent',
+              color: filtroEtapa === key ? C.vino : 'rgba(231,223,202,0.6)',
+              border: `1px solid ${filtroEtapa === key ? C.olivo : 'rgba(150,134,34,0.3)'}`,
             }}>
-              {key === 'todos' ? 'Todos' : ESTADO_LABEL[key]}
+              {key === 'todos' ? 'Todas las etapas' : ETAPA_LABEL[key]}
             </button>
           ))}
+        </div>
+
+        {/* Filtro: solo abiertos para comentarios */}
+        <div style={{ marginBottom: '1.6rem' }}>
+          <button onClick={() => setSoloAbiertos(v => !v)} style={{
+            fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            padding: '0.4rem 0.9rem', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit',
+            background: soloAbiertos ? 'rgba(245,158,11,0.15)' : 'transparent',
+            color: soloAbiertos ? '#f59e0b' : 'rgba(231,223,202,0.6)',
+            border: `1px solid ${soloAbiertos ? '#f59e0b' : 'rgba(150,134,34,0.3)'}`,
+          }}>
+            {soloAbiertos ? '✓ ' : ''}Solo abiertos para comentarios
+          </button>
         </div>
 
         {cargando && <div style={{ fontSize: '0.85rem', color: 'rgba(231,223,202,0.5)' }}>Cargando…</div>}
@@ -201,7 +219,7 @@ function ProyectoCard({
 
   const yaInteresado = !!miParticipacion?.interesado
   const dias = diasRestantes(proyecto.fecha_limite)
-  const urgente = dias !== null && dias >= 0 && dias <= 7 && proyecto.estado === 'abierto_comentarios'
+  const urgente = dias !== null && dias >= 0 && dias <= 7 && proyecto.abierto_comentarios === 1
 
   async function marcarInteres() {
     setEnviando(true)
@@ -244,8 +262,16 @@ function ProyectoCard({
             <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.olivo, background: 'rgba(150,134,34,0.12)', border: `1px solid ${C.olivo}`, borderRadius: '20px', padding: '0.2rem 0.7rem' }}>
               {proyecto.entidad}
             </span>
-            <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ESTADO_COLOR[proyecto.estado] ?? C.marfil }}>
-              ● {ESTADO_LABEL[proyecto.estado] ?? proyecto.estado}
+            <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: ETAPA_COLOR[proyecto.etapa] ?? C.marfil }}>
+              ● {ETAPA_LABEL[proyecto.etapa] ?? proyecto.etapa}
+            </span>
+            <span style={{
+              fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: proyecto.abierto_comentarios === 1 ? '#f59e0b' : 'rgba(231,223,202,0.4)',
+              border: `1px solid ${proyecto.abierto_comentarios === 1 ? 'rgba(245,158,11,0.4)' : 'rgba(231,223,202,0.2)'}`,
+              borderRadius: '20px', padding: '0.18rem 0.65rem',
+            }}>
+              {proyecto.abierto_comentarios === 1 ? 'Abierto para comentarios' : 'Cerrado para comentarios'}
             </span>
           </div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.15rem', fontWeight: 700 }}>{proyecto.titulo}</div>
@@ -262,6 +288,15 @@ function ProyectoCard({
       </div>
 
       <p style={{ fontSize: '0.85rem', color: 'rgba(231,223,202,0.75)', lineHeight: 1.7, marginBottom: '0.9rem' }}>{proyecto.descripcion}</p>
+
+      {proyecto.resumen_etapa && (
+        <div style={{ background: 'rgba(150,134,34,0.06)', border: '1px solid rgba(150,134,34,0.2)', borderRadius: '8px', padding: '0.9rem 1.1rem', marginBottom: '0.9rem' }}>
+          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.olivo, marginBottom: '0.4rem' }}>
+            Estado actual · {ETAPA_LABEL[proyecto.etapa] ?? proyecto.etapa}
+          </div>
+          <div style={{ fontSize: '0.82rem', color: 'rgba(231,223,202,0.8)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{proyecto.resumen_etapa}</div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', marginBottom: userRole === 'cliente' ? '1.1rem' : 0, fontSize: '0.78rem' }}>
         {proyecto.fecha_limite && (
@@ -326,17 +361,19 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
   onSaved: () => void
 }) {
   const [form, setForm] = useState({
-    entidad:      item?.entidad ?? 'CRC',
-    titulo:       item?.titulo ?? '',
-    descripcion:  item?.descripcion ?? '',
-    estado:       item?.estado ?? 'en_tramite',
-    fechaLimite:  item?.fecha_limite ? item.fecha_limite.slice(0, 10) : '',
-    enlace:       item?.enlace ?? '',
+    entidad:            item?.entidad ?? 'CRC',
+    titulo:             item?.titulo ?? '',
+    descripcion:        item?.descripcion ?? '',
+    etapa:              item?.etapa ?? 'definicion_problema',
+    resumenEtapa:       item?.resumen_etapa ?? '',
+    abiertoComentarios: item ? item.abierto_comentarios === 1 : false,
+    fechaLimite:        item?.fecha_limite ? item.fecha_limite.slice(0, 10) : '',
+    enlace:             item?.enlace ?? '',
   })
   const [guardando, setGuardando] = useState(false)
   const [error,     setError]     = useState('')
 
-  function setF(k: keyof typeof form, v: string) {
+  function setF(k: keyof typeof form, v: string | boolean) {
     setForm(f => ({ ...f, [k]: v }))
   }
 
@@ -348,7 +385,12 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
     setGuardando(true)
     setError('')
     try {
-      const datos = { ...form, fechaLimite: form.fechaLimite || null, enlace: form.enlace || null }
+      const datos = {
+        ...form,
+        resumenEtapa: form.resumenEtapa || null,
+        fechaLimite:  form.abiertoComentarios ? (form.fechaLimite || null) : null,
+        enlace:       form.enlace || null,
+      }
       const body = modo === 'crear'
         ? { accion: 'crear', datos }
         : { accion: 'actualizar', id: item!.id, datos }
@@ -383,16 +425,17 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
                 <option value="CRC">CRC</option>
                 <option value="MinTIC">MinTIC</option>
                 <option value="SIC">SIC</option>
+                <option value="ANE">ANE</option>
                 <option value="Otra">Otra</option>
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Estado *</label>
-              <select value={form.estado} onChange={e => setF('estado', e.target.value)} style={inputStyle}>
-                <option value="en_tramite">En trámite</option>
-                <option value="abierto_comentarios">Abierto para comentarios</option>
-                <option value="cerrado">Cerrado</option>
-                <option value="publicado">Publicado / Expedido</option>
+              <label style={labelStyle}>Etapa del proyecto *</label>
+              <select value={form.etapa} onChange={e => setF('etapa', e.target.value)} style={inputStyle}>
+                <option value="definicion_problema">Definición del problema</option>
+                <option value="definicion_alternativas">Definición de alternativas</option>
+                <option value="propuesta_regulatoria">Propuesta regulatoria</option>
+                <option value="publicado">Publicado</option>
               </select>
             </div>
           </div>
@@ -403,15 +446,30 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
           </div>
 
           <div>
-            <label style={labelStyle}>Descripción *</label>
+            <label style={labelStyle}>Resumen del proyecto *</label>
             <textarea value={form.descripcion} onChange={e => setF('descripcion', e.target.value)} style={{ ...textareaStyle, minHeight: '110px' }}
               placeholder="De qué trata el proyecto, motivación, alcance…" />
           </div>
 
+          <div>
+            <label style={labelStyle}>Resumen de la etapa actual</label>
+            <textarea value={form.resumenEtapa} onChange={e => setF('resumenEtapa', e.target.value)} style={textareaStyle}
+              placeholder="Ej. contenido de la propuesta regulatoria radicada, alternativas en discusión, etc." />
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.abiertoComentarios}
+              onChange={e => setF('abiertoComentarios', e.target.checked)}
+              style={{ accentColor: C.olivo, width: 15, height: 15 }} />
+            <span style={{ fontSize: '0.8rem', color: C.marfil }}>Abierto para comentarios</span>
+          </label>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
             <div>
               <label style={labelStyle}>Fecha límite de comentarios</label>
-              <input type="date" value={form.fechaLimite} onChange={e => setF('fechaLimite', e.target.value)} style={inputStyle} />
+              <input type="date" value={form.fechaLimite} onChange={e => setF('fechaLimite', e.target.value)}
+                disabled={!form.abiertoComentarios}
+                style={{ ...inputStyle, opacity: form.abiertoComentarios ? 1 : 0.4, cursor: form.abiertoComentarios ? 'text' : 'not-allowed' }} />
             </div>
             <div>
               <label style={labelStyle}>Enlace al documento oficial</label>

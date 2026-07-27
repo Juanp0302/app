@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
 }
 
 function validarProyecto(body: any): body is ProyectoData {
-  return !!(body.entidad && body.titulo && body.descripcion && body.estado)
+  return !!(body.entidad && body.titulo && body.descripcion && body.etapa)
 }
 
 /** Registra interés y/o comentario de un cliente en un proyecto. */

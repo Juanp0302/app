@@ -39,15 +39,32 @@ export async function migrateProyectosRegulatorios() {
       UNIQUE(proyecto_id, cliente_id)
     )
   `)
+
+  // Migración aditiva: separa la etapa de madurez del proyecto (definición del
+  // problema / definición de alternativas / propuesta regulatoria / publicado)
+  // de si está abierto para comentarios, y agrega el resumen de la etapa actual.
+  const cols = [
+    `ALTER TABLE proyectos_regulatorios ADD COLUMN etapa TEXT NOT NULL DEFAULT 'definicion_problema'`,
+    `ALTER TABLE proyectos_regulatorios ADD COLUMN abierto_comentarios INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE proyectos_regulatorios ADD COLUMN resumen_etapa TEXT`,
+  ]
+  for (const sql of cols) {
+    try { await execute(sql) } catch { /* columna ya existe */ }
+  }
 }
 
+export const ETAPAS = ['definicion_problema', 'definicion_alternativas', 'propuesta_regulatoria', 'publicado'] as const
+export type Etapa = typeof ETAPAS[number]
+
 export interface ProyectoData {
-  entidad:      string
-  titulo:       string
-  descripcion:  string
-  estado:       string
-  fechaLimite?: string | null
-  enlace?:      string | null
+  entidad:            string
+  titulo:             string
+  descripcion:         string
+  etapa:              string
+  resumenEtapa?:       string | null
+  abiertoComentarios:  boolean
+  fechaLimite?:        string | null
+  enlace?:             string | null
 }
 
 export async function listarProyectos() {
@@ -64,14 +81,21 @@ export async function obtenerProyecto(id: string) {
   return queryOne(`SELECT * FROM proyectos_regulatorios WHERE id = ?`, [id])
 }
 
+/** La fecha límite de comentarios solo tiene sentido si el proyecto está abierto para comentarios. */
+function fechaLimiteEfectiva(d: ProyectoData): string | null {
+  return d.abiertoComentarios ? (d.fechaLimite ?? null) : null
+}
+
 export async function crearProyecto(d: ProyectoData) {
   await migrateProyectosRegulatorios()
   const id    = crypto.randomUUID()
   const ahora = new Date().toISOString()
   await execute(
-    `INSERT INTO proyectos_regulatorios (id, entidad, titulo, descripcion, estado, fecha_limite, enlace, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
-    [id, d.entidad, d.titulo, d.descripcion, d.estado, d.fechaLimite ?? null, d.enlace ?? null, ahora, ahora]
+    `INSERT INTO proyectos_regulatorios
+       (id, entidad, titulo, descripcion, etapa, resumen_etapa, abierto_comentarios, fecha_limite, enlace, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, d.entidad, d.titulo, d.descripcion, d.etapa, d.resumenEtapa ?? null,
+     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.enlace ?? null, ahora, ahora]
   )
   return id
 }
@@ -80,9 +104,11 @@ export async function actualizarProyecto(id: string, d: ProyectoData) {
   await migrateProyectosRegulatorios()
   await execute(
     `UPDATE proyectos_regulatorios
-     SET entidad = ?, titulo = ?, descripcion = ?, estado = ?, fecha_limite = ?, enlace = ?, updated_at = ?
+     SET entidad = ?, titulo = ?, descripcion = ?, etapa = ?, resumen_etapa = ?,
+         abierto_comentarios = ?, fecha_limite = ?, enlace = ?, updated_at = ?
      WHERE id = ?`,
-    [d.entidad, d.titulo, d.descripcion, d.estado, d.fechaLimite ?? null, d.enlace ?? null, new Date().toISOString(), id]
+    [d.entidad, d.titulo, d.descripcion, d.etapa, d.resumenEtapa ?? null,
+     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.enlace ?? null, new Date().toISOString(), id]
   )
 }
 
