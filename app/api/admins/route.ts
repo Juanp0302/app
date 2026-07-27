@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { getUserFromRequest } from '@/lib/auth-any'
 import { queryOne, queryAll, execute } from '@/lib/db'
 import crypto from 'crypto'
 import { hashPassword } from '@/lib/password'
@@ -10,9 +11,10 @@ async function requireAdmin() {
   return (session.user as any).role === 'admin' ? (session.user as any) : null
 }
 
-export async function GET() {
-  const user = await requireAdmin()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+// GET admite sesión web o token móvil (para el selector de reasignación en la app).
+export async function GET(req: NextRequest) {
+  const user = await getUserFromRequest(req)
+  if (!user || user.role !== 'admin') return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admins = await queryAll(
     `SELECT id, email, nombre, activo, created_at FROM users WHERE rol = 'admin' ORDER BY created_at`
