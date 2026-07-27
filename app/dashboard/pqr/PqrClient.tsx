@@ -300,15 +300,15 @@ function ProponerModal({ tipologia, onClose }: { tipologia: PqrItem; onClose: ()
     setEnviando(true)
     setError('')
     try {
-      const asunto = `Propuesta de plantilla PQR — ${tipologia.codigo} ${tipologia.nombre}`
-      const descripcion =
-        `Propuesta de nueva respuesta tipo para el Repositorio de PQR.\n\n` +
-        `Tipología: ${tipologia.codigo} — ${tipologia.nombre} (${tipologia.servicio})\n\n` +
-        `Propuesta del cliente:\n${texto.trim()}`
-
-      const res  = await fetch('/api/tickets', {
+      const res  = await fetch('/api/pqr', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'crear', tipo: 'juridica', asunto, descripcion, prioridad: 'normal' }),
+        body: JSON.stringify({
+          accion: 'proponer',
+          tipologiaCodigo:   tipologia.codigo,
+          tipologiaNombre:   tipologia.nombre,
+          tipologiaServicio: tipologia.servicio,
+          propuesta:         texto.trim(),
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al enviar la propuesta.'); setEnviando(false); return }
