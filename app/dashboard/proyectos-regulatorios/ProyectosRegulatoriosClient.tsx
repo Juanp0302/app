@@ -14,6 +14,7 @@ interface Proyecto {
   resumen_etapa:        string | null
   abierto_comentarios:  number
   fecha_limite:         string | null
+  fecha:                string | null
   enlace:               string | null
   total_interesados:    number
 }
@@ -60,6 +61,7 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
   const [mias,      setMias]      = useState<Record<string, Participacion>>({})
   const [cargando,  setCargando]  = useState(true)
   const [filtroEtapa, setFiltroEtapa] = useState('todos')
+  const [filtroEntidad, setFiltroEntidad] = useState('todas')
   const [soloAbiertos, setSoloAbiertos] = useState(false)
   const [showForm,  setShowForm]  = useState<{ modo: 'crear' | 'editar'; item: Proyecto | null } | null>(null)
   const [verParticipantes, setVerParticipantes] = useState<string | null>(null)
@@ -80,12 +82,15 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
     }
   }
 
+  const entidades = useMemo(() => Array.from(new Set(items.map(p => p.entidad))).sort(), [items])
+
   const filtrados = useMemo(() => {
     let r = items
     if (filtroEtapa !== 'todos') r = r.filter(p => p.etapa === filtroEtapa)
+    if (filtroEntidad !== 'todas') r = r.filter(p => p.entidad === filtroEntidad)
     if (soloAbiertos) r = r.filter(p => p.abierto_comentarios === 1)
     return r
-  }, [items, filtroEtapa, soloAbiertos])
+  }, [items, filtroEtapa, filtroEntidad, soloAbiertos])
 
   async function eliminar(id: string) {
     if (!window.confirm('¿Eliminar este proyecto regulatorio? Esta acción no se puede deshacer.')) return
@@ -144,6 +149,23 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
             </button>
           ))}
         </div>
+
+        {/* Filtro por entidad */}
+        {entidades.length > 1 && (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
+            {(['todas', ...entidades] as const).map(key => (
+              <button key={key} onClick={() => setFiltroEntidad(key)} style={{
+                fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                padding: '0.4rem 0.9rem', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit',
+                background: filtroEntidad === key ? C.olivo : 'transparent',
+                color: filtroEntidad === key ? C.vino : 'rgba(231,223,202,0.6)',
+                border: `1px solid ${filtroEntidad === key ? C.olivo : 'rgba(150,134,34,0.3)'}`,
+              }}>
+                {key === 'todas' ? 'Todas las entidades' : key}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Filtro: solo abiertos para comentarios */}
         <div style={{ marginBottom: '1.6rem' }}>
@@ -299,6 +321,11 @@ function ProyectoCard({
       )}
 
       <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', marginBottom: userRole === 'cliente' ? '1.1rem' : 0, fontSize: '0.78rem' }}>
+        {proyecto.fecha && (
+          <div style={{ color: 'rgba(231,223,202,0.4)' }}>
+            {new Date(proyecto.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </div>
+        )}
         {proyecto.fecha_limite && (
           <div style={{ color: urgente ? '#f59e0b' : 'rgba(231,223,202,0.55)' }}>
             <strong>Plazo de comentarios:</strong> {new Date(proyecto.fecha_limite).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -368,6 +395,7 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
     resumenEtapa:       item?.resumen_etapa ?? '',
     abiertoComentarios: item ? item.abierto_comentarios === 1 : false,
     fechaLimite:        item?.fecha_limite ? item.fecha_limite.slice(0, 10) : '',
+    fecha:              item?.fecha ? item.fecha.slice(0, 10) : new Date().toISOString().slice(0, 10),
     enlace:             item?.enlace ?? '',
   })
   const [guardando, setGuardando] = useState(false)
@@ -443,6 +471,11 @@ function FormularioProyecto({ modo, item, onClose, onSaved }: {
           <div>
             <label style={labelStyle}>Título *</label>
             <input value={form.titulo} onChange={e => setF('titulo', e.target.value)} placeholder="Ej. Proyecto de resolución sobre..." style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Fecha del proyecto (para el orden cronológico) *</label>
+            <input type="date" value={form.fecha} onChange={e => setF('fecha', e.target.value)} style={inputStyle} />
           </div>
 
           <div>

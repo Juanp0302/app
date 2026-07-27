@@ -47,6 +47,7 @@ export async function migrateProyectosRegulatorios() {
     `ALTER TABLE proyectos_regulatorios ADD COLUMN etapa TEXT NOT NULL DEFAULT 'definicion_problema'`,
     `ALTER TABLE proyectos_regulatorios ADD COLUMN abierto_comentarios INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE proyectos_regulatorios ADD COLUMN resumen_etapa TEXT`,
+    `ALTER TABLE proyectos_regulatorios ADD COLUMN fecha TEXT`,
   ]
   for (const sql of cols) {
     try { await execute(sql) } catch { /* columna ya existe */ }
@@ -64,6 +65,7 @@ export interface ProyectoData {
   resumenEtapa?:       string | null
   abiertoComentarios:  boolean
   fechaLimite?:        string | null
+  fecha?:              string | null
   enlace?:             string | null
 }
 
@@ -72,7 +74,7 @@ export async function listarProyectos() {
   return queryAll(`
     SELECT p.*, (SELECT COUNT(*) FROM proyecto_participaciones pp WHERE pp.proyecto_id = p.id AND pp.interesado = 1) AS total_interesados
     FROM proyectos_regulatorios p
-    ORDER BY (p.fecha_limite IS NULL), p.fecha_limite ASC, p.created_at DESC
+    ORDER BY COALESCE(p.fecha, p.created_at) DESC
   `)
 }
 
@@ -92,10 +94,10 @@ export async function crearProyecto(d: ProyectoData) {
   const ahora = new Date().toISOString()
   await execute(
     `INSERT INTO proyectos_regulatorios
-       (id, entidad, titulo, descripcion, etapa, resumen_etapa, abierto_comentarios, fecha_limite, enlace, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+       (id, entidad, titulo, descripcion, etapa, resumen_etapa, abierto_comentarios, fecha_limite, fecha, enlace, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, d.entidad, d.titulo, d.descripcion, d.etapa, d.resumenEtapa ?? null,
-     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.enlace ?? null, ahora, ahora]
+     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.fecha ?? ahora.slice(0, 10), d.enlace ?? null, ahora, ahora]
   )
   return id
 }
@@ -105,10 +107,10 @@ export async function actualizarProyecto(id: string, d: ProyectoData) {
   await execute(
     `UPDATE proyectos_regulatorios
      SET entidad = ?, titulo = ?, descripcion = ?, etapa = ?, resumen_etapa = ?,
-         abierto_comentarios = ?, fecha_limite = ?, enlace = ?, updated_at = ?
+         abierto_comentarios = ?, fecha_limite = ?, fecha = ?, enlace = ?, updated_at = ?
      WHERE id = ?`,
     [d.entidad, d.titulo, d.descripcion, d.etapa, d.resumenEtapa ?? null,
-     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.enlace ?? null, new Date().toISOString(), id]
+     d.abiertoComentarios ? 1 : 0, fechaLimiteEfectiva(d), d.fecha ?? new Date().toISOString().slice(0, 10), d.enlace ?? null, new Date().toISOString(), id]
   )
 }
 
@@ -146,7 +148,7 @@ export async function todosLosInteresados() {
   const proyectos = await queryAll(`
     SELECT p.*, (SELECT COUNT(*) FROM proyecto_participaciones pp WHERE pp.proyecto_id = p.id AND pp.interesado = 1) AS total_interesados
     FROM proyectos_regulatorios p
-    ORDER BY (p.fecha_limite IS NULL), p.fecha_limite ASC, p.created_at DESC
+    ORDER BY COALESCE(p.fecha, p.created_at) DESC
   `)
   const participaciones = await queryAll(`
     SELECT pp.*, c.razon_social, c.plan
