@@ -114,6 +114,24 @@ export async function participacionesDeProyecto(proyectoId: string) {
   )
 }
 
+/** Listado consolidado de todas las manifestaciones de interés, por proyecto (vista admin). */
+export async function todosLosInteresados() {
+  await migrateProyectosRegulatorios()
+  const proyectos = await queryAll(`
+    SELECT p.*, (SELECT COUNT(*) FROM proyecto_participaciones pp WHERE pp.proyecto_id = p.id AND pp.interesado = 1) AS total_interesados
+    FROM proyectos_regulatorios p
+    ORDER BY (p.fecha_limite IS NULL), p.fecha_limite ASC, p.created_at DESC
+  `)
+  const participaciones = await queryAll(`
+    SELECT pp.*, c.razon_social, c.plan
+    FROM proyecto_participaciones pp
+    JOIN clientes c ON c.id = pp.cliente_id
+    WHERE pp.interesado = 1
+    ORDER BY pp.updated_at DESC
+  `)
+  return { proyectos, participaciones }
+}
+
 /** Upsert de interés/comentario de un cliente en un proyecto. */
 export async function participar(opts: {
   proyectoId: string

@@ -114,9 +114,14 @@ export default function ProyectosRegulatoriosClient({ userRole, isAdmin, plan }:
             </p>
           </div>
           {isAdmin && (
-            <button onClick={() => setShowForm({ modo: 'crear', item: null })} style={{ background: 'rgba(150,134,34,0.12)', color: C.olivo, border: `1px solid ${C.olivo}`, borderRadius: '8px', padding: '0.55rem 1.1rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-              + Agregar proyecto
-            </button>
+            <div style={{ display: 'flex', gap: '0.6rem', flexShrink: 0 }}>
+              <a href="/dashboard/proyectos-regulatorios/interes" style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', color: C.marfil, border: '1px solid rgba(231,223,202,0.25)', borderRadius: '8px', padding: '0.55rem 1.1rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}>
+                Ver interesados
+              </a>
+              <button onClick={() => setShowForm({ modo: 'crear', item: null })} style={{ background: 'rgba(150,134,34,0.12)', color: C.olivo, border: `1px solid ${C.olivo}`, borderRadius: '8px', padding: '0.55rem 1.1rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}>
+                + Agregar proyecto
+              </button>
+            </div>
           )}
         </div>
 

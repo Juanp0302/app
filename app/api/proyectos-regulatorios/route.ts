@@ -17,7 +17,7 @@ import { queryOne, execute } from '@/lib/db'
 import { notificarAsignacion, notificarSinAsignar } from '@/lib/notificaciones'
 import {
   listarProyectos, obtenerProyecto, crearProyecto, actualizarProyecto, eliminarProyecto,
-  participacionesDeCliente, participacionesDeProyecto, participar, ProyectoData,
+  participacionesDeCliente, participacionesDeProyecto, todosLosInteresados, participar, ProyectoData,
 } from '@/lib/proyectos-regulatorios-db'
 import crypto from 'crypto'
 
@@ -37,6 +37,13 @@ export async function GET(req: NextRequest) {
 
   const id           = req.nextUrl.searchParams.get('id')
   const participantes = req.nextUrl.searchParams.get('participantes')
+  const resumenInteres = req.nextUrl.searchParams.get('resumenInteres')
+
+  if (resumenInteres) {
+    if (user.role !== 'admin') return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
+    const data = await todosLosInteresados()
+    return NextResponse.json(data)
+  }
 
   if (id && participantes) {
     if (user.role !== 'admin') return NextResponse.json({ error: 'Sin acceso' }, { status: 403 })
