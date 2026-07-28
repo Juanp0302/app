@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll } from '@/lib/db'
-import { generarVencimientos } from '@/lib/fechas'
+import { generarVencimientos, limitesPeriodoActual } from '@/lib/fechas'
+
+/**
+ * El estado guardado en cliente_obligaciones es un solo valor (no uno por periodo),
+ * así que solo aplica al periodo vigente o a periodos ya pasados. Una ocurrencia
+ * futura (más allá del periodo actual) todavía no puede estar "cumplida".
+ */
+function estadoParaFecha(estadoActual: string, periodicidad: string, fecha: string, hoy: Date): string {
+  const limites = limitesPeriodoActual(periodicidad, hoy)
+  if (!limites) return estadoActual // sin periodos (PERMANENTE/EVENTUAL/etc.)
+  return fecha > limites.fin ? 'pendiente' : estadoActual
+}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -17,6 +28,7 @@ export async function GET(req: NextRequest) {
   }
   if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
 
+  const hoyDate = new Date()
   const eventos: any[] = []
   let cliente: any = null
 
@@ -43,7 +55,8 @@ export async function GET(req: NextRequest) {
       for (const v of generarVencimientos(obl.periodicidad, anio)) {
         eventos.push({
           obl_id: obl.obl_id, fecha: v.fecha, label: v.label, urgencia: v.urgencia,
-          estado, sub_titulo: obl.sub_titulo, obligacion: obl.obligacion,
+          estado: estadoParaFecha(estado, obl.periodicidad, v.fecha, hoyDate),
+          sub_titulo: obl.sub_titulo, obligacion: obl.obligacion,
           aspecto: obl.aspecto, grupo: obl.grupo, servicio: obl.servicio, periodicidad: obl.periodicidad,
           num_clientes: obl.num_clientes, cumplidas_count: obl.cumplidas_count,
         })
@@ -61,7 +74,7 @@ export async function GET(req: NextRequest) {
 
   for (const obl of obligaciones as any[]) {
     for (const v of generarVencimientos(obl.periodicidad, anio)) {
-      eventos.push({ obl_id: obl.obl_id, fecha: v.fecha, label: v.label, urgencia: v.urgencia, estado: obl.estado, sub_titulo: obl.sub_titulo, obligacion: obl.obligacion, aspecto: obl.aspecto, grupo: obl.grupo, servicio: obl.servicio, periodicidad: obl.periodicidad })
+      eventos.push({ obl_id: obl.obl_id, fecha: v.fecha, label: v.label, urgencia: v.urgencia, estado: estadoParaFecha(obl.estado, obl.periodicidad, v.fecha, hoyDate), sub_titulo: obl.sub_titulo, obligacion: obl.obligacion, aspecto: obl.aspecto, grupo: obl.grupo, servicio: obl.servicio, periodicidad: obl.periodicidad })
     }
   }
   }
