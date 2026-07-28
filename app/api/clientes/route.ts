@@ -241,7 +241,11 @@ export async function DELETE(req: NextRequest) {
   const userId = cliente.user_id
 
   // Eliminar datos relacionados en orden para respetar las FK (foreign_keys = ON)
+  // Primero los "nietos" (dependen de tickets/conversaciones), luego esas tablas,
+  // luego lo que depende directamente de clientes, y por último clientes/users.
   const tablas = [
+    { sql: `DELETE FROM mensajes WHERE conversacion_id IN (SELECT id FROM conversaciones WHERE cliente_id = ?)`, args: [clienteId] },
+    { sql: `DELETE FROM ticket_respuestas WHERE ticket_id IN (SELECT id FROM tickets WHERE cliente_id = ?)`, args: [clienteId] },
     { sql: `DELETE FROM documentos WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM recordatorios WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM proyecto_participaciones WHERE cliente_id = ?`, args: [clienteId] },
@@ -250,6 +254,8 @@ export async function DELETE(req: NextRequest) {
     { sql: `DELETE FROM tickets WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM conversaciones WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM cuentas_cobro WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM push_tokens WHERE user_id = ?`, args: [userId] },
+    { sql: `DELETE FROM reasignaciones WHERE user_id = ? OR de_admin_id = ? OR a_admin_id = ?`, args: [userId, userId, userId] },
     { sql: `DELETE FROM clientes WHERE id = ?`, args: [clienteId] },
     { sql: `DELETE FROM users WHERE id = ?`, args: [userId] },
   ]
