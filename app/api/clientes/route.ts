@@ -240,8 +240,11 @@ export async function DELETE(req: NextRequest) {
 
   const userId = cliente.user_id
 
-  // Eliminar datos relacionados en orden para respetar posibles FK
+  // Eliminar datos relacionados en orden para respetar las FK (foreign_keys = ON)
   const tablas = [
+    { sql: `DELETE FROM documentos WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM recordatorios WHERE cliente_id = ?`, args: [clienteId] },
+    { sql: `DELETE FROM proyecto_participaciones WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM cliente_obligaciones WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM cliente_servicios WHERE cliente_id = ?`, args: [clienteId] },
     { sql: `DELETE FROM tickets WHERE cliente_id = ?`, args: [clienteId] },
@@ -254,7 +257,12 @@ export async function DELETE(req: NextRequest) {
   // Eliminar contratos si la tabla existe
   try { await execute(`DELETE FROM contratos WHERE cliente_id = ?`, [clienteId]) } catch { /* tabla puede no existir */ }
 
-  await db.batch(tablas, 'write')
+  try {
+    await db.batch(tablas, 'write')
+  } catch (e: any) {
+    console.error('[DELETE /api/clientes] Error eliminando cliente:', e)
+    return NextResponse.json({ error: 'Error al eliminar: ' + (e?.message ?? 'ver logs del servidor') }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true })
 }
