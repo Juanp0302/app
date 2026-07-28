@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, queryAll, execute } from '@/lib/db'
+import { reiniciarObligacionesPeriodicas } from '@/lib/clientes'
 import crypto from 'crypto'
 import reportesCatalogo from '@/data/reportes_por_servicio.json'
 
@@ -22,6 +23,8 @@ export async function GET(req: NextRequest) {
 
   const cliente  = await queryOne('SELECT id, razon_social, nit FROM clientes WHERE id = ?', [resolvedClienteId])
   if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+
+  await reiniciarObligacionesPeriodicas(resolvedClienteId)
 
   const serviciosRows = await queryAll('SELECT servicio FROM cliente_servicios WHERE cliente_id = ? AND activo = 1', [resolvedClienteId])
   const servicios = serviciosRows.map((r: any) => r.servicio)

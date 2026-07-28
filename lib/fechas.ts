@@ -108,3 +108,34 @@ export function proximosVencimientos(
     .sort((a, b) => a.fecha.localeCompare(b.fecha))
     .slice(0, n)
 }
+
+/**
+ * Límites del periodo actual (inicio, fin) para una periodicidad dada.
+ * "fin" es el próximo vencimiento (>= hoy); "inicio" es el vencimiento
+ * inmediatamente anterior (o una fecha muy antigua si no hay uno previo).
+ * Devuelve null para periodicidades sin fecha fija (PERMANENTE, EVENTUAL, CUANDO APLIQUE).
+ */
+export function limitesPeriodoActual(
+  periodicidad: string,
+  hoy: Date = new Date(),
+): { inicio: string; fin: string } | null {
+  const anio   = hoy.getFullYear()
+  const hoyStr = hoy.toISOString().slice(0, 10)
+
+  const fechas = [
+    ...generarVencimientos(periodicidad, anio - 1),
+    ...generarVencimientos(periodicidad, anio),
+    ...generarVencimientos(periodicidad, anio + 1),
+  ]
+    .map(v => v.fecha)
+    .sort((a, b) => a.localeCompare(b))
+
+  if (fechas.length === 0) return null
+
+  const finIdx = fechas.findIndex(f => f >= hoyStr)
+  if (finIdx === -1) return null
+
+  const fin    = fechas[finIdx]
+  const inicio = finIdx > 0 ? fechas[finIdx - 1] : '1900-01-01'
+  return { inicio, fin }
+}

@@ -6,6 +6,52 @@
 import { db, queryOne, queryAll, execute } from './db'
 import crypto from 'crypto'
 import { hashPassword } from './password'
+import { limitesPeriodoActual } from './fechas'
+
+/** Periodicidades que se repiten y por tanto deben reiniciarse cada periodo nuevo. */
+const PERIODICIDADES_RECURRENTES = ['TRIMESTRAL', 'SEMESTRAL', 'ANUAL', 'MENSUAL', 'PERIÓDICO']
+
+/**
+ * Revisa las obligaciones periódicas de UN cliente marcadas 'cumplida' o 'vencida'
+ * cuya última actualización quedó antes del inicio del periodo actual (ej. una
+ * TRIMESTRAL resuelta en Q1 y ya estamos en Q2) y las regresa a 'pendiente' para
+ * que el mapa de cumplimiento vuelva a pedirlas en el nuevo periodo.
+ * No toca 'no_aplica' (esa es una decisión permanente, no ligada a un periodo).
+ * Se llama de forma perezosa cada vez que se carga el mapa de cumplimiento de ese cliente.
+ */
+export async function reiniciarObligacionesPeriodicas(clienteId: string): Promise<number> {
+  const hoy = new Date()
+
+  const candidatas = await queryAll(`
+    SELECT co.id AS obl_id, co.estado, co.updated_at, oc.periodicidad
+    FROM cliente_obligaciones co
+    JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
+    WHERE co.cliente_id = ?
+      AND co.estado IN ('cumplida','vencida')
+      AND oc.periodicidad IN (${PERIODICIDADES_RECURRENTES.map(() => '?').join(',')})
+  `, [clienteId, ...PERIODICIDADES_RECURRENTES])
+
+  let reiniciadas = 0
+  for (const c of candidatas as any[]) {
+    const limites = limitesPeriodoActual(c.periodicidad, hoy)
+    if (!limites) continue
+
+    const actualizadoStr = String(c.updated_at).slice(0, 10)
+    if (actualizadoStr >= limites.inicio) continue // ya se actualizó dentro del periodo actual
+
+    await execute(
+      `UPDATE cliente_obligaciones SET estado = 'pendiente', updated_at = datetime('now') WHERE id = ?`,
+      [c.obl_id]
+    )
+    await execute(
+      `INSERT INTO audit_log (id, user_id, user_email, accion, entidad, entidad_id, detalle)
+       VALUES (?, 'system', 'sistema@owlcompliance.co', 'periodo_reiniciado', 'obligacion', ?, ?)`,
+      [crypto.randomUUID(), c.obl_id, JSON.stringify({ estadoAnterior: c.estado, periodicidad: c.periodicidad, inicioPeriodo: limites.inicio })]
+    )
+    reiniciadas++
+  }
+  return reiniciadas
+}
 
 export interface ClienteInput {
   razon_social: string

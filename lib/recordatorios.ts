@@ -1,6 +1,7 @@
 import { queryAll, execute } from './db'
 import { generarVencimientos } from './fechas'
 import { enviarEmail, templateRecordatorio } from './email'
+import { reiniciarObligacionesPeriodicas } from './clientes'
 import crypto from 'crypto'
 
 export const UMBRALES_DIAS = [10, 5, 2, 0, -1]
@@ -20,6 +21,11 @@ export async function ejecutarRecordatorios(): Promise<ResultadoRecordatorio> {
   )
 
   for (const cliente of clientes) {
+    // Asegura que el mapa de cumplimiento de este cliente esté al día antes de
+    // revisar vencimientos — así el recordatorio no depende de que alguien
+    // haya abierto el mapa desde que empezó el periodo actual.
+    await reiniciarObligacionesPeriodicas((cliente as any).id)
+
     const obligaciones = await queryAll(
       `SELECT co.id AS obl_id, co.estado, oc.sub_titulo, oc.obligacion, oc.aspecto, oc.periodicidad
        FROM cliente_obligaciones co
