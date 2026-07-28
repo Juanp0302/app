@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getUserFromRequest } from '@/lib/auth-any'
-import { queryOne, queryAll, execute } from '@/lib/db'
+import { queryOne, queryAll, execute, db } from '@/lib/db'
 import crypto from 'crypto'
 import { hashPassword } from '@/lib/password'
 
@@ -9,6 +9,12 @@ async function requireAdmin() {
   const session = await auth()
   if (!session?.user) return null
   return (session.user as any).role === 'admin' ? (session.user as any) : null
+}
+
+async function requireSuperadmin() {
+  const session = await auth()
+  const user = session?.user as any
+  return user?.is_superadmin ? user : null
 }
 
 // GET admite sesión web o token móvil (para el selector de reasignación en la app).
@@ -81,5 +87,62 @@ export async function PATCH(req: NextRequest) {
       [nombre, email, id]
     )
   }
+  return NextResponse.json({ ok: true })
+}
+
+/**
+ * DELETE /api/admins?id=...
+ * Solo superadmin. Bloquea el borrado si el admin tiene contenido que
+ * autoró de verdad (documentos, mensajes, respuestas de ticket) — ahí
+ * la recomendación es desactivarlo, no borrarlo, para no perder historial.
+ */
+export async function DELETE(req: NextRequest) {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: 'Solo superadmin puede eliminar administradores' }, { status: 403 })
+
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
+  if (id === user.id) return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta' }, { status: 400 })
+
+  const admin = await queryOne(`SELECT id FROM users WHERE id = ? AND rol = 'admin'`, [id])
+  if (!admin) return NextResponse.json({ error: 'Administrador no encontrado' }, { status: 404 })
+
+  const [docs, mensajes, respuestas] = await Promise.all([
+    queryOne('SELECT id FROM documentos WHERE uploaded_by = ?', [id]),
+    queryOne('SELECT id FROM mensajes WHERE user_id = ?', [id]),
+    queryOne('SELECT id FROM ticket_respuestas WHERE user_id = ?', [id]),
+  ])
+  if (docs || mensajes || respuestas) {
+    return NextResponse.json({
+      error: 'Este administrador tiene documentos, mensajes o respuestas registradas. No se puede eliminar sin perder ese historial — desactívalo en su lugar.',
+    }, { status: 409 })
+  }
+
+  try {
+    await db.batch([
+      { sql: `UPDATE tickets SET admin_id = NULL WHERE admin_id = ?`, args: [id] },
+      { sql: `UPDATE conversaciones SET admin_id = NULL WHERE admin_id = ?`, args: [id] },
+      { sql: `DELETE FROM admin_especialidades WHERE user_id = ?`, args: [id] },
+      { sql: `DELETE FROM push_tokens WHERE user_id = ?`, args: [id] },
+      { sql: `DELETE FROM reasignaciones WHERE user_id = ? OR de_admin_id = ? OR a_admin_id = ?`, args: [id, id, id] },
+      { sql: `DELETE FROM users WHERE id = ?`, args: [id] },
+    ], 'write')
+
+    // Sacarlo de las reglas de asignación automática (admin_ids es un JSON array en texto)
+    const reglas = await queryAll('SELECT tipo, especialidad, admin_ids FROM asignacion_config') as any[]
+    for (const r of reglas) {
+      const ids = JSON.parse(r.admin_ids || '[]') as string[]
+      if (ids.includes(id)) {
+        await execute(
+          `UPDATE asignacion_config SET admin_ids = ? WHERE tipo = ? AND especialidad = ?`,
+          [JSON.stringify(ids.filter(x => x !== id)), r.tipo, r.especialidad]
+        )
+      }
+    }
+  } catch (e: any) {
+    console.error('[DELETE /api/admins] Error:', e)
+    return NextResponse.json({ error: 'Error al eliminar: ' + (e?.message ?? 'ver logs del servidor') }, { status: 500 })
+  }
+
   return NextResponse.json({ ok: true })
 }

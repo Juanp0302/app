@@ -100,6 +100,16 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
     cargar()
   }
 
+  async function eliminarAdmin(admin: Admin) {
+    if (!window.confirm(`¿Eliminar permanentemente a ${admin.nombre}? Esta acción no se puede deshacer.`)) return
+    try {
+      const res = await fetch(`/api/admins?id=${admin.id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error ?? 'Error al eliminar'); return }
+      cargar()
+    } catch { alert('Error al eliminar') }
+  }
+
   async function toggleEspecialidad(adminId: string, tipo: string) {
     const tiene = especialidades.some(e => e.user_id === adminId && e.tipo === tipo)
     await fetch('/api/admins/especialidades', {
@@ -160,6 +170,11 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
                     {a.id !== currentUserId && (
                       <button onClick={() => toggleActivo(a)} style={btn(a.activo ? '#fee2e2' : '#dcfce7', a.activo ? '#dc2626' : '#16a34a')}>
                         {a.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    )}
+                    {a.id !== currentUserId && (
+                      <button onClick={() => eliminarAdmin(a)} style={btn('#fff0f0', '#b91c1c')}>
+                        Eliminar
                       </button>
                     )}
                   </div>
