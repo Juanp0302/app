@@ -87,6 +87,13 @@ Cliente HTTP + servicio de dominio completo:
 - `lib/clientes.ts` — nueva `crearCuentaClienteAutomatica()`, extraída del `POST /api/clientes` (que ahora la reutiliza); mejora: hashea con bcrypt directo en vez del SHA-256 legado.
 - `clientes.suscripcion_externa_id` guarda el `subscription_id` de Trazo; `suscripcion_vencimiento` se actualiza con `billing.next_charge_date` del webhook.
 
+### Deploy roto por nodemailer@9 (2026-07-30) — corregido
+
+Al agregar las variables `TRAZO_*` en Render y redeployar, el build falló en `npm install` (Docker, `RUN npm install` sin `--force`/`--legacy-peer-deps`):
+`next-auth@5.0.0-beta.32` exige `nodemailer@"^7.0.7 || ^8.0.5"` como peer opcional, pero el arreglo de vulnerabilidades del `npm audit fix --force` anterior había subido `nodemailer` a `^9.0.3` — localmente se instaló con `--force` (tolera el ERESOLVE), pero el `Dockerfile` de Render no usa `--force`, así que un `npm install` limpio lo rechaza.
+
+Fix: bajar `nodemailer` a `^8.0.11` (dentro del rango que acepta next-auth). Se verificó que `8.0.11` deja **una sola** vulnerabilidad alta sin resolver (`GHSA-p6gq-j5cr-w38f`, explotable solo si se usa la opción `raw` de `sendMail()` — no se usa en ningún lado del código, así que no aplica en la práctica). Se regeneró `package-lock.json` desde cero (`rm -rf node_modules package-lock.json && npm install`, sin `--force`) para confirmar que un install limpio (igual al de Render) ya no falla. Verificado con `tsc --noEmit`, los 14 tests de Vitest, y `npm run build` completo — todo limpio. `npm audit` vuelve a mostrar 6 altas (subió de 3): la de Auth.js/nodemailer transitivo reaparece, más las 3 de postcss/sharp (bundladas dentro de next@16.2.12, sin fix real disponible — ver más abajo). Se prioriza que el deploy funcione sobre el conteo de `npm audit`.
+
 ### Prueba contra sandbox (2026-07-30) — bloqueada por credenciales
 
 El usuario recibió credenciales de sandbox (auth_key + base_url `https://api.qentaz.com/v1/merchant`). Están configuradas en el `.env.local` local del proyecto (`TRAZO_BASE_URL`, `TRAZO_AUTH_KEY`, `TRAZO_MERCHANT_ID=1053824988`) — el `.env.local` está en `.gitignore`, no se sube al repo.
