@@ -20,6 +20,7 @@ import {
   migrateContrato,
   crearCuentaCobro,
 } from '@/lib/contrato-db'
+import { trazoConfigurado, crearSuscripcionTrazoParaContrato } from '@/lib/trazo-flujo'
 
 function getIP(req: NextRequest): string {
   return (
@@ -40,6 +41,7 @@ async function enviarCorreo(opts: {
   cliente:      string
   fechaFmt:     string
   numeroCuenta: string | null
+  enlacePago:   string | null
   adjuntos:     Array<{ filename: string; content: Buffer }>
 }): Promise<void> {
   const gmailUser = process.env.GMAIL_USER
@@ -67,6 +69,11 @@ async function enviarCorreo(opts: {
     ? `<p>Incluimos también tu <strong>cuenta de cobro No. ${opts.numeroCuenta}</strong> con el enlace de pago a través de Trazo (trazo.co).</p>`
     : ''
 
+  const pagoTexto = opts.enlacePago
+    ? `<p style="margin:24px 0;"><a href="${opts.enlacePago}" style="background:#712529;color:#ffffff;padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:bold;">Activar mi suscripción — pagar ahora</a></p>
+       <p style="font-size:13px;color:#555;">Al vincular tu medio de pago se realizará el primer cobro y tu cuenta quedará activa automáticamente.</p>`
+    : ''
+
   const htmlCliente = `
     <div style="font-family:Arial,sans-serif;max-width:600px;color:#1a1a1a;">
       <img src="https://owlcompliance.onrender.com/buho.png" width="120" style="margin-bottom:16px;"/>
@@ -76,6 +83,7 @@ async function enviarCorreo(opts: {
       <p>Adjuntamos a este correo:</p>
       ${listaDocs}
       ${cuentaTexto}
+      ${pagoTexto}
       <p>Guarda estos documentos para tu archivo. Tu suscripción quedará activa una vez se procese el primer pago a través de Trazo (trazo.co).</p>
       <p>Para cualquier duda escríbenos a <a href="mailto:contacto@owlcompliance.com">contacto@owlcompliance.com</a> o al +57 301 795 4547.</p>
       <br/><p>Atentamente,<br/><strong>Juan Pablo Osorio Marín</strong><br/>Owl Compliance</p>
@@ -204,6 +212,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Crear Plan + Suscripción en Trazo ───────────────────────────────────────
+  // Si las credenciales no están configuradas (o Trazo falla), el flujo sigue
+  // como antes: contrato por correo y activación manual del pago.
+  let enlacePago: string | null = null
+  if (trazoConfigurado()) {
+    try {
+      const trazo = await crearSuscripcionTrazoParaContrato({
+        plan: planKey,
+        nombreCliente,
+        tipoIdentificacion,
+        numeroIdentificacion,
+        email,
+        contratoDatos: datosContrato,
+      })
+      enlacePago = trazo.subscriptionUrl
+    } catch (e: any) {
+      console.error('[contrato/publico] Error creando suscripción en Trazo:', e)
+    }
+  }
+
   // ── Enviar correo por SMTP ──────────────────────────────────────────────────
   try {
     await enviarCorreo({
@@ -212,6 +240,7 @@ export async function POST(req: NextRequest) {
       cliente:      nombreCliente,
       fechaFmt,
       numeroCuenta,
+      enlacePago,
       adjuntos:     adjuntosEmail,
     })
   } catch (e: any) {
@@ -225,5 +254,5 @@ export async function POST(req: NextRequest) {
     adjuntos: adjuntosEmail,
   }).catch(e => console.error('[contrato/publico] Error Drive:', e))
 
-  return NextResponse.json({ ok: true, numeroCuenta: numeroCuenta ?? null })
+  return NextResponse.json({ ok: true, numeroCuenta: numeroCuenta ?? null, enlacePago })
 }

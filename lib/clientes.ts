@@ -90,6 +90,61 @@ export async function crearCliente(input: ClienteInput) {
   return { userId, clienteId }
 }
 
+export interface CuentaAutomaticaInput {
+  razon_social: string
+  nit?:          string
+  contacto?:     string
+  email?:        string
+  telefono?:     string
+  user_email:    string
+  user_nombre:   string
+  plan:          string      // basico | pro | premium | trial
+  suscripcion_vencimiento?: string | null
+  suscripcion_externa_id?:  string | null   // subscription_id de Trazo, si aplica
+}
+
+/**
+ * Crea la cuenta completa de un cliente con el flujo de onboarding automático:
+ * contraseña temporal (parte del correo antes de la @), cambio obligatorio en
+ * el primer login, sin servicios (los elige el cliente al entrar) y correo de
+ * bienvenida con las credenciales. Usada por POST /api/clientes (creación
+ * manual del admin) y por el webhook de Trazo (activación de suscripción).
+ *
+ * Lanza Error si el email ya está registrado.
+ */
+export async function crearCuentaClienteAutomatica(input: CuentaAutomaticaInput) {
+  const existe = await queryOne('SELECT id FROM users WHERE email = ?', [input.user_email])
+  if (existe) throw new Error('El email ya está registrado')
+
+  const { migrateMustChangePassword } = await import('./password')
+  await migrateMustChangePassword()
+
+  const passwordTemporal = String(input.user_email).split('@')[0]
+  const userId    = crypto.randomUUID()
+  const clienteId = crypto.randomUUID()
+
+  await db.batch([
+    { sql: `INSERT INTO users (id, email, password, nombre, rol, must_change_password) VALUES (?,?,?,?,'cliente',1)`,
+      args: [userId, input.user_email, await hashPassword(passwordTemporal), input.user_nombre] },
+    { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono, plan, suscripcion_estado, suscripcion_inicio, suscripcion_vencimiento, suscripcion_externa_id)
+            VALUES (?,?,?,?,?,?,?,?,'activa',datetime('now'),?,?)`,
+      args: [clienteId, userId, input.razon_social, input.nit ?? null, input.contacto ?? null,
+             input.email ?? null, input.telefono ?? null, input.plan,
+             input.suscripcion_vencimiento ?? null, input.suscripcion_externa_id ?? null] },
+  ], 'write')
+
+  const { notificarBienvenida } = await import('./notificaciones')
+  notificarBienvenida({
+    clienteEmail:  input.user_email,
+    clienteNombre: input.user_nombre,
+    password:      passwordTemporal,
+    plan:          input.plan,
+    fecha:         new Date().toISOString(),
+  }).catch(e => console.error('[crearCuentaClienteAutomatica] Error enviando bienvenida:', e))
+
+  return { userId, clienteId, passwordTemporal }
+}
+
 export async function asignarServicio(clienteId: string, servicioSlug: string) {
   const stmts: { sql: string; args: any[] }[] = [
     { sql: `INSERT OR IGNORE INTO cliente_servicios (id, cliente_id, servicio) VALUES (?, ?, ?)`,

@@ -78,6 +78,7 @@ export default function SuscribirseContratoClient() {
   const [error,     setError]     = useState('')
   const [aceptado,  setAceptado]  = useState(false)
   const [enviado,   setEnviado]   = useState(false)
+  const [enlacePago, setEnlacePago] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     email:                '',
@@ -124,6 +125,7 @@ export default function SuscribirseContratoClient() {
         return
       }
 
+      setEnlacePago(dataContrato.enlacePago ?? null)
       setEnviado(true)
       setCargando(false)
     } catch {
@@ -158,6 +160,20 @@ export default function SuscribirseContratoClient() {
               Enviamos el contrato y los términos y condiciones a <strong style={{ color: C.marfil }}>{form.email}</strong>,
               junto con el enlace de pago de Trazo (trazo.co) para activar tu acceso a la plataforma.
             </p>
+            {enlacePago && (
+              <>
+                <a href={enlacePago}
+                  style={{ display: 'inline-block', marginTop: '1.6rem', background: C.olivo, color: C.vino,
+                    borderRadius: '8px', padding: '0.85rem 2rem', fontWeight: 700, fontSize: '0.78rem',
+                    letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
+                  Pagar y activar mi suscripción →
+                </a>
+                <p style={{ fontSize: '0.72rem', color: 'rgba(231,223,202,0.45)', marginTop: '0.9rem', lineHeight: 1.6 }}>
+                  Al vincular tu medio de pago se realiza el primer cobro y tu cuenta se crea automáticamente —
+                  recibirás tus credenciales de acceso por correo.
+                </p>
+              </>
+            )}
           </div>
         ) : (
         <>

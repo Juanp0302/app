@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
-import SuscribirseClient from './SuscribirseClient'
+import SuscribirseContratoClient from './SuscribirseContratoClient'
 
 export default function SuscribirsePage() {
   return (
     <Suspense>
-      <SuscribirseClient />
+      <SuscribirseContratoClient />
     </Suspense>
   )
 }

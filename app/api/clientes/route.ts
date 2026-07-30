@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
 import { migrateSuscripcion } from '@/lib/suscripcion'
-import { notificarBienvenida } from '@/lib/notificaciones'
 import { migrateMustChangePassword } from '@/lib/password'
+import { crearCuentaClienteAutomatica } from '@/lib/clientes'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -106,38 +106,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
-  const planFinal        = plan || 'trial'
-  const vencimientoFinal = suscripcion_vencimiento || null
-
-  const existe = await queryOne('SELECT id FROM users WHERE email = ?', [user_email])
-  if (existe) return NextResponse.json({ error: 'El email ya está registrado' }, { status: 409 })
-
-  await migrateMustChangePassword()
-
-  // Contraseña temporal: la parte del correo antes de la @
-  const passwordTemporal = String(user_email).split('@')[0]
-
-  const userId    = uuid()
-  const clienteId = uuid()
-
-  // Construir el batch de inserts
-  const stmts: { sql: string; args: any[] }[] = [
-    { sql: `INSERT INTO users (id, email, password, nombre, rol, must_change_password) VALUES (?,?,?,?,'cliente',1)`, args: [userId, user_email, hashPassword(passwordTemporal), user_nombre] },
-    { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono, plan, suscripcion_estado, suscripcion_vencimiento) VALUES (?,?,?,?,?,?,?,?,'activa',?)`, args: [clienteId, userId, razon_social, nit ?? null, contacto ?? null, email ?? null, telefono ?? null, planFinal, vencimientoFinal] },
-  ]
-
-  await db.batch(stmts, 'write')
-
-  notificarBienvenida({
-    clienteEmail:  user_email,
-    clienteNombre: user_nombre,
-    password:      passwordTemporal,
-    plan:          planFinal,
-    fecha:         new Date().toISOString(),
-  }).catch(e => console.error('[POST /api/clientes] Error enviando bienvenida:', e))
-
-  // Los servicios (y sus obligaciones) los elige el propio cliente en su primer login.
-  return NextResponse.json({ ok: true, clienteId }, { status: 201 })
+  try {
+    // Los servicios (y sus obligaciones) los elige el propio cliente en su primer login.
+    const { clienteId } = await crearCuentaClienteAutomatica({
+      razon_social, nit, contacto, email, telefono,
+      user_email, user_nombre,
+      plan: plan || 'trial',
+      suscripcion_vencimiento: suscripcion_vencimiento || null,
+    })
+    return NextResponse.json({ ok: true, clienteId }, { status: 201 })
+  } catch (e: any) {
+    if (e?.message === 'El email ya está registrado') {
+      return NextResponse.json({ error: e.message }, { status: 409 })
+    }
+    console.error('[POST /api/clientes] Error creando cuenta:', e)
+    return NextResponse.json({ error: 'Error al crear la cuenta' }, { status: 500 })
+  }
 }
 
 export async function PATCH(req: NextRequest) {

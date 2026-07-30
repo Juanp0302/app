@@ -1,6 +1,6 @@
 # Integración de Pagos — Trazo (Qentaz), módulo Planes y Suscripciones
 
-Estado: **en pausa, esperando respuesta de soporte de Trazo.** Este documento existe para retomar el trabajo sin perder contexto.
+Estado: **soporte de Trazo ya respondió (2026-07-30) — ver sección 4bis. En construcción.** Este documento existe para retomar el trabajo sin perder contexto.
 
 ## 1. Origen y objetivo
 
@@ -71,11 +71,38 @@ Cliente HTTP + servicio de dominio completo:
 - Reuso del token cacheado entre dos llamadas seguidas (no se vuelve a pedir).
 - Tras un 401, la siguiente llamada sí pide un token nuevo.
 
-### Lo que falta a propósito (no se ha tocado)
-- **Nada de UI.** El prompt original pedía explícitamente enfocarse solo en la capa de integración/servicio.
-- **Nada de variables de entorno reales** — `TRAZO_BASE_URL` y `TRAZO_AUTH_KEY` no están seteadas todavía en Render (se necesitan cuando haya credenciales reales).
-- **Ningún endpoint propio** (`/api/trazo/...`) que use este servicio desde el flujo de suscripción del contrato — eso viene después, cuando se resuelvan las preguntas abiertas.
-- **Ningún webhook receptor.**
+### Flujo completo construido (2026-07-30, tras las respuestas de soporte)
+
+**Decisiones de negocio tomadas por el usuario (resuelven la sección 5):**
+- **#7 Renovación:** automática. Al llegar el webhook `fulfilled` se crea nuevo Plan + Suscripción y se le envía al cliente el enlace para re-vincular su medio de pago.
+- **#8 Día de cobro:** el del aniversario de cada cliente → **un Plan de Trazo por cliente**, `billing_day = día del mes de la firma` (tope 30), `initial_charge: true`, `total_charges: 12`, retry 3 intentos cada 2 días con `final_status: OVERDUE`.
+- **#9 Al activarse:** creación de cuenta 100% automática (contraseña temporal = prefijo del correo, cambio obligatorio al primer login, elección de servicios por el cliente — flujo de onboarding que ya existía en la app).
+
+**Archivos del flujo:**
+- `lib/trazo-db.ts` — tabla `trazo_suscripciones`: una fila por suscripción creada en Trazo. Nace `pendiente` al firmar el contrato (aún sin cuenta), y el webhook la mueve: `activa` → (`vencida` | `cancelada` | `completada`). Guarda el JSON del formulario del contrato para poder crear la cuenta después y para las renovaciones.
+- `lib/trazo-flujo.ts` — `crearSuscripcionTrazoParaContrato()` (Plan individual + Suscripción + registro local) y `procesarWebhookTrazo()` (maneja `activated`/`overdue`/`canceled`/`fulfilled`; los eventos de cobros se aceptan y loguean sin acción). En `activated`: crea la cuenta con `crearCuentaClienteAutomatica()` (lib/clientes.ts) o, si el correo ya existe, reactiva el cliente existente. En `fulfilled`: renovación automática + correos al cliente y al superadmin.
+- `app/api/trazo/webhook/route.ts` — receptor. Valida `Authorization: Bearer {TRAZO_AUTH_KEY}` con comparación timing-safe. Responde 200 a eventos ignorados (evita tormentas de reintentos), 401 sin auth, 500 solo en errores reales.
+- `app/api/contrato/publico/route.ts` — al firmar el contrato, si `trazoConfigurado()`, crea Plan+Suscripción y: (a) el correo del contrato lleva el botón real "Activar mi suscripción — pagar ahora", (b) la respuesta incluye `enlacePago` y la pantalla de éxito (`SuscribirseContratoClient.tsx`) muestra el botón "Pagar y activar mi suscripción". Si Trazo no está configurado o falla, el flujo sigue exactamente como antes (degradación limpia).
+- `app/api/suscripcion/cancelar/route.ts` — ahora también cancela la suscripción en Trazo (si `clientes.suscripcion_externa_id` existe). Si Trazo falla, NO cancela localmente (quedaría cobrando sin acceso) y pide contactar al equipo.
+- `lib/clientes.ts` — nueva `crearCuentaClienteAutomatica()`, extraída del `POST /api/clientes` (que ahora la reutiliza); mejora: hashea con bcrypt directo en vez del SHA-256 legado.
+- `clientes.suscripcion_externa_id` guarda el `subscription_id` de Trazo; `suscripcion_vencimiento` se actualiza con `billing.next_charge_date` del webhook.
+
+### Prueba contra sandbox (2026-07-30) — bloqueada por credenciales
+
+El usuario recibió credenciales de sandbox (auth_key + base_url `https://api.qentaz.com/v1/merchant`). Están configuradas en el `.env.local` local del proyecto (`TRAZO_BASE_URL`, `TRAZO_AUTH_KEY`, `TRAZO_MERCHANT_ID=1053824988`) — el `.env.local` está en `.gitignore`, no se sube al repo.
+
+Resultado de la prueba: `GET /v1/merchant/token` responde **`401 Q001: "La autorización no se encuentra en el formato correcto o no está habilitada en el sistema de Trazo"`**. Se verificó que: (a) la llave viaja byte-exacta, (b) el formato `Authorization: Bearer {auth_key}` es el documentado, (c) ese endpoint es el correcto (es el único que responde JSON de error estilo Trazo; no existen hosts sandbox separados — `sandbox.qentaz.com` etc. no resuelven DNS). Conclusión: **falta que Trazo habilite la llave sandbox de su lado**. Pendiente: el usuario le pregunta a su contacto de Trazo.
+
+Cuando la habiliten, la prueba es: obtener token → crear plan de prueba → crear suscripción → simular webhook → cancelar/limpiar. Después de validar en sandbox, cambiar las variables en Render a las credenciales de producción.
+
+### Lista de espera eliminada (2026-07-30)
+
+`/suscribirse` mostraba una pantalla de lista de espera (`SuscribirseClient.tsx`, "Suscripciones · Próximamente") porque la página nunca conectó el flujo de contrato. Por decisión del usuario se eliminó la lista de espera (`git rm`; recuperable del historial) y `app/suscribirse/page.tsx` ahora renderiza `SuscribirseContratoClient` directamente: datos → contrato → firma → pago. Mientras las variables `TRAZO_*` no estén en Render, el flujo degrada limpio (contrato por correo sin botón de pago, activación manual); al configurarlas, el pago se enciende solo — `trazoConfigurado()` se evalúa en tiempo de ejecución, sin redeploy. El endpoint `/api/waitlist` sigue existiendo (lo usa la web estática) pero la app ya no lo referencia.
+
+### Pendiente para poner en producción
+1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
+2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).
+3. Probar en el ambiente que Trazo indique (¿sandbox?) el ciclo completo: firma → enlace → vinculación → webhook activated → cuenta creada.
 
 ## 4. Preguntas abiertas para soporte de Trazo/Qentaz
 
@@ -87,6 +114,53 @@ Se revisó `https://docs.qentaz.com/llms.txt` (índice completo del sitio, no so
 4. **¿Qué pasa con las suscripciones activas si se cancela el Plan del que dependen?** La doc de "Cancelar Plan" dice literalmente que no lo especifica: solo dice que "deja de estar disponible para nuevas suscripciones". Esto importa para el flujo de cambio de plan (ej. cliente pasa de Básico a Pro).
 5. **Estados posibles de una Suscripción**: la doc de "Consultar Suscripción" solo documenta `"active"` como valor de `status`; no lista qué otros estados existen (¿`overdue`? ¿`canceled`? ¿`paused`?).
 6. **`base_url` real de producción** — toda la documentación usa el placeholder `{{base_url}}`, nunca resuelve cuál es la URL real (ej. `https://api.trazo.co/v1` es una suposición, no está confirmado).
+
+## 4bis. Respuestas de soporte de Trazo (recibidas 2026-07-30)
+
+Soporte respondió las preguntas de la sección 4. Resumen literal de lo que aplica:
+
+1. **Sí hay webhooks, en dos flujos separados:**
+   - **Eventos de suscripciones** (`https://docs.qentaz.com/documentation/webhooks/eventos-de-suscripciones`): se disparan cuando la suscripción cambia de estado — `activated`, `overdue`, `canceled`, `fulfilled`. El `overdue` llega solo apenas se agotan los reintentos del Plan; no hace falta polling. **Ojo:** el evento de activación se dispara cuando el cliente termina de vincular el medio de pago, *sin importar cómo salga el primer cobro* — puede llegar la activación e inmediatamente un cobro fallido.
+   - **Eventos de cobros** (`eventos-de-cobros`): cada intento de cobro (SUCCESS, FAILED, BLOCKED, etc.) llega en el momento en que se ejecuta.
+   - En ambos flujos se puede elegir qué eventos enviar — se le dice a Trazo cuáles y ellos los activan.
+
+2. **Configuración de la URL del webhook:** la URL global del comercio la configura Trazo desde su lado (se les comparte la URL y opcionalmente un header personalizado). Además existe el campo `custom_webhook` al crear un Plan o un Cobro, para URLs distintas por plan/cobro. Los eventos de suscripción salen al `custom_webhook` del Plan; si el Plan no lo tiene, a la URL global del comercio.
+
+3. **Autenticación del webhook:** el esquema `client_id`/`client_secret` de la doc es legado. Hoy **todos los webhooks llegan con `Authorization: Bearer {auth_key}`** — el mismo auth key de las credenciales. Si se configura un header personalizado, lo agregan también al evento.
+
+4. **Cancelar un Plan NO cancela sus suscripciones:** las vigentes se mantienen hasta cumplir sus términos. Para dejar de cobrar hay que cancelar cada suscripción individualmente.
+
+5. **Estados de una Suscripción (5):** `PENDING` (creada, esperando vinculación del medio de pago — estado transitorio, NO dispara webhook), `ACTIVE` (medio de pago vinculado y operando; puede tener cobros fallidos en curso sin dejar de estar activa), `OVERDUE` (reintentos agotados con `status_after_retry = OVERDUE`), `CANCELED` (reintentos agotados con `status_after_retry = CANCELED`, o cancelación manual), `FULFILLED` (se alcanzó `total_charges`).
+
+6. **Credenciales:** el usuario ya las tiene (archivos aparte). El `base_url` real viene con las credenciales.
+
+### Payload del webhook de suscripciones (de la doc)
+
+```json
+{
+  "event": { "type": "subscription", "status": "activated|overdue|canceled|fulfilled" },
+  "created_at": "timestamp ISO",
+  "external_reference": "ID de suscripción",
+  "detail": {
+    "plan_id": "...", "subscription_id": "...",
+    "status": "ACTIVE|OVERDUE|CANCELED|FULFILLED",
+    "customer": { "id_number": "...", "email": "...", "phone": "...", "name": "..." },
+    "form_field_values": { },
+    "terms": { "currency": "...", "amount": 0, "description": "...", "frequency": "...", "total_charges": 0, "retry": { } },
+    "billing": { "charges_executed": 0, "charges_remaining": 0, "retries_used": 0, "next_charge_date": "..." },
+    "canceled_at": "timestamp o null",
+    "created_at": "timestamp"
+  }
+}
+```
+
+El evento `subscription.canceled` trae además `"reason": "retry_exhausted"` (automática) o `"reason": "manual"` (API/dashboard).
+
+Headers de todo webhook entrante: `Authorization: Bearer {auth_key}` + `Content-Type: application/json`.
+
+**Implicación clave para el diseño:** el estado `FULFILLED` + su webhook resuelven la decisión #7 (tope de 12 cobros) — al llegar `fulfilled` se puede crear automáticamente la suscripción de renovación.
+
+**Pendiente con Trazo cuando esté listo el receptor:** compartirles la URL del webhook (ej. `https://owlcompliance.onrender.com/api/trazo/webhook`) y decirles qué eventos activar.
 
 ## 5. Decisiones de negocio pendientes (nuestras, no de Trazo)
 
