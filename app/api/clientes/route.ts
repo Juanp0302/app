@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db, queryOne, queryAll, execute } from '@/lib/db'
 import { migrateSuscripcion } from '@/lib/suscripcion'
+import { notificarBienvenida } from '@/lib/notificaciones'
+import { migrateMustChangePassword } from '@/lib/password'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -98,9 +100,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { razon_social, nit, contacto, email, telefono, user_email, user_nombre, user_password, servicios, plan, suscripcion_vencimiento } = body
+  const { razon_social, nit, contacto, email, telefono, user_email, user_nombre, plan, suscripcion_vencimiento } = body
 
-  if (!razon_social || !user_email || !user_nombre || !user_password || !servicios?.length) {
+  if (!razon_social || !user_email || !user_nombre) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
@@ -110,27 +112,32 @@ export async function POST(req: NextRequest) {
   const existe = await queryOne('SELECT id FROM users WHERE email = ?', [user_email])
   if (existe) return NextResponse.json({ error: 'El email ya está registrado' }, { status: 409 })
 
+  await migrateMustChangePassword()
+
+  // Contraseña temporal: la parte del correo antes de la @
+  const passwordTemporal = String(user_email).split('@')[0]
+
   const userId    = uuid()
   const clienteId = uuid()
 
   // Construir el batch de inserts
   const stmts: { sql: string; args: any[] }[] = [
-    { sql: `INSERT INTO users (id, email, password, nombre, rol) VALUES (?,?,?,?,'cliente')`, args: [userId, user_email, hashPassword(user_password), user_nombre] },
+    { sql: `INSERT INTO users (id, email, password, nombre, rol, must_change_password) VALUES (?,?,?,?,'cliente',1)`, args: [userId, user_email, hashPassword(passwordTemporal), user_nombre] },
     { sql: `INSERT INTO clientes (id, user_id, razon_social, nit, contacto, email, telefono, plan, suscripcion_estado, suscripcion_vencimiento) VALUES (?,?,?,?,?,?,?,?,'activa',?)`, args: [clienteId, userId, razon_social, nit ?? null, contacto ?? null, email ?? null, telefono ?? null, planFinal, vencimientoFinal] },
   ]
 
-  let totalObl = 0
-  for (const slug of servicios) {
-    stmts.push({ sql: `INSERT OR IGNORE INTO cliente_servicios (id, cliente_id, servicio) VALUES (?,?,?)`, args: [uuid(), clienteId, slug] })
-    const subs = await queryAll('SELECT sub_id FROM obligaciones_catalogo WHERE servicio_slug = ?', [slug])
-    for (const s of subs as any[]) {
-      stmts.push({ sql: `INSERT OR IGNORE INTO cliente_obligaciones (id, cliente_id, catalogo_id, estado) VALUES (?,?,?,'pendiente')`, args: [uuid(), clienteId, s.sub_id] })
-      totalObl++
-    }
-  }
-
   await db.batch(stmts, 'write')
-  return NextResponse.json({ ok: true, clienteId, totalObl }, { status: 201 })
+
+  notificarBienvenida({
+    clienteEmail:  user_email,
+    clienteNombre: user_nombre,
+    password:      passwordTemporal,
+    plan:          planFinal,
+    fecha:         new Date().toISOString(),
+  }).catch(e => console.error('[POST /api/clientes] Error enviando bienvenida:', e))
+
+  // Los servicios (y sus obligaciones) los elige el propio cliente en su primer login.
+  return NextResponse.json({ ok: true, clienteId }, { status: 201 })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -163,7 +170,11 @@ export async function PATCH(req: NextRequest) {
         const vals: any[]    = []
         if (user_nombre)   { sets.push('nombre = ?');   vals.push(user_nombre) }
         if (user_email)    { sets.push('email = ?');    vals.push(user_email) }
-        if (user_password) { sets.push('password = ?'); vals.push(hashPassword(user_password)) }
+        if (user_password) {
+          await migrateMustChangePassword()
+          sets.push('password = ?', 'must_change_password = 1')
+          vals.push(hashPassword(user_password))
+        }
         if (sets.length)
           await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...vals, userId])
       }
@@ -222,6 +233,34 @@ export async function PATCH(req: NextRequest) {
     ]
     await db.batch(stmts, 'write')
     return NextResponse.json({ ok: true, nuevasObligaciones: subs.length })
+  }
+
+  if (body.quitar_servicio) {
+    const slug = body.quitar_servicio
+    const subs = await queryAll('SELECT sub_id FROM obligaciones_catalogo WHERE servicio_slug = ?', [slug]) as any[]
+    const subIds = subs.map(s => s.sub_id)
+
+    const obligIds = subIds.length
+      ? (await queryAll(
+          `SELECT id FROM cliente_obligaciones WHERE cliente_id = ? AND catalogo_id IN (${subIds.map(() => '?').join(',')})`,
+          [clienteId, ...subIds]
+        ) as any[]).map(o => o.id)
+      : []
+
+    const stmts: { sql: string; args: any[] }[] = [
+      { sql: `DELETE FROM cliente_servicios WHERE cliente_id = ? AND servicio = ?`, args: [clienteId, slug] },
+    ]
+    if (obligIds.length) {
+      const ph = obligIds.map(() => '?').join(',')
+      // documentos y recordatorios dependen de cliente_obligaciones (FK) — limpiar antes de borrarla
+      stmts.push(
+        { sql: `UPDATE documentos SET cliente_obl_id = NULL WHERE cliente_obl_id IN (${ph})`, args: obligIds },
+        { sql: `DELETE FROM recordatorios WHERE cliente_obl_id IN (${ph})`, args: obligIds },
+        { sql: `DELETE FROM cliente_obligaciones WHERE id IN (${ph})`, args: obligIds },
+      )
+    }
+    await db.batch(stmts, 'write')
+    return NextResponse.json({ ok: true, obligacionesEliminadas: obligIds.length })
   }
 
   return NextResponse.json({ ok: true })

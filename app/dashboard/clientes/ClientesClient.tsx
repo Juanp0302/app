@@ -13,15 +13,6 @@ const CATEGORIAS_SERVICIO: Record<string, string> = {
   'OTROS SERVICIOS DE TELECOMUNICACIONES': 'Otros',
 }
 
-// Agrupar servicios por categoría según prefijos conocidos
-function categorizarServicio(nombre: string): string {
-  const n = nombre.toLowerCase()
-  if (n.includes('sva') || n.includes('iptv') || n.includes('isp')) return 'SVA'
-  if (n.includes('móvil') || n.includes('movil') || n.includes('celular') || n.includes('pcs')) return 'Móvil'
-  if (n.includes('tpbc') || n.includes('fijo') || n.includes('comunitario')) return 'Fija'
-  return 'Otros'
-}
-
 function pctColor(pct: number) {
   if (pct >= 80) return '#16a34a'
   if (pct >= 50) return '#968622'
@@ -74,8 +65,7 @@ function formatHoras(h: number | null | undefined): string {
 
 const SERVICIO_FORM_INIT = {
   razon_social: '', nit: '', contacto: '', email: '', telefono: '',
-  user_email: '', user_nombre: '', user_password: '',
-  servicios: [] as string[],
+  user_email: '', user_nombre: '',
   plan: 'trial' as string,
   suscripcion_vencimiento: '',
 }
@@ -104,7 +94,6 @@ export default function ClientesClient({
   const [editError,   setEditError]   = useState('')
   const [admins,      setAdmins]      = useState<AdminSimple[]>([])
   const [asignandoRev, setAsignandoRev] = useState(false)
-  const [showPwd,     setShowPwd]     = useState(false)
   const [showEditPwd, setShowEditPwd] = useState(false)
 
   // ── Suscripción ──────────────────────────────────────────────────────────────
@@ -186,7 +175,6 @@ export default function ClientesClient({
 
   async function crearCliente(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.servicios.length) { setFormError('Selecciona al menos un servicio'); return }
     setSaving(true); setFormError('')
     try {
       const res = await fetch('/api/clientes', {
@@ -222,6 +210,22 @@ export default function ClientesClient({
     } finally {
       setAddingServ(false)
     }
+  }
+
+  async function quitarServicio(slug: string, nombre: string) {
+    if (!modalDetalle) return
+    if (!window.confirm(`¿Quitar "${nombre}"? Se eliminarán también las obligaciones y documentos asociados a ese servicio.`)) return
+    try {
+      const res = await fetch(`/api/clientes?id=${modalDetalle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quitar_servicio: slug }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error ?? 'Error'); return }
+      cargar()
+      setModalDetalle(null)
+    } catch { alert('Error al quitar el servicio') }
   }
 
   async function guardarLocalPath() {
@@ -435,23 +439,6 @@ export default function ClientesClient({
       setEditSaving(false)
     }
   }
-
-  function toggleServicio(slug: string) {
-    setForm(f => ({
-      ...f,
-      servicios: f.servicios.includes(slug)
-        ? f.servicios.filter(s => s !== slug)
-        : [...f.servicios, slug],
-    }))
-  }
-
-  // Agrupar servicios disponibles por categoría
-  const serviciosPorCat = serviciosDisponibles.reduce((acc, s) => {
-    const cat = categorizarServicio(s.servicio)
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(s)
-    return acc
-  }, {} as Record<string, typeof serviciosDisponibles>)
 
   return (
     <div style={{ minHeight:'100vh', background:C.vino, fontFamily:"'Josefin Sans', sans-serif", color:C.marfil }}>
@@ -810,6 +797,33 @@ export default function ClientesClient({
             </div>
           </div>
 
+          {/* Servicios actuales */}
+          <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
+            <div style={labelStyle}>Servicios actuales</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:'0.5rem', marginTop:'0.5rem' }}>
+              {modalDetalle.servicios.length === 0 && (
+                <span style={{ fontSize:'0.75rem', color:'rgba(231,223,202,0.4)', fontStyle:'italic' }}>El cliente aún no ha elegido ningún servicio.</span>
+              )}
+              {modalDetalle.servicios.map(slug => {
+                const info = serviciosDisponibles.find(s => s.servicio_slug === slug)
+                return (
+                  <span key={slug} style={{
+                    display:'flex', alignItems:'center', gap:'0.4rem', fontSize:'0.7rem', fontWeight:600,
+                    padding:'0.3rem 0.4rem 0.3rem 0.8rem', borderRadius:'20px',
+                    background:'rgba(150,134,34,0.15)', color:C.olivo, border:'1px solid rgba(150,134,34,0.3)',
+                  }}>
+                    {info?.servicio ?? slug}
+                    <button onClick={() => quitarServicio(slug, info?.servicio ?? slug)}
+                      title="Quitar servicio"
+                      style={{ background:'rgba(220,38,38,0.2)', color:'#f87171', border:'none', borderRadius:'50%', width:'18px', height:'18px', cursor:'pointer', fontSize:'0.7rem', lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      ×
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Agregar servicio */}
           <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.3rem', marginBottom:'1.5rem' }}>
             <div style={labelStyle}>Agregar nuevo servicio</div>
@@ -966,19 +980,10 @@ export default function ClientesClient({
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
                 <Field label="Nombre completo *" required value={form.user_nombre}   onChange={v => setForm(f => ({...f, user_nombre:v}))} />
                 <Field label="Email de acceso *" required type="email" value={form.user_email} onChange={v => setForm(f => ({...f, user_email:v}))} />
-                <div>
-                  <label style={labelStyle}>Contraseña *</label>
-                  <div style={{ position:'relative' }}>
-                    <input type={showPwd ? 'text' : 'password'} required value={form.user_password}
-                      onChange={e => setForm(f => ({...f, user_password:e.target.value}))}
-                      style={{ ...inputStyle, width:'100%', paddingRight:'2.5rem', boxSizing:'border-box' }} />
-                    <button type="button" onClick={() => setShowPwd(v => !v)}
-                      style={{ position:'absolute', right:'0.7rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', padding:0, color:'rgba(231,223,202,0.4)', fontSize:'1rem' }}>
-                      {showPwd ? '🙈' : '👁️'}
-                    </button>
-                  </div>
-                </div>
               </div>
+              <p style={{ fontSize:'0.75rem', color:'rgba(231,223,202,0.5)', marginTop:'0.6rem' }}>
+                La contraseña temporal se genera automáticamente (la parte del correo antes de la @) y se le envía al cliente por correo.
+              </p>
             </div>
 
             {/* Plan y vigencia */}
@@ -1008,27 +1013,9 @@ export default function ClientesClient({
               </div>
             </div>
 
-            <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', paddingTop:'1.2rem', marginBottom:'1.5rem' }}>
-              <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', color:C.olivo, marginBottom:'1rem' }}>
-                Servicios que presta *
-              </div>
-              {Object.entries(serviciosPorCat).map(([cat, servs]) => (
-                <div key={cat} style={{ marginBottom:'1rem' }}>
-                  <div style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.1em', color:'rgba(231,223,202,0.5)', textTransform:'uppercase', marginBottom:'0.5rem' }}>{cat}</div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'0.5rem' }}>
-                    {servs.map(s => {
-                      const sel = form.servicios.includes(s.servicio_slug)
-                      return (
-                        <button type="button" key={s.servicio_slug} onClick={() => toggleServicio(s.servicio_slug)}
-                          style={{ fontSize:'0.68rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', padding:'0.3rem 0.8rem', borderRadius:'20px', border:`1px solid ${sel ? C.olivo : 'rgba(150,134,34,0.2)'}`, background: sel ? 'rgba(150,134,34,0.2)' : 'transparent', color: sel ? C.olivo : 'rgba(231,223,202,0.5)', cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
-                          {sel ? '✓ ' : ''}{s.servicio}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p style={{ fontSize:'0.75rem', color:'rgba(231,223,202,0.5)', marginBottom:'1.5rem', lineHeight:1.5 }}>
+              El cliente elegirá qué servicios presta la primera vez que inicie sesión, y con eso se le cargarán automáticamente sus obligaciones. Podrás agregar o quitar servicios después desde su ficha.
+            </p>
 
             {formError && (
               <div style={{ background:'rgba(220,38,38,0.1)', border:'1px solid rgba(220,38,38,0.3)', borderRadius:'8px', padding:'0.7rem 1rem', fontSize:'0.8rem', color:'#f87171', marginBottom:'1rem' }}>

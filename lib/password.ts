@@ -14,6 +14,15 @@ import crypto from 'crypto'
 const BCRYPT_ROUNDS = 12
 const LEGACY_SALT   = 'owl_salt_2026'
 
+let _migratedMustChange = false
+/** Migración lazy: agrega la columna que marca si el usuario debe cambiar su contraseña. */
+export async function migrateMustChangePassword() {
+  if (_migratedMustChange) return
+  _migratedMustChange = true
+  const { execute } = await import('./db')
+  try { await execute(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`) } catch { /* ya existe */ }
+}
+
 /** Genera un hash bcrypt. Usar al crear o cambiar contraseñas. */
 export async function hashPassword(pwd: string): Promise<string> {
   return bcrypt.hash(pwd, BCRYPT_ROUNDS)

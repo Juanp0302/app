@@ -37,12 +37,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
         }
 
+        // Los clientes eligen sus propios servicios en el primer login — si
+        // todavía no tienen ninguno cargado, el middleware los manda a elegir.
+        let debeElegirServicios = false
+        if ((user as any).rol === 'cliente') {
+          const cliente = await queryOne('SELECT id FROM clientes WHERE user_id = ?', [(user as any).id])
+          if (cliente) {
+            const servicios = await queryAll('SELECT id FROM cliente_servicios WHERE cliente_id = ?', [(cliente as any).id])
+            debeElegirServicios = servicios.length === 0
+          }
+        }
+
         return {
-          id:            (user as any).id,
-          email:         (user as any).email,
-          name:          (user as any).nombre,
-          role:          (user as any).rol,
-          is_superadmin: (user as any).is_superadmin === 1,
+          id:                    (user as any).id,
+          email:                 (user as any).email,
+          name:                  (user as any).nombre,
+          role:                  (user as any).rol,
+          is_superadmin:         (user as any).is_superadmin === 1,
+          must_change_password:  (user as any).must_change_password === 1,
+          debe_elegir_servicios: debeElegirServicios,
         }
       },
     }),
