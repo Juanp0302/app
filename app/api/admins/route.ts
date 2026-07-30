@@ -92,9 +92,10 @@ export async function PATCH(req: NextRequest) {
 
 /**
  * DELETE /api/admins?id=...
- * Solo superadmin. Bloquea el borrado si el admin tiene contenido que
- * autoró de verdad (documentos, mensajes, respuestas de ticket) — ahí
- * la recomendación es desactivarlo, no borrarlo, para no perder historial.
+ * Solo superadmin. Todo lo que el admin tenía asignado o autoró (chats,
+ * tickets, documentos subidos, mensajes, respuestas) se le pasa al
+ * superadmin que ejecuta el borrado, para no perder historial ni dejar
+ * huérfano ningún caso.
  */
 export async function DELETE(req: NextRequest) {
   const user = await requireSuperadmin()
@@ -107,21 +108,18 @@ export async function DELETE(req: NextRequest) {
   const admin = await queryOne(`SELECT id FROM users WHERE id = ? AND rol = 'admin'`, [id])
   if (!admin) return NextResponse.json({ error: 'Administrador no encontrado' }, { status: 404 })
 
-  const [docs, mensajes, respuestas] = await Promise.all([
-    queryOne('SELECT id FROM documentos WHERE uploaded_by = ?', [id]),
-    queryOne('SELECT id FROM mensajes WHERE user_id = ?', [id]),
-    queryOne('SELECT id FROM ticket_respuestas WHERE user_id = ?', [id]),
-  ])
-  if (docs || mensajes || respuestas) {
-    return NextResponse.json({
-      error: 'Este administrador tiene documentos, mensajes o respuestas registradas. No se puede eliminar sin perder ese historial — desactívalo en su lugar.',
-    }, { status: 409 })
-  }
+  const superadminId = user.id
 
   try {
     await db.batch([
-      { sql: `UPDATE tickets SET admin_id = NULL WHERE admin_id = ?`, args: [id] },
-      { sql: `UPDATE conversaciones SET admin_id = NULL WHERE admin_id = ?`, args: [id] },
+      // Chats y tickets asignados → al superadmin
+      { sql: `UPDATE tickets SET admin_id = ? WHERE admin_id = ?`, args: [superadminId, id] },
+      { sql: `UPDATE conversaciones SET admin_id = ? WHERE admin_id = ?`, args: [superadminId, id] },
+      // Documentos, mensajes y respuestas que autoró → quedan registrados a nombre del superadmin
+      { sql: `UPDATE documentos SET uploaded_by = ? WHERE uploaded_by = ?`, args: [superadminId, id] },
+      { sql: `UPDATE mensajes SET user_id = ? WHERE user_id = ?`, args: [superadminId, id] },
+      { sql: `UPDATE ticket_respuestas SET user_id = ? WHERE user_id = ?`, args: [superadminId, id] },
+      { sql: `UPDATE documentos SET revisado_por = ? WHERE revisado_por = ?`, args: [superadminId, id] },
       { sql: `DELETE FROM admin_especialidades WHERE user_id = ?`, args: [id] },
       { sql: `DELETE FROM push_tokens WHERE user_id = ?`, args: [id] },
       { sql: `DELETE FROM reasignaciones WHERE user_id = ? OR de_admin_id = ? OR a_admin_id = ?`, args: [id, id, id] },

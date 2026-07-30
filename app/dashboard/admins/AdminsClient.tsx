@@ -101,7 +101,7 @@ export default function AdminsClient({ currentUserId }: { currentUserId: string 
   }
 
   async function eliminarAdmin(admin: Admin) {
-    if (!window.confirm(`¿Eliminar permanentemente a ${admin.nombre}? Esta acción no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar permanentemente a ${admin.nombre}? Sus chats, tickets y documentos pasarán a ti como superadmin. Esta acción no se puede deshacer.`)) return
     try {
       const res = await fetch(`/api/admins?id=${admin.id}`, { method: 'DELETE' })
       const json = await res.json()
