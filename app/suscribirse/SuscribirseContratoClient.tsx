@@ -125,7 +125,13 @@ export default function SuscribirseContratoClient() {
         return
       }
 
-      setEnlacePago(dataContrato.enlacePago ?? null)
+      if (dataContrato.enlacePago) {
+        // Ir directo a la pasarela de pago — no hace falta que el cliente haga clic en nada más
+        window.location.href = dataContrato.enlacePago
+        return
+      }
+
+      setEnlacePago(null)
       setEnviado(true)
       setCargando(false)
     } catch {
