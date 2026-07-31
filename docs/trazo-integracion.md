@@ -190,6 +190,24 @@ O sea, el problema #3 de la sección anterior **sí era nuestro**: `app/api/traz
 
 **Falta:** repetir la prueba para confirmar que el webhook ya se entrega con éxito (código 200) del lado de Trazo.
 
+### Webhook seguía en 401 — la doc de "Authorization: Bearer {auth_key}" era incorrecta (2026-07-31)
+
+Con el fix anterior desplegado, Trazo reintentó el webhook y **seguía en 401**. Se agregó un log de diagnóstico temporal que reveló la causa real: el header `Authorization` que llega en el webhook **no es el mismo `TRAZO_AUTH_KEY`** de la API — son dos secretos distintos, contradiciendo lo que soporte había dicho inicialmente ("el auth key va siempre en el header Authorization, el mismo de las credenciales").
+
+**Solución acordada con soporte:** dejar de usar `Authorization: Bearer` y en su lugar validar un **header personalizado** `owl-token`, con un secreto fijo que ellos generaron:
+```
+Header: owl-token
+Valor:  C61PV0Z2IN3T1QW2
+```
+
+`app/api/trazo/webhook/route.ts` se reescribió para validar `req.headers.get('owl-token')` contra la variable de entorno `TRAZO_WEBHOOK_TOKEN` (comparación `timingSafeEqual`, sin parsing de "Bearer"). Se quitó el log de diagnóstico temporal.
+
+**Confirmado funcionando:** Trazo reenvió manualmente el webhook `activated` de `AMF2E20D61` tras este cambio, y el receptor lo procesó con éxito — creó la cuenta (`jposoriomarin@gmail.com`, cliente nuevo porque las cuentas de prueba anteriores ya se habían borrado) y mandó el correo de bienvenida con las credenciales correctamente.
+
+**Pendiente:** falta confirmar que la entrega **automática** (sin que Trazo reenvíe a mano) también funcione con este nuevo esquema — probar con una firma de contrato real de punta a punta.
+
+**Variable de entorno nueva a agregar en Render:** `TRAZO_WEBHOOK_TOKEN=C61PV0Z2IN3T1QW2`.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

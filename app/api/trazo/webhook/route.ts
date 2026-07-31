@@ -2,9 +2,11 @@
  * POST /api/trazo/webhook
  * Receptor de eventos de Trazo (suscripciones y cobros).
  *
- * Autenticación: Trazo envía Authorization: Bearer {auth_key} — el mismo
- * TRAZO_AUTH_KEY de las credenciales (confirmado por soporte 2026-07-30;
- * el esquema client_id/client_secret de la doc es legado).
+ * Autenticación: header personalizado `owl-token` (acordado con soporte de
+ * Trazo el 2026-07-31, tras varios intentos fallidos con el esquema
+ * Authorization: Bearer {auth_key} que la doc describía — en la práctica el
+ * valor que llegaba en el webhook no coincidía con el auth_key de la API).
+ * El valor esperado vive en la variable de entorno TRAZO_WEBHOOK_TOKEN.
  *
  * Esta URL hay que compartírsela a soporte de Trazo para que la registren
  * como webhook global del comercio, junto con los eventos a activar
@@ -15,26 +17,14 @@ import crypto from 'crypto'
 import { procesarWebhookTrazo, type WebhookTrazo } from '@/lib/trazo-flujo'
 
 function autorizado(req: NextRequest): boolean {
-  const authKey = process.env.TRAZO_AUTH_KEY?.trim()
-  if (!authKey) return false
+  const esperado = process.env.TRAZO_WEBHOOK_TOKEN?.trim()
+  if (!esperado) return false
 
-  const header = (req.headers.get('authorization') ?? '').trim()
-
-  // DIAGNÓSTICO TEMPORAL — quitar una vez se resuelva el 401 con Trazo.
-  // No se expone el secreto completo, solo lo necesario para diagnosticar.
-  console.warn(`[trazo/webhook][diag] header presente: ${header.length > 0}, longitud: ${header.length}, primeros 15: ${JSON.stringify(header.slice(0, 15))}, empieza con "Bearer ": ${/^bearer\s/i.test(header)}`)
-
-  // Aceptar "Bearer {key}" sin importar mayúsculas/minúsculas en "Bearer" ni
-  // espacios extra — variaciones vistas en la práctica entre proveedores.
-  const match = header.match(/^bearer\s+(.+)$/i)
-  const recibido = (match?.[1] ?? header).trim()
+  const recibido = (req.headers.get('owl-token') ?? '').trim()
 
   const a = Buffer.from(recibido)
-  const b = Buffer.from(authKey)
-  if (a.length !== b.length) {
-    console.warn(`[trazo/webhook] Token con longitud distinta a la esperada (recibido: ${a.length}, esperado: ${b.length})`)
-    return false
-  }
+  const b = Buffer.from(esperado)
+  if (a.length !== b.length) return false
   return crypto.timingSafeEqual(a, b)
 }
 
