@@ -147,6 +147,18 @@ Corregido en `lib/trazo-flujo.ts`: `billing_day = hoy.getDate() === 31 ? 1 : hoy
 
 Trazo confirmó que el webhook global del comercio ya quedó configurado, pero pidieron enviar además `custom_webhook` al crear cada Plan (en vez de depender solo de la configuración global). Se agregó `custom_webhook: {APP_URL}/api/trazo/webhook` al body de `POST /plan` en `crearSuscripcionTrazoParaContrato()` (`lib/trazo-flujo.ts`), y el campo `custom_webhook?: string` al tipo `CrearPlanInput` (`lib/trazo.ts`).
 
+### Bug encontrado: doble barra en custom_webhook/return_url (2026-07-31) — corregido
+
+Segunda prueba real: el webhook seguía sin llegar (`trazo_suscripciones` quedó en `pendiente`). Al consultar el Plan creado (`GET /plan/{id}`), el `custom_webhook` guardado era:
+```
+https://owlcompliance.onrender.com//api/trazo/webhook
+```
+Doble barra antes de `api` — `NEXTAUTH_URL` en Render está guardada con `/` al final, y al concatenar `${APP_URL}/api/trazo/webhook` se duplicaba (mismo problema en `return_url`). Es la causa más probable de que Trazo no pudiera entregar el webhook (URL malformada). Corregido en `lib/trazo-flujo.ts`: `APP_URL` ahora se limpia con `.replace(/\/$/, '')` al leerse.
+
+**También se detectó un estado de suscripción no documentado:** la suscripción de esta prueba volvió con `status: "COMPLETED"` en `GET /subscription/{id}` — no es ninguno de los 5 estados documentados (`PENDING/ACTIVE/OVERDUE/CANCELED/FULFILLED`). Pendiente preguntarle a Trazo qué significa `COMPLETED` y si nuestro manejo de webhooks (`procesarWebhookTrazo`, que solo reconoce `activated/overdue/canceled/fulfilled`) necesita contemplarlo.
+
+**Falta repetir la prueba** con el `custom_webhook` ya bien formado para confirmar que el webhook por fin llega.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

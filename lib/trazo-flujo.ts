@@ -20,7 +20,7 @@ import { PLANES, type PlanKey } from './suscripcion'
 import { guardarSuscripcionTrazo, buscarSuscripcionTrazo, actualizarSuscripcionTrazo } from './trazo-db'
 import { queryOne, execute } from './db'
 
-const APP_URL = process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com'
+const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com').replace(/\/$/, '')
 
 /** true si las credenciales de Trazo están configuradas en el entorno. */
 export function trazoConfigurado(): boolean {
