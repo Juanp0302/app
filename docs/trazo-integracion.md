@@ -125,6 +125,18 @@ Tras dos rondas de bloqueos (llave sandbox no habilitada → habilitada; permiso
 1. Confirmar con Trazo que el webhook `https://owlcompliance.onrender.com/api/trazo/webhook` ya quedó registrado con los eventos de suscripciones.
 2. Repetir la prueba y verificar que el evento `activated` sí llegue y dispare la creación automática de la cuenta.
 
+## 4quater. Primera firma real en producción (2026-07-31) — webhook nunca llegó
+
+El usuario firmó un contrato real en `/suscribirse` (plan Básico), fue redirigido a `pago.trazo.co` y completó la vinculación del medio de pago. Resultado:
+
+- **La suscripción quedó `ACTIVE` en Trazo** (confirmado con `GET /subscription/{id}`: `payment_method` presente, `compliance.accepted_terms_at` registrado).
+- **El webhook `activated` nunca llegó a `/api/trazo/webhook`** — la fila en `trazo_suscripciones` se quedó en `estado: 'pendiente'`, `cliente_id: null`.
+- Se simuló manualmente el mismo payload que Trazo debería enviar, con `Authorization: Bearer {TRAZO_AUTH_KEY}` contra la URL de producción — **el receptor procesó todo correctamente**: creó la cuenta del cliente (`crearCuentaClienteAutomatica`), marcó la suscripción como `activa` con su `cliente_id`, y disparó `notificarBienvenida`. Esto confirma que **el bug no está de nuestro lado** — el receptor funciona perfecto; el problema es que Trazo no está llamando al webhook (probablemente aún no lo registraron para el evento `activated`, a pesar de que dijeron que sí).
+
+**Bug de bajo impacto encontrado en el camino:** `lib/trazo.ts`'s `baseUrl()` no anteponía `https://` si la variable de entorno se guardaba sin esquema — así fue como se guardó `TRAZO_BASE_URL` en Render (`api.qentaz.com/v1/merchant`, sin protocolo), causando `TypeError: Failed to parse URL`. Se corrigió con normalización defensiva (antepone `https://` automáticamente si falta) — commit `c3b738e`.
+
+**Siguiente paso con Trazo:** confirmarles con este caso concreto (`subscription_id: IF372CBC6K`, activada el 2026-07-31 ~16:20 UTC) que el webhook de `activated` no llegó a `https://owlcompliance.onrender.com/api/trazo/webhook`, y pedirles que verifiquen el registro/entrega de su lado.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).
