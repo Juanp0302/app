@@ -159,6 +159,24 @@ Doble barra antes de `api` — `NEXTAUTH_URL` en Render está guardada con `/` a
 
 **Falta repetir la prueba** con el `custom_webhook` ya bien formado para confirmar que el webhook por fin llega.
 
+### Corrección de billing_day: fijo en 1 para todos (2026-07-31)
+
+La hipótesis de que `billing_day` debía coincidir exacto con el día de la firma para que el cobro inicial se ejecutara el mismo día **era incorrecta**. Soporte de Trazo aclaró: el cobro inicial se ejecuta de inmediato al vincular el medio de pago **sin importar el valor de `billing_day`** — ese campo solo determina el día del ciclo mensual siguiente. Además confirmaron que la vinculación del medio de pago genera el evento de suscripción (`activated`) igual, sin depender de `billing_day`.
+
+Con esto se simplificó `lib/trazo-flujo.ts`: `billing_day` ahora es **fijo en `1`** para todos los clientes (ya no depende del día de la firma ni tiene el caso especial del día 31). El cobro inicial sigue ejecutándose de inmediato (`initial_charge: true`), y todos los cobros recurrentes caen el día 1 de cada mes.
+
+### Tercera prueba real (2026-07-31, `billing_day=1` + `custom_webhook` corregido) — 3 problemas nuevos, todos del lado de Trazo
+
+Con el código ya corregido (billing_day=1 fijo, custom_webhook sin doble barra), se probó de nuevo vinculando una tarjeta real en el checkout de sandbox. Resultado, con evidencia dura de la propia UI de Trazo y de su API:
+
+1. **El cobro inicial nunca se ejecuta.** La pantalla de checkout de Trazo mostró literalmente "Medio de pago vinculado — No se realizó ningún cobro hoy" y "Próximo cobro: 1 de sept de 2026". `GET /subscription/{id}` confirma `charges_executed: 0`. Esto contradice lo que soporte de Trazo había dicho ("el cobro inicial se ejecuta de inmediato... sin importar billing_day"). Ya no hay nada que ajustar de nuestro lado: `initial_charge: true` y `billing_day: 1` están enviados correctamente (verificado en `GET /plan/{id}`).
+2. **La suscripción llega a un estado `"COMPLETED"`** en `GET /subscription/{id}` — sigue sin ser ninguno de los 5 estados documentados.
+3. **El webhook sigue sin llegar**, aun con el `custom_webhook` ya perfectamente formado (`https://owlcompliance.onrender.com/api/trazo/webhook`, confirmado byte a byte en la respuesta de `GET /plan/{id}` — sin doble barra esta vez). La fila en `trazo_suscripciones` se quedó en `pendiente`.
+
+IDs de esta prueba para reportar a Trazo: `subscription_id: AMF2E20D61`, `plan_id: 6D0TQIH2E2H`.
+
+**Conclusión:** ya se agotaron los ajustes posibles de nuestro lado (billing_day, initial_charge, custom_webhook, formato de URL — todos verificados correctos vía API). Los 3 problemas que quedan son del backend de Trazo. Sin que ellos los resuelvan, no se puede completar la integración en sandbox.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

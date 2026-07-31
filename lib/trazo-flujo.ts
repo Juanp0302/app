@@ -2,9 +2,11 @@
  * lib/trazo-flujo.ts
  * Flujo de negocio de la pasarela Trazo para Owl Compliance.
  *
- * Modelo elegido (decisiones del 2026-07-30, ver docs/trazo-integracion.md):
- *  - Un Plan de Trazo POR CLIENTE, con billing_day = día del mes en que firmó
- *    (tope 30), initial_charge activado y total_charges = 12.
+ * Modelo elegido (decisiones del 2026-07-30, ajustado 2026-07-31, ver docs/trazo-integracion.md):
+ *  - Un Plan de Trazo POR CLIENTE, con billing_day = 1 fijo (el cobro inicial
+ *    se ejecuta de inmediato al vincular el medio de pago sin importar
+ *    billing_day; los cobros siguientes caen el día 1 de cada mes),
+ *    initial_charge activado y total_charges = 12.
  *  - Al llegar el webhook 'activated' se crea la cuenta completa del cliente
  *    (contraseña temporal + cambio obligatorio + elección de servicios).
  *  - Al llegar 'fulfilled' (se agotaron los 12 cobros) se renueva
@@ -58,10 +60,11 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
   if (!planInfo) throw new Error(`Plan inválido: ${datos.plan}`)
 
   const hoy = new Date()
-  // Trazo trata el día 31 internamente como "día 1 del mes siguiente" (confirmado
-  // por soporte 2026-07-31) — hay que mandar billing_day=1, no 30, para que el
-  // cobro inicial coincida con el día real de la firma y se ejecute de inmediato.
-  const billingDay = hoy.getDate() === 31 ? 1 : hoy.getDate()
+  // billing_day fijo en 1 para todos los clientes: Trazo confirmó (2026-07-31)
+  // que el cobro inicial se ejecuta de inmediato al vincular el medio de pago
+  // sin importar billing_day — ese campo solo define el día del ciclo mensual
+  // siguiente. Con esto todos los cobros recurrentes caen el día 1 de cada mes.
+  const billingDay = 1
   // La API exige expires_at aunque la doc lo marque opcional: límite para que
   // el cliente complete la vinculación del medio de pago (no la vigencia del plan).
   const expiraVinculacion = new Date(hoy)
