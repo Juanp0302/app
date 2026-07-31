@@ -161,7 +161,8 @@ export class TrazoValidationError extends Error {
 function baseUrl(): string {
   const url = process.env.TRAZO_BASE_URL
   if (!url) throw new Error('TRAZO_BASE_URL no está configurada')
-  return url.replace(/\/$/, '')
+  const conEsquema = /^https?:\/\//i.test(url) ? url : `https://${url}`
+  return conEsquema.replace(/\/$/, '')
 }
 
 function authKey(): string {
