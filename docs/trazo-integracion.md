@@ -177,6 +177,19 @@ IDs de esta prueba para reportar a Trazo: `subscription_id: AMF2E20D61`, `plan_i
 
 **Conclusión:** ya se agotaron los ajustes posibles de nuestro lado (billing_day, initial_charge, custom_webhook, formato de URL — todos verificados correctos vía API). Los 3 problemas que quedan son del backend de Trazo. Sin que ellos los resuelvan, no se puede completar la integración en sandbox.
 
+### Webhook rechazado con 401 (2026-07-31) — corregido de nuestro lado
+
+Trazo confirmó que **sí intentó entregar** el webhook `activated` para `AMF2E20D61`, y compartió la respuesta de su lado:
+```json
+{"status":"success","subscription_id":"AMF2E20D61","event":{"type":"subscription","status":"activated"},
+ "webhook":{"delivered":false,"attempts":1,"endpoint":"https://owlcompliance.onrender.com/api/trazo/webhook","error":"Request failed with status code 401"}}
+```
+O sea, el problema #3 de la sección anterior **sí era nuestro**: `app/api/trazo/webhook/route.ts` estaba rechazando la petición. Causa más probable: un espacio/salto de línea extra en `TRAZO_AUTH_KEY` guardado en Render (típico al copiar y pegar), rompiendo la comparación byte a byte con `crypto.timingSafeEqual`. Se corrigió `autorizado()` para: recortar espacios en el header y en la variable de entorno, aceptar "Bearer"/"bearer" indistintamente, y loguear (sin exponer el secreto) cuando las longitudes no calzan, para diagnosticar más rápido si vuelve a pasar.
+
+**Los otros 2 problemas (cobro inicial que no se ejecuta, estado `COMPLETED` no documentado) siguen siendo de Trazo** — no se tocaron con este fix.
+
+**Falta:** repetir la prueba para confirmar que el webhook ya se entrega con éxito (código 200) del lado de Trazo.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

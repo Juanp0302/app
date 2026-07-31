@@ -15,13 +15,22 @@ import crypto from 'crypto'
 import { procesarWebhookTrazo, type WebhookTrazo } from '@/lib/trazo-flujo'
 
 function autorizado(req: NextRequest): boolean {
-  const authKey = process.env.TRAZO_AUTH_KEY
+  const authKey = process.env.TRAZO_AUTH_KEY?.trim()
   if (!authKey) return false
-  const header = req.headers.get('authorization') ?? ''
-  const esperado = `Bearer ${authKey}`
-  const a = Buffer.from(header)
-  const b = Buffer.from(esperado)
-  return a.length === b.length && crypto.timingSafeEqual(a, b)
+
+  const header = (req.headers.get('authorization') ?? '').trim()
+  // Aceptar "Bearer {key}" sin importar mayúsculas/minúsculas en "Bearer" ni
+  // espacios extra — variaciones vistas en la práctica entre proveedores.
+  const match = header.match(/^bearer\s+(.+)$/i)
+  const recibido = (match?.[1] ?? '').trim()
+
+  const a = Buffer.from(recibido)
+  const b = Buffer.from(authKey)
+  if (a.length !== b.length) {
+    console.warn(`[trazo/webhook] Token con longitud distinta a la esperada (recibido: ${a.length}, esperado: ${b.length})`)
+    return false
+  }
+  return crypto.timingSafeEqual(a, b)
 }
 
 export async function POST(req: NextRequest) {
