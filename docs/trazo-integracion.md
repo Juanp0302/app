@@ -137,6 +137,16 @@ El usuario firmó un contrato real en `/suscribirse` (plan Básico), fue redirig
 
 **Siguiente paso con Trazo:** confirmarles con este caso concreto (`subscription_id: IF372CBC6K`, activada el 2026-07-31 ~16:20 UTC) que el webhook de `activated` no llegó a `https://owlcompliance.onrender.com/api/trazo/webhook`, y pedirles que verifiquen el registro/entrega de su lado.
 
+### Bug encontrado: cobro inicial no se ejecutaba el mismo día (2026-07-31) — corregido
+
+En la prueba real de la sección 4quater, el cobro inicial no se ejecutó el día de la firma (31 de julio) — `charges_executed` quedó en 0 y `next_charge_date` saltó a agosto. Causa: nuestro cálculo de `billing_day` era `Math.min(hoy.getDate(), 30)`, que para el día 31 mandaba `billing_day: 30`. Soporte de Trazo confirmó que **el día 31 se trata internamente como "día 1 del mes siguiente"**, no como "día 30" — al mandar 30 en vez de 1, quedaba desalineado con cómo Trazo procesa esa fecha, y el cobro inicial nunca calzó con el ciclo esperado.
+
+Corregido en `lib/trazo-flujo.ts`: `billing_day = hoy.getDate() === 31 ? 1 : hoy.getDate()`. Para cualquier otro día del mes (1-30) se manda tal cual, sin capar. **Falta volver a probar con una firma real** (o simulada con fecha 31) para confirmar que el cobro inicial ya se ejecuta el mismo día.
+
+### `custom_webhook` explícito por Plan (2026-07-31)
+
+Trazo confirmó que el webhook global del comercio ya quedó configurado, pero pidieron enviar además `custom_webhook` al crear cada Plan (en vez de depender solo de la configuración global). Se agregó `custom_webhook: {APP_URL}/api/trazo/webhook` al body de `POST /plan` en `crearSuscripcionTrazoParaContrato()` (`lib/trazo-flujo.ts`), y el campo `custom_webhook?: string` al tipo `CrearPlanInput` (`lib/trazo.ts`).
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

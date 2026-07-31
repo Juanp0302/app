@@ -58,7 +58,10 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
   if (!planInfo) throw new Error(`Plan inválido: ${datos.plan}`)
 
   const hoy = new Date()
-  const billingDay = Math.min(hoy.getDate(), 30)
+  // Trazo trata el día 31 internamente como "día 1 del mes siguiente" (confirmado
+  // por soporte 2026-07-31) — hay que mandar billing_day=1, no 30, para que el
+  // cobro inicial coincida con el día real de la firma y se ejecute de inmediato.
+  const billingDay = hoy.getDate() === 31 ? 1 : hoy.getDate()
   // La API exige expires_at aunque la doc lo marque opcional: límite para que
   // el cliente complete la vinculación del medio de pago (no la vigencia del plan).
   const expiraVinculacion = new Date(hoy)
@@ -80,6 +83,7 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
       retry: { max_attempts: 3, interval_days: 2, final_status: 'OVERDUE' },
     },
     return_url: `${APP_URL}/pago-exitoso`,
+    custom_webhook: `${APP_URL}/api/trazo/webhook`,
   })
 
   const sus = await crearSuscripcion({

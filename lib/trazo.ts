@@ -56,6 +56,7 @@ export interface CrearPlanInput {
   name: string
   plan_details: TrazoPlanDetails
   return_url?: string
+  custom_webhook?: string       // URL propia para los eventos de este Plan; si no se envía, usa la global del comercio
   form_fields?: {
     image_url?: string
     field_one?: TrazoFormField
