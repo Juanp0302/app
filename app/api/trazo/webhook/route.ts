@@ -19,10 +19,15 @@ function autorizado(req: NextRequest): boolean {
   if (!authKey) return false
 
   const header = (req.headers.get('authorization') ?? '').trim()
+
+  // DIAGNÓSTICO TEMPORAL — quitar una vez se resuelva el 401 con Trazo.
+  // No se expone el secreto completo, solo lo necesario para diagnosticar.
+  console.warn(`[trazo/webhook][diag] header presente: ${header.length > 0}, longitud: ${header.length}, primeros 15: ${JSON.stringify(header.slice(0, 15))}, empieza con "Bearer ": ${/^bearer\s/i.test(header)}`)
+
   // Aceptar "Bearer {key}" sin importar mayúsculas/minúsculas en "Bearer" ni
   // espacios extra — variaciones vistas en la práctica entre proveedores.
   const match = header.match(/^bearer\s+(.+)$/i)
-  const recibido = (match?.[1] ?? '').trim()
+  const recibido = (match?.[1] ?? header).trim()
 
   const a = Buffer.from(recibido)
   const b = Buffer.from(authKey)
