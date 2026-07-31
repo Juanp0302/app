@@ -59,6 +59,10 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
 
   const hoy = new Date()
   const billingDay = Math.min(hoy.getDate(), 30)
+  // La API exige expires_at aunque la doc lo marque opcional: límite para que
+  // el cliente complete la vinculación del medio de pago (no la vigencia del plan).
+  const expiraVinculacion = new Date(hoy)
+  expiraVinculacion.setDate(expiraVinculacion.getDate() + 30)
 
   const plan = await crearPlan({
     merchant_id_number: process.env.TRAZO_MERCHANT_ID!,
@@ -71,6 +75,8 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
       billing_day:   billingDay,
       total_charges: 12,
       initial_charge: true,
+      trial_days:    0,
+      expires_at:    expiraVinculacion.toISOString().slice(0, 10),
       retry: { max_attempts: 3, interval_days: 2, final_status: 'OVERDUE' },
     },
     return_url: `${APP_URL}/pago-exitoso`,

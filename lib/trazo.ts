@@ -33,8 +33,8 @@ export interface TrazoPlanDetails {
   billing_day?: number          // requerido por el API si frequency === 'monthly'
   total_charges?: number        // 1-12 (default del API: 12)
   initial_charge?: boolean      // default: true
-  trial_days?: number           // default: 0
-  expires_at?: string           // YYYY-MM-DD, límite para nuevas suscripciones
+  trial_days?: number           // la doc lo marca opcional, pero el sandbox lo exige — enviar siempre (0 si no aplica)
+  expires_at?: string           // YYYY-MM-DD; la doc lo marca opcional, pero el sandbox lo exige — enviar siempre
   retry?: {
     max_attempts?: number       // máx 3
     interval_days?: number

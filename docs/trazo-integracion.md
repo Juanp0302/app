@@ -1,6 +1,6 @@
 # Integración de Pagos — Trazo (Qentaz), módulo Planes y Suscripciones
 
-Estado: **soporte de Trazo ya respondió (2026-07-30) — ver sección 4bis. En construcción.** Este documento existe para retomar el trabajo sin perder contexto.
+Estado: **ciclo completo validado en sandbox (2026-07-31) — ver sección 4ter. Falta solo pasar a credenciales de producción.** Este documento existe para retomar el trabajo sin perder contexto.
 
 ## 1. Origen y objetivo
 
@@ -105,6 +105,25 @@ Cuando la habiliten, la prueba es: obtener token → crear plan de prueba → cr
 ### Lista de espera eliminada (2026-07-30)
 
 `/suscribirse` mostraba una pantalla de lista de espera (`SuscribirseClient.tsx`, "Suscripciones · Próximamente") porque la página nunca conectó el flujo de contrato. Por decisión del usuario se eliminó la lista de espera (`git rm`; recuperable del historial) y `app/suscribirse/page.tsx` ahora renderiza `SuscribirseContratoClient` directamente: datos → contrato → firma → pago. Mientras las variables `TRAZO_*` no estén en Render, el flujo degrada limpio (contrato por correo sin botón de pago, activación manual); al configurarlas, el pago se enciende solo — `trazoConfigurado()` se evalúa en tiempo de ejecución, sin redeploy. El endpoint `/api/waitlist` sigue existiendo (lo usa la web estática) pero la app ya no lo referencia.
+
+## 4ter. Ciclo completo validado en sandbox (2026-07-31)
+
+Tras dos rondas de bloqueos (llave sandbox no habilitada → habilitada; permiso 403 en `/plan` → habilitado; luego 502/503 reales del backend de Trazo en Azure que se resolvieron solos horas después), **los 6 endpoints funcionan correctamente contra el sandbox**. Se corrió el ciclo real: token → crear plan → consultar plan → crear suscripción → consultar suscripción → cancelar suscripción → cancelar plan. Todo `200`, y se limpiaron los recursos de prueba al final.
+
+**Hallazgo importante — la documentación de Trazo está incompleta sobre `plan_details` obligatorios.** La doc marca estos campos como opcionales, pero el API real los exige (`400` si faltan):
+- `trial_days` — la doc dice default 0, pero hay que **enviarlo explícitamente**, no basta con omitirlo.
+- `expires_at` — igual, hay que enviarlo siempre (fecha límite para que el cliente complete la vinculación del medio de pago).
+- `description` — obligatorio en la práctica.
+- `retry` (el objeto completo) — obligatorio en la práctica.
+- `return_url` (a nivel de Plan, no de plan_details) — obligatorio en la práctica.
+
+`lib/trazo-flujo.ts` ya se ajustó para mandar siempre estos 5 campos.
+
+**Otro hallazgo:** el `status` de la Suscripción recién creada en sandbox vino `"ACTIVE"` de inmediato (`GET /subscription/{id}`), no `"PENDING"` como dice la documentación (que dice que `PENDING` es el estado hasta que el cliente completa la vinculación del medio de pago). Puede ser un comportamiento propio del sandbox (activación automática sin necesidad de pagar de verdad) — **hay que confirmar con soporte si en producción el flujo real sí pasa por `PENDING` primero**, porque nuestro código en `lib/trazo-flujo.ts` (`procesarWebhookTrazo`) asume que la creación de cuenta ocurre al recibir el webhook `activated`, no al crear la suscripción — si en sandbox no se dispara ese webhook (porque ya nació "activa"), no se pudo probar esa parte del flujo todavía.
+
+**Pendiente de probar (no se pudo en esta sesión):** el webhook en sí — no se disparó ninguna notificación a `/api/trazo/webhook` durante estas pruebas (posiblemente porque aún no está registrado del lado de Trazo, o porque el estado nació ya activo sin pasar por el evento). Falta:
+1. Confirmar con Trazo que el webhook `https://owlcompliance.onrender.com/api/trazo/webhook` ya quedó registrado con los eventos de suscripciones.
+2. Repetir la prueba y verificar que el evento `activated` sí llegue y dispare la creación automática de la cuenta.
 
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
