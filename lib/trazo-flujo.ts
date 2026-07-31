@@ -86,7 +86,11 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
       retry: { max_attempts: 3, interval_days: 2, final_status: 'OVERDUE' },
     },
     return_url: `${APP_URL}/pago-exitoso`,
-    custom_webhook: `${APP_URL}/api/trazo/webhook`,
+    // Sin custom_webhook: el header owl-token quedó configurado en el webhook
+    // GLOBAL del comercio (2026-07-31) — usar custom_webhook por plan parecía
+    // no llevar ese header en la entrega automática real (pendiente de
+    // confirmar con Trazo). Los eventos caen a la URL global si el plan no
+    // tiene custom_webhook propio (documentado).
   })
 
   const sus = await crearSuscripcion({

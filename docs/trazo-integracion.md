@@ -208,6 +208,12 @@ Valor:  C61PV0Z2IN3T1QW2
 
 **Variable de entorno nueva a agregar en Render:** `TRAZO_WEBHOOK_TOKEN=C61PV0Z2IN3T1QW2`.
 
+### La entrega automática seguía sin llegar — se quitó `custom_webhook` por plan (2026-07-31)
+
+Con `TRAZO_WEBHOOK_TOKEN` ya en Render, se hizo una firma real de contrato (`subscription_id: B6DE2AM77P`) y **el webhook automático tampoco llegó** (`trazo_suscripciones` quedó en `pendiente`). Se probó manualmente el mismo payload contra el receptor de producción con el header `owl-token` correcto — **funcionó perfecto** (200, cuenta creada). Esto descarta cualquier problema en nuestro código: el receptor está bien, Trazo simplemente no está llamando automáticamente con el header configurado.
+
+Hipótesis: el header personalizado `owl-token` se configuró a nivel del **webhook global del comercio**, pero cada Plan que creamos lleva su propio `custom_webhook` (mismo URL, pero como override por-plan) — es posible que la entrega vía `custom_webhook` no lleve el header global configurado. Se quitó `custom_webhook` de `crearPlan()` en `lib/trazo-flujo.ts` para que los eventos siempre caigan a la URL global del comercio (que sí tiene el header). **Pendiente confirmar con Trazo si esta hipótesis es correcta**, y volver a probar con una firma real.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).
