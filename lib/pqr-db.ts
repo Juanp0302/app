@@ -32,18 +32,20 @@ export async function migratePqr() {
     )
   `)
 
-  const row = await queryOne(`SELECT COUNT(*) AS n FROM pqr_tipologias`) as any
-  if (!row || row.n === 0) {
-    const ahora = new Date().toISOString()
-    for (const t of PQR_SEED) {
-      await execute(
-        `INSERT INTO pqr_tipologias
-           (id, servicio, codigo, nombre, incidencia, severidad, norma, normativa, plantilla_si, plantilla_no, guia, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [crypto.randomUUID(), t.servicio, t.codigo, t.nombre, t.incidencia, t.severidad, t.norma,
-         t.normativa, t.plantillaSi, t.plantillaNo, t.guia, ahora, ahora]
-      )
-    }
+  // Inserta cualquier tipología de PQR_SEED que aún no exista en la tabla
+  // (por código). Esto permite agregar nuevas tipologías al seed y que
+  // lleguen a bases de datos ya migradas, sin duplicar las existentes.
+  const ahora = new Date().toISOString()
+  for (const t of PQR_SEED) {
+    const existente = await queryOne(`SELECT id FROM pqr_tipologias WHERE codigo = ?`, [t.codigo])
+    if (existente) continue
+    await execute(
+      `INSERT INTO pqr_tipologias
+         (id, servicio, codigo, nombre, incidencia, severidad, norma, normativa, plantilla_si, plantilla_no, guia, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [crypto.randomUUID(), t.servicio, t.codigo, t.nombre, t.incidencia, t.severidad, t.norma,
+       t.normativa, t.plantillaSi, t.plantillaNo, t.guia, ahora, ahora]
+    )
   }
 }
 
