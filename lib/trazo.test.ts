@@ -69,11 +69,21 @@ describe('crearPlan', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('rechaza plan monthly sin billing_day', async () => {
+  it('acepta plan monthly sin billing_day (Trazo pidió no enviarlo)', async () => {
+    mockFetch(TOKEN_OK, { status: 200, json: { plan_id: 'X', name: '', status: 'active', plan_url: '', created_at: '' } })
     await expect(crearPlan({
       ...PLAN_BASE,
-      plan_details: { currency: 'COP', amount: 890000, frequency: 'monthly' },
+      plan_details: { currency: 'COP', amount: 890000, frequency: 'monthly', total_charges: 12 },
+    })).resolves.toBeDefined()
+  })
+
+  it('rechaza billing_day fuera de rango si de todas formas se envía', async () => {
+    const fetchMock = mockFetch()
+    await expect(crearPlan({
+      ...PLAN_BASE,
+      plan_details: { ...PLAN_BASE.plan_details, billing_day: 31 },
     })).rejects.toThrow(/billing_day/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('propaga el 400 del API con sus detalles', async () => {

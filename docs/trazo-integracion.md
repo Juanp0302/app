@@ -214,6 +214,14 @@ Con `TRAZO_WEBHOOK_TOKEN` ya en Render, se hizo una firma real de contrato (`sub
 
 Hipótesis: el header personalizado `owl-token` se configuró a nivel del **webhook global del comercio**, pero cada Plan que creamos lleva su propio `custom_webhook` (mismo URL, pero como override por-plan) — es posible que la entrega vía `custom_webhook` no lleve el header global configurado. Se quitó `custom_webhook` de `crearPlan()` en `lib/trazo-flujo.ts` para que los eventos siempre caigan a la URL global del comercio (que sí tiene el header). **Pendiente confirmar con Trazo si esta hipótesis es correcta**, y volver a probar con una firma real.
 
+**Nueva prueba real (`I6DJ2ER5ET`) — el webhook automático sigue sin llegar**, ni con el fallback al webhook global. Se le reportó a Trazo con este ID concreto para que revisen sus logs de entrega.
+
+### billing_day: Trazo pidió no enviarlo nunca (2026-08-01)
+
+Trazo pidió dejar `billing_day` siempre sin enviar (ni fijo en 1, ni en el día de la firma — los dos enfoques anteriores dieron problemas). Se quitó el campo por completo de `crearSuscripcionTrazoParaContrato()` en `lib/trazo-flujo.ts`, y se relajó la validación local en `lib/trazo.ts` (`validarPlan`): ya no exige `billing_day` para `frequency: 'monthly'`, solo valida el rango 1-30 si de todas formas se envía. Tests actualizados en `lib/trazo.test.ts` (15 tests, todos en verde).
+
+**Pendiente:** probar de nuevo el ciclo completo (plan sin billing_day) para confirmar que el cobro inicial y la entrega del webhook se comportan bien con este ajuste.
+
 ### Pendiente para poner en producción
 1. **Variables de entorno en Render** (el usuario tiene las credenciales en archivos aparte): `TRAZO_BASE_URL` (viene con las credenciales), `TRAZO_AUTH_KEY`, y `TRAZO_MERCHANT_ID` (documento del cobrador — cédula de Juan Pablo, `1053824988`, exigido por Generar Plan).
 2. **Compartir a soporte de Trazo** la URL del webhook `https://owlcompliance.onrender.com/api/trazo/webhook` y pedir que activen los eventos de **suscripciones: activated, overdue, canceled, fulfilled** (los de cobros son opcionales — el receptor los acepta y loguea, no actúa sobre ellos).

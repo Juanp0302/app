@@ -256,11 +256,12 @@ function validarPlan(input: CrearPlanInput): void {
   if (tc !== undefined && (!Number.isInteger(tc) || tc < 1 || tc > 12)) {
     throw new TrazoValidationError('total_charges debe ser un entero entre 1 y 12')
   }
-  if (input.plan_details.frequency === 'monthly') {
-    const bd = input.plan_details.billing_day
-    if (bd === undefined || !Number.isInteger(bd) || bd < 1 || bd > 30) {
-      throw new TrazoValidationError('billing_day (1-30) es requerido cuando frequency es monthly')
-    }
+  // billing_day: la doc dice que es requerido si frequency es monthly, pero en la
+  // práctica Trazo pidió (2026-07-31) no enviarlo nunca — solo se valida el rango
+  // si de todas formas se manda.
+  const bd = input.plan_details.billing_day
+  if (bd !== undefined && (!Number.isInteger(bd) || bd < 1 || bd > 30)) {
+    throw new TrazoValidationError('billing_day debe ser un entero entre 1 y 30')
   }
   const ra = input.plan_details.retry?.max_attempts
   if (ra !== undefined && (!Number.isInteger(ra) || ra < 1 || ra > 3)) {

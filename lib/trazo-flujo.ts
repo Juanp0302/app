@@ -60,11 +60,9 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
   if (!planInfo) throw new Error(`Plan inválido: ${datos.plan}`)
 
   const hoy = new Date()
-  // billing_day fijo en 1 para todos los clientes: Trazo confirmó (2026-07-31)
-  // que el cobro inicial se ejecuta de inmediato al vincular el medio de pago
-  // sin importar billing_day — ese campo solo define el día del ciclo mensual
-  // siguiente. Con esto todos los cobros recurrentes caen el día 1 de cada mes.
-  const billingDay = 1
+  // billing_day: Trazo pidió (2026-07-31) dejarlo siempre sin enviar —
+  // ni fijo en 1 ni en el día de la firma; ambos enfoques anteriores dieron
+  // problemas con el cobro inicial. Se omite el campo por completo.
   // La API exige expires_at aunque la doc lo marque opcional: límite para que
   // el cliente complete la vinculación del medio de pago (no la vigencia del plan).
   const expiraVinculacion = new Date(hoy)
@@ -78,7 +76,6 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
       amount:        planInfo.precio,
       description:   `Owl Compliance Plan ${planInfo.label} — cobro {{charge_number}} ({{month}})`,
       frequency:     'monthly',
-      billing_day:   billingDay,
       total_charges: 12,
       initial_charge: true,
       trial_days:    0,
