@@ -190,9 +190,13 @@ export interface WebhookCobroTrazo {
   created_at?: string
   external_reference?: string
   detail?: {
-    amount?: number
+    amount?: string | number   // Trazo lo envía como string, ej. "29900"
     currency?: string
-    payer?: { email?: string; first_name?: string }
+    description?: string
+    process_id?: string
+    payment_method?: string
+    payer?: { email?: string; first_name?: string; last_name?: string }
+    merchant?: { name?: string; id_number?: string }
   }
 }
 
@@ -228,6 +232,17 @@ export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Pro
   const { notificarSuscripcion } = await import('./notificaciones')
 
   if (status === 'success' || status === 'accepted') {
+    // Verificación de monto: mientras no se exija la firma del webhook
+    // (ver verificarFirmaCobro), este es un control barato contra un evento
+    // falso que adivine un external_reference válido — si el monto pagado
+    // no coincide con el que registramos al generar el cobro, no activamos
+    // nada y se deja para revisión manual.
+    const montoPagado = Number(payload.detail?.amount)
+    if (Number.isFinite(montoPagado) && montoPagado !== seguimiento.monto) {
+      console.warn(`[trazo-cobros-flujo] Monto no coincide para ${externalReference}: pagado=${montoPagado}, esperado=${seguimiento.monto} — no se activa la cuenta, requiere revisión manual`)
+      return { accion: 'ignorado', detalle: `monto no coincide (pagado ${montoPagado}, esperado ${seguimiento.monto})` }
+    }
+
     let clienteId = seguimiento.cliente_id
 
     if (!clienteId) {
