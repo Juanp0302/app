@@ -1,6 +1,6 @@
 var SUPERADMIN_EMAIL    = 'contacto@owlcompliance.com'
 var CONTRATOS_FOLDER_ID = '1ydORMtBFxWmzsr-LXJgOdpSFCox6Wa5I'
-var LOGO_URL            = 'https://owlcompliance.onrender.com/logo.png'
+var LOGO_URL            = 'https://app.owlcompliance.com/logo.png'
 
 // ── Helpers de plantilla ──────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ function manejarDocumentoSubido(data) {
     + '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Especialidad</td><td style="color:#270205;">' + data.especialidad + '</td></tr>'
     + '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Fecha</td><td style="color:#270205;">' + data.fecha + '</td></tr>'
     + '</table>'
-    + btnPrimario('Ver en la plataforma', 'https://owlcompliance.onrender.com/dashboard/revisiones')
+    + btnPrimario('Ver en la plataforma', 'https://app.owlcompliance.com/dashboard/revisiones')
 
   GmailApp.sendEmail(data.admin_email, data.asunto, '', {
     htmlBody: emailWrap(body), name: 'Owl Compliance'
@@ -180,7 +180,7 @@ function manejarDocumentoRevisado(data) {
       ? 'El documento ya está registrado en la plataforma. No se requiere ninguna acción adicional.'
       : 'Por favor sube una versión corregida según las observaciones indicadas.')
     + '</p>'
-    + btnPrimario('Ir a la plataforma', 'https://owlcompliance.onrender.com/dashboard')
+    + btnPrimario('Ir a la plataforma', 'https://app.owlcompliance.com/dashboard')
 
   GmailApp.sendEmail(data.cliente_email, emoji + ' Documento ' + textoEstado + ' — ' + data.asunto, '', {
     htmlBody: emailWrap(bodyCliente), name: 'Owl Compliance'
@@ -255,7 +255,7 @@ function manejarTicketOChat(data) {
         '<h2 style="font-size:20px;color:#16a34a;margin:0 0 16px;">¡Tu suscripción está activa!</h2>'
         + '<p style="font-size:14px;color:#270205;margin:0 0 12px;">Hola <strong>' + data.cliente + '</strong>,</p>'
         + '<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 16px;">Tu suscripción ha sido activada exitosamente. Ya tienes acceso completo a la plataforma.</p>'
-        + btnPrimario('Ir a la plataforma', 'https://owlcompliance.onrender.com/dashboard')
+        + btnPrimario('Ir a la plataforma', 'https://app.owlcompliance.com/dashboard')
 
       GmailApp.sendEmail(data.cliente_email, '¡Tu suscripción a Owl Compliance está activa!', '', {
         htmlBody: emailWrap(bodyActiva), name: 'Owl Compliance'
@@ -275,7 +275,7 @@ function manejarTicketOChat(data) {
         '<h2 style="font-size:20px;color:#dc2626;margin:0 0 16px;">Tu suscripción ha sido suspendida</h2>'
         + '<p style="font-size:14px;color:#270205;margin:0 0 12px;">Hola <strong>' + data.cliente + '</strong>,</p>'
         + '<p style="font-size:14px;color:#555;line-height:1.7;margin:0 0 16px;">Tu suscripción ha sido suspendida, posiblemente por un problema con el pago.</p>'
-        + btnPrimario('Gestionar suscripción', 'https://owlcompliance.onrender.com/dashboard/suscripcion')
+        + btnPrimario('Gestionar suscripción', 'https://app.owlcompliance.com/dashboard/suscripcion')
         + '<p style="font-size:13px;color:#555;margin:16px 0 0;">Si tienes dudas, escríbenos a <a href="mailto:contacto@owlcompliance.com" style="color:#712529;">contacto@owlcompliance.com</a>.</p>'
 
       GmailApp.sendEmail(data.cliente_email, 'Tu suscripción a Owl Compliance ha sido suspendida', '', {
@@ -320,7 +320,7 @@ function manejarTicketOChat(data) {
       + '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Especialidad</td><td style="color:#270205;">' + data.especialidad + '</td></tr>'
       + '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Fecha</td><td style="color:#270205;">' + data.fecha + '</td></tr>'
       + '</table>'
-      + btnPrimario('Asignar ahora', 'https://owlcompliance.onrender.com/dashboard/superadmin/asignacion')
+      + btnPrimario('Asignar ahora', 'https://app.owlcompliance.com/dashboard/superadmin/asignacion')
 
     GmailApp.sendEmail(SUPERADMIN_EMAIL, asunto, '', {
       htmlBody: emailWrap(bodySinAsignar), name: 'Owl Compliance Sistema'
@@ -341,7 +341,7 @@ function manejarTicketOChat(data) {
       + '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Fecha</td><td style="color:#270205;">' + data.fecha + '</td></tr>'
       + (data.comentario ? '<tr><td style="padding:6px 0;color:#968622;font-weight:700;">Notas</td><td style="color:#270205;">' + data.comentario + '</td></tr>' : '')
       + '</table>'
-      + btnPrimario('Ver en la plataforma', 'https://owlcompliance.onrender.com/dashboard/tickets')
+      + btnPrimario('Ver en la plataforma', 'https://app.owlcompliance.com/dashboard/tickets')
 
     GmailApp.sendEmail(data.admin_email, asunto, '', {
       htmlBody: emailWrap(bodyAsignacion), name: 'Owl Compliance'

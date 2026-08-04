@@ -13,7 +13,7 @@
 // ── Constante — edita con el ID real de tu carpeta en Drive ──────────────────
 const CONTRATOS_FOLDER_ID = 'PEGA_AQUI_EL_ID_DE_LA_CARPETA'
 
-const LOGO_URL = 'https://owlcompliance.onrender.com/logo.png'
+const LOGO_URL = 'https://app.owlcompliance.com/logo.png'
 
 // ── Handler para tipo_entidad === 'contrato_firmado' ─────────────────────────
 // Agrega esto dentro de tu función doPost(), en el bloque if/else o switch:

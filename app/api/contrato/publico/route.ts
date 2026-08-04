@@ -78,7 +78,7 @@ async function enviarCorreo(opts: {
 
   const htmlCliente = `
     <div style="font-family:Arial,sans-serif;max-width:600px;color:#1a1a1a;">
-      <img src="https://owlcompliance.onrender.com/buho.png" width="120" style="margin-bottom:16px;"/>
+      <img src="https://app.owlcompliance.com/buho.png" width="120" style="margin-bottom:16px;"/>
       <h2 style="color:#712529;">Contrato firmado — Owl Compliance</h2>
       <p>Hola <strong>${opts.cliente}</strong>,</p>
       <p>Tu contrato de prestación de servicios ha sido firmado electrónicamente el <strong>${opts.fechaFmt}</strong>.</p>

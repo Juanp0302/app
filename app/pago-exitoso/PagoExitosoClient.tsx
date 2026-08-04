@@ -52,7 +52,7 @@ export default function PagoExitosoClient() {
             <div style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.35)', marginBottom: '2rem' }}>
               Si no ves el correo, revisa tu carpeta de spam.
             </div>
-            <a href="https://owlcompliance.onrender.com/login"
+            <a href="https://app.owlcompliance.com/login"
               style={{ display: 'inline-block', padding: '0.75rem 2rem', background: C.olivo,
                 color: C.vino, borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem',
                 letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>

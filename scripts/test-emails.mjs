@@ -36,7 +36,7 @@ await enviar('Bienvenida — correo al cliente', {
   cliente:       'Operador de Prueba S.A.S.',
   cliente_email: TEST_EMAIL,
   admin_email:   TEST_EMAIL,
-  comentario:    `Usuario: ${TEST_EMAIL} | Contraseña temporal: OwlTest1! | Plan: Básico | Ingresa en: https://owlcompliance.onrender.com/login`,
+  comentario:    `Usuario: ${TEST_EMAIL} | Contraseña temporal: OwlTest1! | Plan: Básico | Ingresa en: https://app.owlcompliance.com/login`,
   estado:        'activa',
   fecha:         FECHA,
 })

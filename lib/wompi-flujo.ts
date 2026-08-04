@@ -26,7 +26,7 @@ import { queryOne, execute } from './db'
 
 export { wompiConfigurado }
 
-const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com').replace(/\/$/, '')
+const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://app.owlcompliance.com').replace(/\/$/, '')
 
 export interface DatosContratoParaWompi {
   plan:                 PlanKey

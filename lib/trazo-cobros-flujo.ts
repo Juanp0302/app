@@ -29,7 +29,7 @@ import { queryOne, execute } from './db'
 
 export { listarCobrosTrazo, eliminarCobroTrazo }
 
-const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com').replace(/\/$/, '')
+const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://app.owlcompliance.com').replace(/\/$/, '')
 
 export function trazoCobrosConfigurado(): boolean {
   return Boolean(process.env.TRAZO_BASE_URL && process.env.TRAZO_AUTH_KEY && process.env.TRAZO_MERCHANT_ID)

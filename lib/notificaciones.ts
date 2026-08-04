@@ -117,7 +117,7 @@ export async function notificarBienvenida(params: {
     cliente:       params.clienteNombre,
     cliente_email: params.clienteEmail,
     admin_email:   params.clienteEmail,
-    comentario:    `Usuario: ${params.clienteEmail} | Contraseña temporal: ${params.password} | Plan: ${planLabel} | Ingresa en: https://owlcompliance.onrender.com/login`,
+    comentario:    `Usuario: ${params.clienteEmail} | Contraseña temporal: ${params.password} | Plan: ${planLabel} | Ingresa en: https://app.owlcompliance.com/login`,
     estado:        'activa',
     fecha:         params.fecha,
   })
