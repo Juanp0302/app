@@ -334,6 +334,9 @@ Pendiente:
 1. Probar el ciclo completo en sandbox (crear cobro → pagar el `link` → llega el webhook a `/api/webhooks/trazo-cobros` → se activa la cuenta).
 2. Confirmar con soporte el algoritmo real de `X-Trazo-Signature` viendo un webhook real, y decidir cuándo activar `TRAZO_COBROS_EXIGIR_FIRMA=true`.
 3. Igual que con Wompi: decidir cómo se dispara `crearCobroTrazoRenovacion()` cada mes (manual vs. cron/N8N).
+4. **Actualización (2026-08-03):** soporte de Trazo confirmó que, a diferencia de Suscripciones (que usa el webhook global del comercio), cada Cobro necesita su propio `custom_webhook` para que el evento de pago llegue. Ya se agregó en `generarCobro()` (`lib/trazo-cobros-flujo.ts`): cada cobro nuevo lleva `custom_webhook: "{APP_URL}/api/webhooks/trazo-cobros"`.
+5. Pendiente de aclarar: la documentación de webhooks también menciona un header `Authorization: Bearer {integration_key}` en todas las entregas (además de `X-Trazo-Signature`) — no está claro si `integration_key` es lo mismo que `TRAZO_AUTH_KEY` u otro valor distinto. No se está validando ese header todavía (mismo criterio que la firma: no bloquea, solo falta confirmarlo con soporte).
+6. **Primer intento real (2026-08-03):** con `PASARELA_ACTIVA=trazo-cobros` supuestamente activo, el cliente siguió viendo la pantalla de **Suscripción** (no la de Cobro) y un error de Trazo "merchant_phone/merchant_email no registrado" — ese error salió en la pantalla vieja de Suscripción, por lo que parece un problema preexistente de esa integración, no de Cobros. Hay que confirmar en Render que la variable quedó guardada exactamente como `PASARELA_ACTIVA=trazo-cobros` y que el deploy que la aplicó ya está "Live" antes de volver a probar.
 
 ## 6. Cómo retomar esto
 

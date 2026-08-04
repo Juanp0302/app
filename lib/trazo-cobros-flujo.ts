@@ -74,6 +74,10 @@ async function generarCobro(opts: {
     channel:      'LINK',
     user_notification: false,   // el correo ya lo enviamos nosotros
     return_url:   `${APP_URL}/pago-exitoso`,
+    // A diferencia de Suscripciones (que usa el webhook global del comercio),
+    // soporte de Trazo indicó (2026-08-03) que cada Cobro debe llevar su
+    // propio custom_webhook para que el evento de pago llegue.
+    custom_webhook: `${APP_URL}/api/webhooks/trazo-cobros`,
     limit_date:   limite.toISOString().slice(0, 10),
     payer: {
       first_name:     opts.nombreCliente,
