@@ -315,3 +315,98 @@ export async function consultarSuscripcion(subscriptionId: string, childId?: str
 export async function cancelarSuscripcion(subscriptionId: string, childId?: string): Promise<SuscripcionCancelada> {
   return request<SuscripcionCancelada>('DELETE', `/subscription/${encodeURIComponent(subscriptionId)}`, { childId })
 }
+
+// ── Cobros (pagos únicos, sin suscripción) ────────────────────────────────────
+// Módulo alterno de Trazo, añadido el 2026-08-03 como plan B mientras el
+// modelo de Planes y Suscripciones termina de validarse en producción (ver
+// docs/trazo-integracion.md, sección 5bis/5ter). Un Cobro es una transacción
+// individual: no representa una suscripción recurrente, cada mes se genera
+// un Cobro nuevo. Usa la misma autenticación (token cacheado) que el resto
+// de este archivo — nada de lo anterior se modificó.
+
+export type TrazoCobroStatus = 'CREATED' | 'PENDING' | 'SCHEDULED'
+export type TrazoCobroChannel = 'WHATSAPP' | 'EMAIL' | 'LINK'
+
+export interface TrazoCobroPayer {
+  first_name?:     string
+  user_id_type?:   TrazoIdType
+  user_id_number?: string
+  phone?:          string
+  email?:          string
+}
+
+export interface CrearCobroInput {
+  status:       TrazoCobroStatus
+  currency:     'COP' | 'USD'
+  amount:       number
+  description:  string           // mínimo 5 caracteres
+  merchant_id_number?: string
+  merchant_phone?:     string
+  merchant_email?:     string
+  channel?:            TrazoCobroChannel   // default: LINK
+  user_notification?:  boolean             // default: false
+  return_url?:         string
+  custom_webhook?:     string
+  limit_date?:         string     // YYYY-MM-DD
+  reference_one?:      string
+  payer?:              TrazoCobroPayer
+}
+
+export interface CobroCreado {
+  external_reference: string
+  channel:    string
+  link:       string
+  process_id: string
+  created_at: string
+}
+
+export interface CobroDetalle extends CobroCreado {
+  status?: string
+  amount?: number
+  currency?: string
+}
+
+export interface CobroCancelado {
+  external_reference: string
+  status: 'CANCEL' | string
+}
+
+function validarCobro(input: CrearCobroInput): void {
+  if (typeof input.amount !== 'number' || input.amount <= 0) {
+    throw new TrazoValidationError('amount debe ser un número mayor a 0')
+  }
+  if (!input.description || input.description.trim().length < 5) {
+    throw new TrazoValidationError('description debe tener al menos 5 caracteres')
+  }
+  if (!input.merchant_id_number && !input.merchant_phone && !input.merchant_email) {
+    throw new TrazoValidationError('Debe enviarse al menos uno de merchant_id_number, merchant_phone o merchant_email')
+  }
+  const p = input.payer
+  if (p) {
+    const enviados = [p.first_name, p.user_id_type, p.user_id_number].filter(v => v !== undefined && v !== '')
+    if (enviados.length > 0 && enviados.length < 3) {
+      throw new TrazoValidationError('Si se envía payer.first_name, user_id_type o user_id_number, los tres son obligatorios')
+    }
+  }
+}
+
+export async function crearCobro(input: CrearCobroInput, childId?: string): Promise<CobroCreado> {
+  validarCobro(input)
+  return request<CobroCreado>('POST', '/transaction', { body: input, childId })
+}
+
+/**
+ * NOTA: la ruta exacta de consulta/cancelación de un Cobro no quedó
+ * completamente confirmada en la documentación pública al momento de
+ * escribir esto (a diferencia de Generar Cobro, que sí está bien
+ * documentada). Verificar con soporte de Trazo antes de depender de estas
+ * dos funciones en producción — Generar Cobro + el webhook de pagos es
+ * suficiente para el flujo de pago único.
+ */
+export async function consultarCobro(externalReference: string, childId?: string): Promise<CobroDetalle> {
+  return request<CobroDetalle>('GET', `/transaction/${encodeURIComponent(externalReference)}`, { childId })
+}
+
+export async function cancelarCobro(externalReference: string, childId?: string): Promise<CobroCancelado> {
+  return request<CobroCancelado>('DELETE', `/transaction/${encodeURIComponent(externalReference)}`, { childId })
+}

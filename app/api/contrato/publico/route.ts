@@ -21,6 +21,8 @@ import {
   crearCuentaCobro,
 } from '@/lib/contrato-db'
 import { trazoConfigurado, crearSuscripcionTrazoParaContrato } from '@/lib/trazo-flujo'
+import { wompiConfigurado, crearPagoWompiParaContrato } from '@/lib/wompi-flujo'
+import { trazoCobrosConfigurado, crearCobroTrazoParaContrato } from '@/lib/trazo-cobros-flujo'
 
 function getIP(req: NextRequest): string {
   return (
@@ -212,11 +214,46 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Crear Plan + Suscripción en Trazo ───────────────────────────────────────
-  // Si las credenciales no están configuradas (o Trazo falla), el flujo sigue
-  // como antes: contrato por correo y activación manual del pago.
+  // ── Generar el enlace de pago, según PASARELA_ACTIVA ────────────────────────
+  // Por defecto (sin la variable, o con cualquier valor distinto a 'wompi'/
+  // 'trazo-cobros') el comportamiento es EXACTAMENTE el mismo de siempre:
+  // Trazo con Suscripciones. Los dos planes B (Wompi, y Trazo con Cobros de
+  // pago único — ver lib/wompi-flujo.ts y lib/trazo-cobros-flujo.ts) solo se
+  // activan cambiando esta variable en el entorno, sin tocar código. Si la
+  // pasarela activa falla, el flujo sigue como antes: contrato por correo y
+  // activación manual del pago.
   let enlacePago: string | null = null
-  if (trazoConfigurado()) {
+  const pasarelaActiva = (process.env.PASARELA_ACTIVA ?? 'trazo').toLowerCase()
+
+  if (pasarelaActiva === 'wompi' && wompiConfigurado()) {
+    try {
+      const wompi = await crearPagoWompiParaContrato({
+        plan: planKey,
+        nombreCliente,
+        tipoIdentificacion,
+        numeroIdentificacion,
+        email,
+        contratoDatos: datosContrato,
+      })
+      enlacePago = wompi.checkoutUrl
+    } catch (e: any) {
+      console.error('[contrato/publico] Error generando enlace de pago en Wompi:', e)
+    }
+  } else if (pasarelaActiva === 'trazo-cobros' && trazoCobrosConfigurado()) {
+    try {
+      const cobro = await crearCobroTrazoParaContrato({
+        plan: planKey,
+        nombreCliente,
+        tipoIdentificacion,
+        numeroIdentificacion,
+        email,
+        contratoDatos: datosContrato,
+      })
+      enlacePago = cobro.link
+    } catch (e: any) {
+      console.error('[contrato/publico] Error generando Cobro en Trazo:', e)
+    }
+  } else if (trazoConfigurado()) {
     try {
       const trazo = await crearSuscripcionTrazoParaContrato({
         plan: planKey,

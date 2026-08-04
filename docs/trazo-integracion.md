@@ -291,6 +291,50 @@ Headers de todo webhook entrante: `Authorization: Bearer {auth_key}` + `Content-
 8. **`billing_day` fijo o variable**: los planes `monthly` exigen un día fijo de cobro (1-30). El contrato dice "dentro de los primeros cinco días hábiles del mes". ¿Se cobra a todos el mismo día del mes (ej. día 1), o el día en que cada cliente se suscribió originalmente? Esto define si se crean 3 Planes fijos reutilizables (Básico/Pro/Premium, un plan_id por cada uno) o un Plan nuevo por cada cliente.
 9. **Qué se automatiza al confirmarse un pago**: ¿creación automática de la cuenta del cliente (usuario + contraseña, tal como promete hoy `PagoExitosoClient.tsx`), o el webhook/polling solo actualiza `suscripcion_estado` en la tabla `clientes` y la creación de cuenta se sigue haciendo a mano?
 
+## 5bis. Plan B: Wompi (2026-08-03) — mientras Trazo termina de arrancar en producción
+
+Trazo lleva desde el 2026-07-31 (sección 4quater) sin que llegue el primer webhook real en producción, y el usuario necesita una pasarela funcionando ya. Se construyó un **plan B con Wompi**, en paralelo, **sin tocar ni una línea de `lib/trazo.ts`, `lib/trazo-flujo.ts`, `lib/trazo-db.ts` ni `app/api/trazo/webhook`** — si Trazo empieza a funcionar mañana, no hay que revertir nada de esto.
+
+Decisiones de diseño:
+- **Sin suscripciones ni tokenización de tarjeta.** Wompi sí las soporta (`/payment_sources` + `/subscriptions` vía cobros repetidos a un `payment_source_id`), pero integrarlas bien toma días. Para salir rápido se usa el **Web Checkout hospedado por Wompi**: un enlace firmado (`https://checkout.wompi.co/p/?...`) al que Wompi le pone toda la UI de pago — no hace falta llamar a ningún endpoint de su API para crear la transacción, solo firmar el `reference`+`amount_in_cents`+`currency` con SHA256 usando la llave de integridad.
+- **Sin cobro recurrente automático.** Cada mensualidad es un enlace de checkout independiente. El primero se genera al firmar el contrato; los siguientes se generan llamando de nuevo a `crearPagoWompiRenovacion()` (manual por ahora — no hay cron todavía, es la limitación aceptada a cambio de velocidad).
+- **Reactivación de cuenta compartida con Trazo:** cuando el webhook de Wompi confirma `APPROVED`, se reusa el mismo `crearCuentaClienteAutomatica()` de `lib/clientes.ts` que ya usa el webhook de Trazo — no se duplicó esa lógica.
+- **Interruptor sin tocar código:** `app/api/contrato/publico/route.ts` decide entre Trazo y Wompi con la variable de entorno `PASARELA_ACTIVA` (`trazo` por defecto o si no está definida — comportamiento idéntico al de siempre; `wompi` para activar el plan B). El bloque de Trazo dentro de ese archivo quedó exactamente igual, solo se movió a un `else if`.
+
+Archivos nuevos (todos aislados de Trazo):
+- `lib/wompi.ts` — firma de integridad del checkout, construcción del enlace, verificación del checksum del webhook.
+- `lib/wompi-db.ts` — tabla `wompi_pagos` (una fila por enlace de checkout generado; pendiente → aprobada/rechazada).
+- `lib/wompi-flujo.ts` — `crearPagoWompiParaContrato()`, `crearPagoWompiRenovacion()`, `procesarWebhookWompi()`.
+- `app/api/webhooks/wompi/route.ts` — receptor del webhook (la firma va en el cuerpo del evento, no en un header, a diferencia de Trazo).
+
+Variables de entorno pendientes de configurar en Render para activar esto:
+`WOMPI_PUBLIC_KEY`, `WOMPI_INTEGRITY_KEY`, `WOMPI_EVENTS_KEY` (las tres desde comercios.wompi.co), y `PASARELA_ACTIVA=wompi` cuando se quiera encender.
+
+Pendiente antes de usarlo en producción:
+1. Probar el ciclo completo en sandbox de Wompi (checkout → webhook → activación de cuenta).
+2. Registrar la URL `.../api/webhooks/wompi` en el panel de comercios de Wompi.
+3. Decidir con el usuario cómo se dispara `crearPagoWompiRenovacion()` cada mes mientras no haya cron (¿botón manual en el admin? ¿N8N?).
+
+## 5ter. Plan B-2 (2026-08-03): Trazo con Cobros (pago único), en vez de Suscripciones
+
+Soporte de Trazo envió la documentación de su módulo de **Cobros** (`https://docs.qentaz.com/documentation/cobros/introduccion`) como alternativa a Planes y Suscripciones. Decisión del usuario: en vez de configurar suscripciones, usar Cobros — un pago único por mes, con el cliente entrando cada vez a pagar (mismo principio que el plan B de Wompi de la sección 5bis, pero con Trazo).
+
+**Diferencias del modelo de Cobros frente a Suscripciones:**
+- No hay Plan ni Suscripción: cada mes es un `POST {{base_url}}/transaction` independiente (`crearCobro()` en `lib/trazo.ts`), que devuelve un `link` de pago hospedado por Trazo — no hace falta tokenizar nada.
+- El webhook es distinto: `event.type: "payment"` (no `"subscription"`), con 13 estados posibles (`success`, `review`, `overdue`, `failed`, `blocked`, `accepted`, `cancel`, `credit`, `external`, `ret_pending`, `ret_review`, `ret_success`, `edit`). Se registró en una URL nueva y separada: `/api/webhooks/trazo-cobros` (el webhook de suscripciones, `/api/trazo/webhook`, queda intacto).
+- Autenticación del webhook también distinta: header `X-Trazo-Signature: timestamp=...,signature=...` (HMAC-SHA256 de `"{timestamp}.{cuerpo crudo}"` con `TRAZO_AUTH_KEY`), en vez del header `owl-token` que usan los webhooks de suscripciones.
+- **Soporte de Trazo confirmó (2026-08-03) que esa firma es una validación adicional y que se puede arrancar sin exigirla.** Por eso `verificarFirmaCobro()` en `lib/trazo-cobros-flujo.ts` calcula la firma y deja un warning en el log si no calza, pero **no rechaza el evento** salvo que se ponga `TRAZO_COBROS_EXIGIR_FIRMA=true` en el entorno — subir ese interruptor en cuanto haya un caso real confirmado con soporte.
+- Endpoints de consulta/cancelación de un Cobro (`consultarCobro`, `cancelarCobro` en `lib/trazo.ts`) quedaron implementados con la ruta más probable (`GET`/`DELETE /transaction/{external_reference}`), pero **sin confirmar contra la documentación real** — no bloquean el flujo de pago único, que solo depende de `crearCobro()` + el webhook.
+
+**Convive con todo lo anterior, sin tocar nada:** `lib/trazo.ts` solo recibió funciones nuevas (`crearCobro`, `consultarCobro`, `cancelarCobro` y sus tipos) al final del archivo — ninguna función existente de Planes/Suscripciones se modificó (los 15 tests de `lib/trazo.test.ts` siguen pasando). Archivos nuevos: `lib/trazo-cobros-db.ts` (tabla `trazo_cobros`), `lib/trazo-cobros-flujo.ts`, `app/api/webhooks/trazo-cobros/route.ts`.
+
+**Interruptor:** en `app/api/contrato/publico/route.ts`, la variable `PASARELA_ACTIVA` ahora acepta tres valores: `trazo` (Suscripciones, default), `wompi` (plan B, sección 5bis), `trazo-cobros` (este plan B-2). Cambiar de uno a otro es solo cambiar esa variable en Render, sin desplegar código nuevo.
+
+Pendiente:
+1. Probar el ciclo completo en sandbox (crear cobro → pagar el `link` → llega el webhook a `/api/webhooks/trazo-cobros` → se activa la cuenta).
+2. Confirmar con soporte el algoritmo real de `X-Trazo-Signature` viendo un webhook real, y decidir cuándo activar `TRAZO_COBROS_EXIGIR_FIRMA=true`.
+3. Igual que con Wompi: decidir cómo se dispara `crearCobroTrazoRenovacion()` cada mes (manual vs. cron/N8N).
+
 ## 6. Cómo retomar esto
 
 1. Si ya llegó respuesta de Trazo sobre las preguntas de la sección 4, empezar por ahí — probablemente cambie el diseño de cómo nos enteramos de los cobros (webhook vs. polling).
