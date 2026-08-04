@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -22,6 +24,8 @@ export default function SeleccionarServiciosClient({
   const [error, setError]     = useState('')
   const [saving, setSaving]   = useState(false)
   const [done, setDone]       = useState(false)
+  const { update } = useSession()
+  const router = useRouter()
 
   function toggle(slug: string) {
     setSeleccionados(s => s.includes(slug) ? s.filter(x => x !== slug) : [...s, slug])
@@ -47,9 +51,11 @@ export default function SeleccionarServiciosClient({
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Error al guardar'); return }
       setDone(true)
-      // El JWT no se refresca solo — hay que volver a iniciar sesión para que
-      // desaparezca el gate de "elegir servicios".
-      setTimeout(() => { window.location.href = '/signout' }, 1600)
+      // Refresca el token sin cerrar sesión (evita pedirle al cliente que
+      // vuelva a iniciar sesión otra vez justo después de haberlo hecho para
+      // cambiar la contraseña) y lo manda directo al dashboard.
+      await update({ debe_elegir_servicios: false })
+      setTimeout(() => { router.push('/dashboard'); router.refresh() }, 900)
     } finally {
       setSaving(false)
     }
@@ -68,7 +74,7 @@ export default function SeleccionarServiciosClient({
           <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
             <div style={{ fontSize: '2rem', marginBottom: '0.8rem' }}>✅</div>
             <p style={{ color: '#16a34a', fontWeight: 600, margin: 0 }}>Servicios guardados</p>
-            <p style={{ color: '#666', fontSize: 13, marginTop: 8 }}>Vuelve a iniciar sesión para ver tu mapa de cumplimiento…</p>
+            <p style={{ color: '#666', fontSize: 13, marginTop: 8 }}>Entrando a tu mapa de cumplimiento…</p>
           </div>
         ) : (
           <>

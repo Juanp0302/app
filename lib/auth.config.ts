@@ -46,13 +46,24 @@ export const authConfig: NextAuthConfig = {
 
       return true
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role                  = (user as any).role
         token.id                    = user.id
         token.is_superadmin         = (user as any).is_superadmin ?? false
         token.must_change_password  = (user as any).must_change_password ?? false
         token.debe_elegir_servicios = (user as any).debe_elegir_servicios ?? false
+      }
+      // Permite refrescar el token sin cerrar sesión: el cliente llama a
+      // update({ debe_elegir_servicios: false }) (ver SeleccionarServiciosClient)
+      // después de guardar sus servicios, en vez de forzar un re-login.
+      if (trigger === 'update' && session) {
+        if (typeof (session as any).debe_elegir_servicios === 'boolean') {
+          token.debe_elegir_servicios = (session as any).debe_elegir_servicios
+        }
+        if (typeof (session as any).must_change_password === 'boolean') {
+          token.must_change_password = (session as any).must_change_password
+        }
       }
       return token
     },

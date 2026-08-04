@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { queryAll } from '@/lib/db'
+import { SessionProvider } from 'next-auth/react'
 import SeleccionarServiciosClient from './SeleccionarServiciosClient'
 
 export default async function SeleccionarServiciosPage() {
@@ -16,5 +17,9 @@ export default async function SeleccionarServiciosPage() {
     ORDER BY servicio
   `) as { servicio: string; servicio_slug: string }[]
 
-  return <SeleccionarServiciosClient serviciosDisponibles={servicios} />
+  return (
+    <SessionProvider>
+      <SeleccionarServiciosClient serviciosDisponibles={servicios} />
+    </SessionProvider>
+  )
 }
