@@ -85,6 +85,20 @@ export default function SuperadminClient() {
     }
   }
 
+  async function eliminarCobroPendiente(reference: string) {
+    if (!window.confirm('¿Quitar este pago de la lista? Esto no lo cancela en Trazo, solo deja de mostrarse aquí.')) return
+    setConfirmandoCobro(reference)
+    try {
+      const r = await fetch(`/api/superadmin/trazo-cobros?reference=${encodeURIComponent(reference)}`, { method: 'DELETE' })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error ?? 'Error eliminando el pago'); return }
+      await cargarCobrosPendientes()
+    } catch {
+      alert('Error de conexión eliminando el pago.')
+    } finally {
+      setConfirmandoCobro(null)
+    }
+  }
+
   async function cargar() {
     try {
       const [d, cl] = await Promise.all([
@@ -421,6 +435,16 @@ export default function SuperadminClient() {
                         cursor: confirmandoCobro === c.external_reference ? 'not-allowed' : 'pointer',
                         opacity: confirmandoCobro === c.external_reference ? 0.6 : 1, fontFamily: 'inherit' }}>
                       {confirmandoCobro === c.external_reference ? 'Confirmando…' : 'Confirmar pago y activar'}
+                    </button>
+                    <button
+                      onClick={() => eliminarCobroPendiente(c.external_reference)}
+                      disabled={confirmandoCobro === c.external_reference}
+                      style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        color: '#dc2626', background: 'transparent', border: '1px solid rgba(220,38,38,0.4)',
+                        borderRadius: 6, padding: '0.45rem 0.9rem',
+                        cursor: confirmandoCobro === c.external_reference ? 'not-allowed' : 'pointer',
+                        opacity: confirmandoCobro === c.external_reference ? 0.6 : 1, fontFamily: 'inherit' }}>
+                      Eliminar
                     </button>
                   </div>
                 ))}

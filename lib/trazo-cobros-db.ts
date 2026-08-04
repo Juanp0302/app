@@ -100,6 +100,16 @@ export async function listarCobrosTrazo(soloPendientes = true): Promise<TrazoCob
   )
 }
 
+/**
+ * Quita un cobro del seguimiento local (ej. duplicado, prueba, o uno que ya
+ * no se va a cobrar). No cancela nada del lado de Trazo — solo deja de
+ * aparecer en la pantalla de confirmación manual del superadmin.
+ */
+export async function eliminarCobroTrazo(externalReference: string): Promise<void> {
+  await migrateTrazoCobros()
+  await execute(`DELETE FROM trazo_cobros WHERE external_reference = ?`, [externalReference])
+}
+
 export async function actualizarCobroTrazo(
   externalReference: string,
   campos: { estado?: string; cliente_id?: string },

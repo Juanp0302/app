@@ -8,9 +8,9 @@
  * superadmin verifica el pago por fuera (dashboard de Trazo, banco) y lo
  * confirma aquí para que se envíen usuario/contraseña como de costumbre.
  */
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { listarCobrosTrazo, confirmarCobroManual } from '@/lib/trazo-cobros-flujo'
+import { listarCobrosTrazo, confirmarCobroManual, eliminarCobroTrazo } from '@/lib/trazo-cobros-flujo'
 
 async function requireSuperadmin() {
   const session = await auth()
@@ -40,4 +40,15 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Error confirmando el cobro' }, { status: 400 })
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  const reference = req.nextUrl.searchParams.get('reference')
+  if (!reference) return NextResponse.json({ error: 'Falta reference' }, { status: 400 })
+
+  await eliminarCobroTrazo(reference)
+  return NextResponse.json({ ok: true })
 }

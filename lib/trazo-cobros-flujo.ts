@@ -24,10 +24,10 @@
 import crypto from 'crypto'
 import { crearCobro, type CrearCobroInput, type TrazoIdType } from './trazo'
 import { PLANES, type PlanKey } from './suscripcion'
-import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, type TrazoCobroRow } from './trazo-cobros-db'
+import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, eliminarCobroTrazo, type TrazoCobroRow } from './trazo-cobros-db'
 import { queryOne, execute } from './db'
 
-export { listarCobrosTrazo }
+export { listarCobrosTrazo, eliminarCobroTrazo }
 
 const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com').replace(/\/$/, '')
 
