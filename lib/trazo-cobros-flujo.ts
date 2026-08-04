@@ -24,8 +24,10 @@
 import crypto from 'crypto'
 import { crearCobro, type CrearCobroInput, type TrazoIdType } from './trazo'
 import { PLANES, type PlanKey } from './suscripcion'
-import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo } from './trazo-cobros-db'
+import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, type TrazoCobroRow } from './trazo-cobros-db'
 import { queryOne, execute } from './db'
+
+export { listarCobrosTrazo }
 
 const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://owlcompliance.onrender.com').replace(/\/$/, '')
 
@@ -209,6 +211,74 @@ export interface WebhookCobroTrazo {
 
 export interface ResultadoWebhookCobro { accion: string; detalle?: string }
 
+/**
+ * Activa (o reactiva) la cuenta del cliente asociado a un cobro ya
+ * confirmado como pagado — sea por webhook o por confirmación manual desde
+ * el panel de superadmin (ver confirmarCobroManual). Devuelve el clienteId.
+ */
+async function activarCuentaPorCobro(seguimiento: TrazoCobroRow): Promise<string> {
+  let clienteId = seguimiento.cliente_id
+
+  if (!clienteId) {
+    const userExistente = await queryOne(
+      `SELECT c.id AS cliente_id FROM users u JOIN clientes c ON c.user_id = u.id WHERE lower(u.email) = lower(?)`,
+      [seguimiento.cliente_email]
+    ) as any
+
+    if (userExistente) {
+      clienteId = userExistente.cliente_id as string
+      await execute(
+        `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
+        [seguimiento.plan, clienteId]
+      )
+    } else {
+      const contrato = seguimiento.contrato_datos ? JSON.parse(seguimiento.contrato_datos) : {}
+      const { crearCuentaClienteAutomatica } = await import('./clientes')
+      const cuenta = await crearCuentaClienteAutomatica({
+        razon_social: seguimiento.cliente_nombre,
+        nit:          contrato.numeroIdentificacion ?? undefined,
+        contacto:     contrato.nombreRepresentante ?? undefined,
+        email:        seguimiento.cliente_email,
+        user_email:   seguimiento.cliente_email,
+        user_nombre:  contrato.nombreRepresentante ?? seguimiento.cliente_nombre,
+        plan:         seguimiento.plan,
+      })
+      clienteId = cuenta.clienteId
+    }
+  } else {
+    await execute(
+      `UPDATE clientes SET suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
+      [clienteId]
+    )
+  }
+
+  await actualizarCobroTrazo(seguimiento.external_reference, { estado: 'pagada', cliente_id: clienteId! })
+
+  const { notificarSuscripcion } = await import('./notificaciones')
+  notificarSuscripcion({
+    clienteId: clienteId!, cliente: seguimiento.cliente_nombre, clienteEmail: seguimiento.cliente_email,
+    plan: seguimiento.plan, estado: 'activa', fecha: new Date().toISOString(),
+  }).catch(e => console.error('[trazo-cobros-flujo] Error notificando activación:', e))
+
+  return clienteId!
+}
+
+/**
+ * Confirmación manual desde el panel de superadmin, mientras el webhook de
+ * Trazo Cobros no esté registrado/confirmado (ver docs/trazo-integracion.md,
+ * sección 5ter). El admin ya verificó el pago por fuera (dashboard de Trazo,
+ * extracto bancario, etc.) — por eso aquí no se valida monto ni firma, a
+ * diferencia del webhook automático.
+ */
+export async function confirmarCobroManual(externalReference: string): Promise<{ clienteId: string }> {
+  const seguimiento = await buscarCobroTrazo(externalReference)
+  if (!seguimiento) throw new Error(`Cobro ${externalReference} no encontrado`)
+  if (seguimiento.estado === 'pagada') throw new Error(`El cobro ${externalReference} ya estaba marcado como pagado`)
+
+  const clienteId = await activarCuentaPorCobro(seguimiento)
+  return { clienteId }
+}
+
 const eventosProcesados = new Set<string>()   // deduplicación básica en memoria (ver nota abajo)
 
 export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Promise<ResultadoWebhookCobro> {
@@ -236,7 +306,6 @@ export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Pro
   }
 
   const status = (payload.event.status || '').toLowerCase()
-  const { notificarSuscripcion } = await import('./notificaciones')
 
   if (status === 'success' || status === 'accepted') {
     // Verificación de monto: mientras no se exija la firma del webhook
@@ -250,47 +319,7 @@ export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Pro
       return { accion: 'ignorado', detalle: `monto no coincide (pagado ${montoPagado}, esperado ${seguimiento.monto})` }
     }
 
-    let clienteId = seguimiento.cliente_id
-
-    if (!clienteId) {
-      const userExistente = await queryOne(
-        `SELECT c.id AS cliente_id FROM users u JOIN clientes c ON c.user_id = u.id WHERE lower(u.email) = lower(?)`,
-        [seguimiento.cliente_email]
-      ) as any
-
-      if (userExistente) {
-        clienteId = userExistente.cliente_id as string
-        await execute(
-          `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
-          [seguimiento.plan, clienteId]
-        )
-      } else {
-        const contrato = seguimiento.contrato_datos ? JSON.parse(seguimiento.contrato_datos) : {}
-        const { crearCuentaClienteAutomatica } = await import('./clientes')
-        const cuenta = await crearCuentaClienteAutomatica({
-          razon_social: seguimiento.cliente_nombre,
-          nit:          contrato.numeroIdentificacion ?? undefined,
-          contacto:     contrato.nombreRepresentante ?? undefined,
-          email:        seguimiento.cliente_email,
-          user_email:   seguimiento.cliente_email,
-          user_nombre:  contrato.nombreRepresentante ?? seguimiento.cliente_nombre,
-          plan:         seguimiento.plan,
-        })
-        clienteId = cuenta.clienteId
-      }
-    } else {
-      await execute(
-        `UPDATE clientes SET suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
-        [clienteId]
-      )
-    }
-
-    await actualizarCobroTrazo(externalReference, { estado: 'pagada', cliente_id: clienteId! })
-    notificarSuscripcion({
-      clienteId: clienteId!, cliente: seguimiento.cliente_nombre, clienteEmail: seguimiento.cliente_email,
-      plan: seguimiento.plan, estado: 'activa', fecha: new Date().toISOString(),
-    }).catch(e => console.error('[trazo-cobros-flujo] Error notificando activación:', e))
-
+    const clienteId = await activarCuentaPorCobro(seguimiento)
     return { accion: 'pagada', detalle: `cliente ${clienteId}` }
   }
 
@@ -298,6 +327,7 @@ export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Pro
     await actualizarCobroTrazo(externalReference, { estado: 'rechazada' })
     if (seguimiento.cliente_id) {
       await execute(`UPDATE clientes SET suscripcion_estado = 'suspendida', updated_at = datetime('now') WHERE id = ?`, [seguimiento.cliente_id])
+      const { notificarSuscripcion } = await import('./notificaciones')
       notificarSuscripcion({
         clienteId: seguimiento.cliente_id, cliente: seguimiento.cliente_nombre, clienteEmail: seguimiento.cliente_email,
         plan: seguimiento.plan, estado: 'suspendida', fecha: new Date().toISOString(),

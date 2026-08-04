@@ -85,6 +85,21 @@ export async function buscarCobroTrazo(externalReference: string): Promise<Trazo
   return queryOne<TrazoCobroRow>(`SELECT * FROM trazo_cobros WHERE external_reference = ?`, [externalReference])
 }
 
+/**
+ * Lista los cobros más recientes, para la pantalla de confirmación manual
+ * mientras el webhook de Trazo no está registrado (ver lib/trazo-cobros-flujo.ts
+ * → confirmarCobroManual). Por defecto solo los pendientes.
+ */
+export async function listarCobrosTrazo(soloPendientes = true): Promise<TrazoCobroRow[]> {
+  await migrateTrazoCobros()
+  const { queryAll } = await import('./db')
+  return queryAll<TrazoCobroRow>(
+    soloPendientes
+      ? `SELECT * FROM trazo_cobros WHERE estado = 'pendiente' ORDER BY created_at DESC`
+      : `SELECT * FROM trazo_cobros ORDER BY created_at DESC LIMIT 100`
+  )
+}
+
 export async function actualizarCobroTrazo(
   externalReference: string,
   campos: { estado?: string; cliente_id?: string },
