@@ -71,7 +71,10 @@ async function generarCobro(opts: {
     amount:       opts.monto,
     description:  opts.descripcion,
     merchant_id_number: process.env.TRAZO_MERCHANT_ID!,
-    channel:      'LINK',
+    // Soporte de Trazo pidió (2026-08-03) usar channel: EMAIL en vez de LINK
+    // para este flujo. Seguimos con user_notification: false porque el
+    // correo con el enlace de pago ya lo enviamos nosotros mismos.
+    channel:      'EMAIL',
     user_notification: false,   // el correo ya lo enviamos nosotros
     return_url:   `${APP_URL}/pago-exitoso`,
     // A diferencia de Suscripciones (que usa el webhook global del comercio),
