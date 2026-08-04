@@ -46,12 +46,44 @@ export default function SuperadminClient() {
   const [asignando,     setAsignando]     = useState<string | null>(null)
   const [selAdmin,      setSelAdmin]      = useState<Record<string, string>>({})
   const [expandidos,    setExpandidos]    = useState<Set<string>>(new Set())
-  const [seccionesOpen, setSeccionesOpen] = useState({ urgentes: true, porAdmin: true, suscripciones: true })
+  const [seccionesOpen, setSeccionesOpen] = useState({ urgentes: true, porAdmin: true, suscripciones: true, cobros: true })
   const [clientes,      setClientes]      = useState<any[]>([])
   const [planGuardando, setPlanGuardando] = useState<string | null>(null)
   const [planSel,       setPlanSel]       = useState<Record<string, string>>({})
   const [estadoSel,     setEstadoSel]     = useState<Record<string, string>>({})
   const [accToggling,   setAccToggling]   = useState<string | null>(null)
+  const [cobrosPendientes, setCobrosPendientes] = useState<any[]>([])
+  const [confirmandoCobro, setConfirmandoCobro] = useState<string | null>(null)
+
+  async function cargarCobrosPendientes() {
+    try {
+      const r = await fetch('/api/superadmin/trazo-cobros')
+      if (!r.ok) return
+      const d = await r.json()
+      setCobrosPendientes(Array.isArray(d.cobros) ? d.cobros : [])
+    } catch (err) {
+      console.error('[superadmin] error al cargar cobros pendientes:', err)
+    }
+  }
+
+  async function confirmarCobro(reference: string) {
+    if (!window.confirm('¿Confirmar este cobro como pagado y activar la cuenta del cliente? Úsalo solo después de verificar el pago en Trazo.')) return
+    setConfirmandoCobro(reference)
+    try {
+      const r = await fetch('/api/superadmin/trazo-cobros', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference }),
+      })
+      const d = await r.json()
+      if (!r.ok) { alert(d.error ?? 'Error confirmando el cobro'); return }
+      await cargarCobrosPendientes()
+      await cargar()
+    } catch {
+      alert('Error de conexión confirmando el cobro.')
+    } finally {
+      setConfirmandoCobro(null)
+    }
+  }
 
   async function cargar() {
     try {
@@ -70,7 +102,7 @@ export default function SuperadminClient() {
     }
   }
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar(); cargarCobrosPendientes() }, [])
 
   async function toggleAutoCuentaCobro(clienteId: string, valor: boolean) {
     setAccToggling(clienteId)
@@ -356,6 +388,42 @@ export default function SuperadminClient() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cobros de Trazo pendientes de confirmación manual (mientras el webhook no esté confirmado) */}
+        {cobrosPendientes.length > 0 && (
+          <div style={{ marginBottom: '2rem', background: 'rgba(150,134,34,0.05)',
+            border: '1px solid rgba(150,134,34,0.2)', borderRadius: 12, padding: '1.25rem 1.5rem' }}>
+            <SeccionHeader label="Pagos de Trazo pendientes de confirmación" count={cobrosPendientes.length} keyName="cobros" />
+            {seccionesOpen.cobros && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <p style={{ fontSize: '0.7rem', color: 'rgba(231,223,202,0.5)', margin: '0 0 0.5rem', lineHeight: 1.6 }}>
+                  El webhook de Trazo Cobros aún no está confirmado — verifica el pago en el dashboard de Trazo
+                  antes de aprobar aquí. Al confirmar se crea/activa la cuenta y se envían usuario y contraseña
+                  por correo, igual que si el webhook hubiera llegado.
+                </p>
+                {cobrosPendientes.map((c: any) => (
+                  <div key={c.external_reference} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '0.75rem 1rem',
+                    display: 'flex', alignItems: 'center', gap: '0.9rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{c.cliente_nombre}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.5)' }}>{c.cliente_email}</span>
+                    <span style={{ fontSize: 11, color: C.olivo }}>Plan {c.plan}</span>
+                    <span style={{ fontSize: 11, color: 'rgba(231,223,202,0.5)' }}>${Number(c.monto).toLocaleString('es-CO')} COP</span>
+                    <span style={{ fontSize: 10, color: 'rgba(231,223,202,0.35)', fontFamily: 'monospace' }}>{c.external_reference}</span>
+                    <button
+                      onClick={() => confirmarCobro(c.external_reference)}
+                      disabled={confirmandoCobro === c.external_reference}
+                      style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        color: C.vino, background: C.olivo, border: 'none', borderRadius: 6, padding: '0.45rem 0.9rem',
+                        cursor: confirmandoCobro === c.external_reference ? 'not-allowed' : 'pointer',
+                        opacity: confirmandoCobro === c.external_reference ? 0.6 : 1, fontFamily: 'inherit' }}>
+                      {confirmandoCobro === c.external_reference ? 'Confirmando…' : 'Confirmar pago y activar'}
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
