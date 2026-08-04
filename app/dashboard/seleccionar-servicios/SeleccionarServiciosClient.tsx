@@ -53,9 +53,16 @@ export default function SeleccionarServiciosClient({
       setDone(true)
       // Refresca el token sin cerrar sesión (evita pedirle al cliente que
       // vuelva a iniciar sesión otra vez justo después de haberlo hecho para
-      // cambiar la contraseña) y lo manda directo al dashboard.
-      await update({ debe_elegir_servicios: false })
-      setTimeout(() => { router.push('/dashboard'); router.refresh() }, 900)
+      // cambiar la contraseña). Si esto falla por lo que sea, no debe dejar
+      // al cliente colgado en esta pantalla — igual lo mandamos al dashboard
+      // con una navegación completa (no router.push) para asegurar que se
+      // reevalúe todo desde cero contra la cookie más reciente.
+      try {
+        await update({ debe_elegir_servicios: false })
+      } catch (e) {
+        console.error('Error refrescando la sesión tras elegir servicios:', e)
+      }
+      setTimeout(() => { window.location.href = '/dashboard' }, 900)
     } finally {
       setSaving(false)
     }
