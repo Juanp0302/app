@@ -17,16 +17,31 @@ export const authConfig: NextAuthConfig = {
       if (!isDashboard) return true
       if (!isLoggedIn) return false
 
+      // El orden importa: si un cliente nuevo tiene AMBAS banderas en true
+      // (must_change_password y debe_elegir_servicios — el caso normal de
+      // toda cuenta recién creada automáticamente), exigir primero el
+      // cambio de contraseña y solo evaluar "elegir servicios" cuando esa
+      // ya no aplique. Evaluar las dos reglas de forma independiente
+      // (como estaba antes) produce un bucle infinito: /cambiar-password
+      // redirige a /seleccionar-servicios (porque aún debe elegir
+      // servicios) y /seleccionar-servicios redirige de vuelta a
+      // /cambiar-password (porque aún debe cambiar la contraseña).
       const mustChange = (auth!.user as any).must_change_password === true
       const isCambiarPasswordPage = request.nextUrl.pathname === '/dashboard/cambiar-password'
-      if (mustChange && !isCambiarPasswordPage) {
-        return Response.redirect(new URL('/dashboard/cambiar-password', request.nextUrl))
+      if (mustChange) {
+        if (!isCambiarPasswordPage) {
+          return Response.redirect(new URL('/dashboard/cambiar-password', request.nextUrl))
+        }
+        return true
       }
 
       const debeElegirServicios = (auth!.user as any).debe_elegir_servicios === true
       const isSeleccionarServiciosPage = request.nextUrl.pathname === '/dashboard/seleccionar-servicios'
-      if (debeElegirServicios && !isSeleccionarServiciosPage) {
-        return Response.redirect(new URL('/dashboard/seleccionar-servicios', request.nextUrl))
+      if (debeElegirServicios) {
+        if (!isSeleccionarServiciosPage) {
+          return Response.redirect(new URL('/dashboard/seleccionar-servicios', request.nextUrl))
+        }
+        return true
       }
 
       return true
