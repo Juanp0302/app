@@ -46,7 +46,11 @@ export async function crearCortesia(datos: DatosCortesia): Promise<{ clienteId: 
     contacto:     datos.contacto,
     email:        datos.email,
     user_email:   datos.email,
-    user_nombre:  datos.contacto ?? datos.razon_social,
+    // Siempre la razón social — "contacto" puede venir vacío o con datos que
+    // no son un nombre de persona (ej. un número de teléfono), y este valor
+    // es el que se muestra como "Cliente" en los correos de bienvenida y
+    // de notificación al superadmin.
+    user_nombre:  datos.razon_social,
     plan:         datos.plan,
     suscripcion_vencimiento: vencimiento.toISOString(),
   })

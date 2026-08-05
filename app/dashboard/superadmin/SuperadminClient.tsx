@@ -820,7 +820,7 @@ export default function SuperadminClient() {
                     <input value={cortesiaForm.nit} onChange={e => setCortesiaForm(f => ({ ...f, nit: e.target.value }))} style={inputStyle} />
                   </div>
                   <div>
-                    <label style={labelStyle}>Contacto (opcional)</label>
+                    <label style={labelStyle}>Nombre del representante (opcional)</label>
                     <input value={cortesiaForm.contacto} onChange={e => setCortesiaForm(f => ({ ...f, contacto: e.target.value }))} style={inputStyle} />
                   </div>
                 </div>
