@@ -36,7 +36,7 @@ export async function GET() {
            c.admin_revision_id,
            ar.nombre AS admin_revision_nombre, ar.email AS admin_revision_email,
            c.plan, c.suscripcion_estado, c.suscripcion_inicio, c.suscripcion_vencimiento,
-           c.suscripcion_externa_id, c.auto_cuenta_cobro,
+           c.suscripcion_externa_id, c.auto_cuenta_cobro, c.es_cortesia,
            c.tickets_mes, c.chats_mes,
            GROUP_CONCAT(cs.servicio, ',') AS servicios,
            COUNT(co.id)                                              AS total_obl,

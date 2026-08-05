@@ -32,6 +32,7 @@ export async function migrateSuscripcion() {
     `ALTER TABLE clientes ADD COLUMN chats_mes INTEGER DEFAULT 0`,
     `ALTER TABLE clientes ADD COLUMN conteo_reset_at TEXT`,
     `ALTER TABLE clientes ADD COLUMN auto_cuenta_cobro INTEGER DEFAULT 0`,
+    `ALTER TABLE clientes ADD COLUMN es_cortesia INTEGER DEFAULT 0`,
   ]
   for (const sql of cols) {
     try { await execute(sql) } catch { /* columna ya existe */ }

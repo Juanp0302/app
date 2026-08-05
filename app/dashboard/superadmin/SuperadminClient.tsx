@@ -5,6 +5,16 @@ import NavLogo from '@/components/NavLogo'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em',
+  textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', marginBottom: '0.3rem',
+}
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'rgba(231,223,202,0.06)', border: '1px solid rgba(150,134,34,0.3)',
+  borderRadius: '8px', padding: '0.6rem 0.85rem', fontSize: '0.82rem', color: C.marfil,
+  fontFamily: "'Josefin Sans', sans-serif", outline: 'none', boxSizing: 'border-box',
+}
+
 const TIPO_COLOR: Record<string, string> = {
   financiera: '#3b82f6', tecnica: '#10b981', juridica: '#f59e0b', transversal: '#8b5cf6',
 }
@@ -54,6 +64,42 @@ export default function SuperadminClient() {
   const [accToggling,   setAccToggling]   = useState<string | null>(null)
   const [cobrosPendientes, setCobrosPendientes] = useState<any[]>([])
   const [confirmandoCobro, setConfirmandoCobro] = useState<string | null>(null)
+
+  const [showCortesia,   setShowCortesia]   = useState(false)
+  const [cortesiaForm,   setCortesiaForm]   = useState({ razon_social: '', email: '', nit: '', contacto: '', plan: 'basico', meses: '3' })
+  const [cortesiaError,  setCortesiaError]  = useState('')
+  const [cortesiaOk,     setCortesiaOk]     = useState<string | null>(null)
+  const [guardandoCortesia, setGuardandoCortesia] = useState(false)
+
+  function cerrarCortesia() {
+    setShowCortesia(false)
+    setCortesiaForm({ razon_social: '', email: '', nit: '', contacto: '', plan: 'basico', meses: '3' })
+    setCortesiaError('')
+    setCortesiaOk(null)
+  }
+
+  async function crearCortesia() {
+    if (!cortesiaForm.razon_social.trim() || !cortesiaForm.email.trim()) {
+      setCortesiaError('Nombre/razón social y correo son obligatorios.')
+      return
+    }
+    setCortesiaError('')
+    setGuardandoCortesia(true)
+    try {
+      const r = await fetch('/api/superadmin/cortesias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...cortesiaForm, meses: Number(cortesiaForm.meses) }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setCortesiaError(d.error ?? 'Error creando la cortesía'); return }
+      setCortesiaOk(`Cuenta creada. Contraseña temporal: ${d.passwordTemporal} (también se envió por correo).`)
+      await cargar()
+    } catch {
+      setCortesiaError('Error de conexión creando la cortesía.')
+    } finally {
+      setGuardandoCortesia(false)
+    }
+  }
 
   async function cargarCobrosPendientes() {
     try {
@@ -240,6 +286,12 @@ export default function SuperadminClient() {
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em',
           textTransform: 'uppercase', color: C.olivo }}>Vista Global — Super Administrador</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={() => setShowCortesia(true)} style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: C.vino, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            border: 'none', borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: C.olivo }}>
+            + Generar cortesía
+          </button>
           <a href="/dashboard/superadmin/asignacion" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
             border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem',
@@ -631,7 +683,16 @@ export default function SuperadminClient() {
                   borderRadius: 10, padding: '0.9rem 1.2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                   {/* Nombre */}
                   <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{c.razon_social}</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {c.razon_social}
+                      {!!c.es_cortesia && (
+                        <span style={{ fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                          color: C.olivo, background: 'rgba(150,134,34,0.15)', border: '1px solid rgba(150,134,34,0.35)',
+                          padding: '0.1rem 0.45rem', borderRadius: 10 }}>
+                          Cortesía
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: '0.65rem', color: 'rgba(231,223,202,0.4)' }}>{c.user_email}</div>
                     {ciclo && (
                       <div style={{ fontSize: '0.6rem', color: alertaVence ? '#f59e0b' : 'rgba(231,223,202,0.3)', marginTop: 3 }}>
@@ -711,6 +772,94 @@ export default function SuperadminClient() {
         </div>
 
       </main>
+
+      {showCortesia && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '1rem' }}
+          onClick={e => { if (e.target === e.currentTarget) cerrarCortesia() }}>
+          <div style={{ background: '#1a0204', border: '1px solid rgba(150,134,34,0.3)', borderRadius: 16,
+            padding: '2rem', width: '100%', maxWidth: 480, maxHeight: '92vh', overflowY: 'auto', position: 'relative' }}>
+            <button onClick={cerrarCortesia} style={{ position: 'absolute', top: '1rem', right: '1rem',
+              background: 'rgba(231,223,202,0.08)', border: 'none', color: 'rgba(231,223,202,0.5)',
+              borderRadius: 6, padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}>✕</button>
+
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+              Generar cortesía
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.5)', margin: '0 0 1.4rem', lineHeight: 1.6 }}>
+              Crea la cuenta de un cliente nuevo sin pasarla por Trazo/Wompi. Recibe el mismo correo de
+              bienvenida con usuario y contraseña. Al cumplirse los meses, la cuenta se suspende sola y
+              se le notifica para que realice el pago.
+            </p>
+
+            {cortesiaOk ? (
+              <div style={{ background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.3)',
+                borderRadius: 8, padding: '1rem', fontSize: '0.8rem', color: '#4ade80', lineHeight: 1.6 }}>
+                {cortesiaOk}
+                <div style={{ marginTop: '1rem' }}>
+                  <button onClick={cerrarCortesia} style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em',
+                    textTransform: 'uppercase', color: C.vino, background: C.olivo, border: 'none', borderRadius: 6,
+                    padding: '0.45rem 0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div>
+                  <label style={labelStyle}>Nombre o razón social *</label>
+                  <input value={cortesiaForm.razon_social} onChange={e => setCortesiaForm(f => ({ ...f, razon_social: e.target.value }))} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Correo *</label>
+                  <input type="email" value={cortesiaForm.email} onChange={e => setCortesiaForm(f => ({ ...f, email: e.target.value }))} style={inputStyle} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                  <div>
+                    <label style={labelStyle}>NIT (opcional)</label>
+                    <input value={cortesiaForm.nit} onChange={e => setCortesiaForm(f => ({ ...f, nit: e.target.value }))} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Contacto (opcional)</label>
+                    <input value={cortesiaForm.contacto} onChange={e => setCortesiaForm(f => ({ ...f, contacto: e.target.value }))} style={inputStyle} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                  <div>
+                    <label style={labelStyle}>Plan *</label>
+                    <select value={cortesiaForm.plan} onChange={e => setCortesiaForm(f => ({ ...f, plan: e.target.value }))}
+                      style={{ ...inputStyle, cursor: 'pointer' }}>
+                      <option value="basico">Básico</option>
+                      <option value="pro">Pro</option>
+                      <option value="premium">Premium</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Meses de cortesía *</label>
+                    <input type="number" min={1} max={24} value={cortesiaForm.meses}
+                      onChange={e => setCortesiaForm(f => ({ ...f, meses: e.target.value }))} style={inputStyle} />
+                  </div>
+                </div>
+
+                {cortesiaError && (
+                  <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8,
+                    padding: '0.7rem 1rem', fontSize: '0.78rem', color: '#f87171' }}>
+                    {cortesiaError}
+                  </div>
+                )}
+
+                <button onClick={crearCortesia} disabled={guardandoCortesia} style={{
+                  marginTop: '0.5rem', background: guardandoCortesia ? 'rgba(150,134,34,0.3)' : C.olivo,
+                  color: C.vino, border: 'none', borderRadius: 8, padding: '0.75rem 1.2rem', fontWeight: 700,
+                  fontSize: '0.75rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                  cursor: guardandoCortesia ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  {guardandoCortesia ? 'Creando…' : 'Crear cuenta de cortesía'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
