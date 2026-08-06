@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import NavLogo from '@/components/NavLogo'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
@@ -70,6 +70,11 @@ export default function TicketsClient({
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda,     setBusqueda]     = useState('')
   const [limiteError,  setLimiteError]  = useState<{ mensaje: string; plan: string } | null>(null)
+  const [archivoNuevo,     setArchivoNuevo]     = useState<File | null>(null)
+  const [archivoRespuesta, setArchivoRespuesta] = useState<File | null>(null)
+  const [errorArchivo,     setErrorArchivo]     = useState('')
+  const fileNuevoRef     = useRef<HTMLInputElement>(null)
+  const fileRespuestaRef = useRef<HTMLInputElement>(null)
 
   const cargarTickets = useCallback(async () => {
     const url = (isAdmin || isSuperadmin) ? '/api/tickets' : `/api/tickets?clienteId=${clienteId}`
@@ -90,31 +95,62 @@ export default function TicketsClient({
 
   async function crearTicket() {
     if (!form.asunto.trim() || !form.descripcion.trim()) return
-    const r = await fetch('/api/tickets', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'crear', ...form, clienteId }),
-    })
-    const d = await r.json()
+    setErrorArchivo('')
+    let r: Response, d: any
+    if (archivoNuevo) {
+      const fd = new FormData()
+      fd.append('accion', 'crear')
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v as string))
+      if (clienteId) fd.append('clienteId', clienteId)
+      fd.append('archivo', archivoNuevo)
+      r = await fetch('/api/tickets/adjunto', { method: 'POST', body: fd })
+      d = await r.json()
+    } else {
+      r = await fetch('/api/tickets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'crear', ...form, clienteId }),
+      })
+      d = await r.json()
+    }
     if (!r.ok) {
       if (d.codigo === 'LIMITE_TICKETS' || d.codigo === 'SUSCRIPCION_SUSPENDIDA') {
         setModalNuevo(false)
         setLimiteError({ mensaje: d.error, plan: d.plan ?? '' })
         return
       }
+      setErrorArchivo(d.error ?? 'Error al crear el ticket')
       return
     }
     setLimiteError(null)
     setModalNuevo(false); setForm(FORM_INIT)
+    setArchivoNuevo(null); if (fileNuevoRef.current) fileNuevoRef.current.value = ''
     await cargarTickets(); await cargarDetalle(d.id)
   }
 
   async function responder() {
-    if (!texto.trim() || !activo) return
+    if ((!texto.trim() && !archivoRespuesta) || !activo) return
     setEnviando(true)
-    await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'responder', ticketId: activo.id, contenido: texto }) })
-    setTexto(''); await cargarDetalle(activo.id); await cargarTickets()
-    setEnviando(false)
+    setErrorArchivo('')
+    try {
+      if (archivoRespuesta) {
+        const fd = new FormData()
+        fd.append('accion', 'responder')
+        fd.append('ticketId', activo.id)
+        fd.append('contenido', texto)
+        fd.append('archivo', archivoRespuesta)
+        const r = await fetch('/api/tickets/adjunto', { method: 'POST', body: fd })
+        const d = await r.json()
+        if (!r.ok) { setErrorArchivo(d.error ?? 'Error al adjuntar el archivo'); return }
+      } else {
+        await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accion: 'responder', ticketId: activo.id, contenido: texto }) })
+      }
+      setTexto(''); setArchivoRespuesta(null)
+      if (fileRespuestaRef.current) fileRespuestaRef.current.value = ''
+      await cargarDetalle(activo.id); await cargarTickets()
+    } finally {
+      setEnviando(false)
+    }
   }
 
   async function cambiarEstado(estado: string) {
@@ -276,6 +312,14 @@ export default function TicketsClient({
               <div style={{ flexShrink: 0, padding: '1.25rem 1.5rem', background: '#fafafa', borderBottom: '1px solid #e5e7eb' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', marginBottom: 6 }}>Descripción</div>
                 <p style={{ margin: 0, fontSize: 14, color: '#333', lineHeight: 1.6 }}>{activo.descripcion}</p>
+                {activo.archivo_ref && (
+                  <a href={`/api/tickets/adjunto?ticketId=${activo.id}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10,
+                      padding: '6px 10px', borderRadius: 8, fontSize: 12, textDecoration: 'none',
+                      background: '#fff', border: '1px solid #e5e7eb', color: C.bordo }}>
+                    📎 {activo.archivo_nombre}
+                  </a>
+                )}
               </div>
 
               {/* Respuestas */}
@@ -293,6 +337,14 @@ export default function TicketsClient({
                           padding: '10px 14px', borderRadius: esMio ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                           fontSize: 14, lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
                           {r.contenido}
+                          {r.archivo_ref && (
+                            <a href={`/api/tickets/adjunto?respuestaId=${r.id}`} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: r.contenido ? 8 : 0,
+                                padding: '6px 10px', borderRadius: 8, fontSize: 12, textDecoration: 'none',
+                                background: esMio ? 'rgba(255,255,255,0.15)' : '#f5f3ee', color: esMio ? '#fff' : C.bordo }}>
+                              📎 {r.archivo_nombre}
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -317,13 +369,27 @@ export default function TicketsClient({
 
             {/* Módulo de respuesta — fijo abajo */}
             {activo.estado !== 'cerrado' && (
-              <div style={{ flexShrink: 0, padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
-                <input value={texto} onChange={e => setTexto(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); responder() } }}
-                  placeholder="Escribe una respuesta…" style={{ ...inp, flex: 1 }} />
-                <button onClick={responder} disabled={enviando || !texto.trim()} style={btn(C.bordo)}>
-                  {enviando ? '…' : 'Responder'}
-                </button>
+              <div style={{ flexShrink: 0, padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
+                {errorArchivo && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 6 }}>{errorArchivo}</div>}
+                {archivoRespuesta && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#666', marginBottom: 6, background: '#f5f3ee', borderRadius: 6, padding: '4px 8px', width: 'fit-content' }}>
+                    📎 {archivoRespuesta.name}
+                    <button onClick={() => { setArchivoRespuesta(null); if (fileRespuestaRef.current) fileRespuestaRef.current.value = '' }}
+                      style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>✕</button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input type="file" ref={fileRespuestaRef} style={{ display: 'none' }}
+                    onChange={e => { setErrorArchivo(''); setArchivoRespuesta(e.target.files?.[0] ?? null) }} />
+                  <button onClick={() => fileRespuestaRef.current?.click()} title="Adjuntar archivo"
+                    style={{ ...btn('#f0f0f0', '#555'), fontSize: 16, padding: '9px 14px' }}>📎</button>
+                  <input value={texto} onChange={e => setTexto(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); responder() } }}
+                    placeholder="Escribe una respuesta…" style={{ ...inp, flex: 1 }} />
+                  <button onClick={responder} disabled={enviando || (!texto.trim() && !archivoRespuesta)} style={btn(C.bordo)}>
+                    {enviando ? '…' : 'Responder'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -364,6 +430,13 @@ export default function TicketsClient({
                 <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                   style={{ ...inp, minHeight: 100, resize: 'vertical' }} placeholder="Explica el problema en detalle" />
               </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: C.vino, display: 'block', marginBottom: 4 }}>Adjunto (opcional)</label>
+                <input type="file" ref={fileNuevoRef}
+                  onChange={e => setArchivoNuevo(e.target.files?.[0] ?? null)}
+                  style={{ fontSize: 13, fontFamily: 'inherit' }} />
+              </div>
+              {errorArchivo && <div style={{ fontSize: 12, color: '#dc2626' }}>{errorArchivo}</div>}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button style={btn('#f0f0f0', '#333')} onClick={() => setModalNuevo(false)}>Cancelar</button>
                 <button style={btn(C.bordo)} onClick={crearTicket}>Crear ticket</button>

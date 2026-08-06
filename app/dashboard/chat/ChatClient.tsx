@@ -30,6 +30,9 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
   const [admins,       setAdmins]       = useState<any[]>([])
   const [texto,        setTexto]        = useState('')
   const [enviando,     setEnviando]     = useState(false)
+  const [archivoSel,   setArchivoSel]   = useState<File | null>(null)
+  const [errorArchivo, setErrorArchivo] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [modalNuevo,   setModalNuevo]   = useState(false)
   const [modalReasig,  setModalReasig]  = useState(false)
   const [formNuevo,    setFormNuevo]    = useState({ tipo: 'financiera', asunto: '' })
@@ -77,15 +80,31 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
   }
 
   async function enviar() {
-    if (!texto.trim() || !activa) return
+    if ((!texto.trim() && !archivoSel) || !activa) return
     setEnviando(true)
-    await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'mensaje', conversacionId: activa.id, contenido: texto }),
-    })
-    setTexto('')
-    await cargarMensajes(activa.id)
-    setEnviando(false)
+    setErrorArchivo('')
+    try {
+      if (archivoSel) {
+        const fd = new FormData()
+        fd.append('conversacionId', activa.id)
+        fd.append('contenido', texto)
+        fd.append('archivo', archivoSel)
+        const r = await fetch('/api/chat/adjunto', { method: 'POST', body: fd })
+        const d = await r.json()
+        if (!r.ok) { setErrorArchivo(d.error ?? 'Error al adjuntar el archivo'); return }
+      } else {
+        await fetch('/api/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accion: 'mensaje', conversacionId: activa.id, contenido: texto }),
+        })
+      }
+      setTexto('')
+      setArchivoSel(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      await cargarMensajes(activa.id)
+    } finally {
+      setEnviando(false)
+    }
   }
 
   async function crearConversacion() {
@@ -192,6 +211,14 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
                       </div>
                       <div style={{ background: esMio ? C.bordo : '#fff', color: esMio ? '#fff' : '#333', padding: '10px 14px', borderRadius: esMio ? '16px 16px 4px 16px' : '16px 16px 16px 4px', fontSize: 14, lineHeight: 1.5, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
                         {m.contenido}
+                        {m.archivo_ref && (
+                          <a href={`/api/chat/adjunto?mensajeId=${m.id}`} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: m.contenido ? 8 : 0,
+                              padding: '6px 10px', borderRadius: 8, fontSize: 12, textDecoration: 'none',
+                              background: esMio ? 'rgba(255,255,255,0.15)' : '#f5f3ee', color: esMio ? '#fff' : C.bordo }}>
+                            📎 {m.archivo_nombre}
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -201,13 +228,27 @@ export default function ChatClient({ userRole, userId, clienteId }: { userRole: 
 
             {/* Input */}
             {activa.estado === 'activa' ? (
-              <div style={{ padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
-                <input value={texto} onChange={e => setTexto(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-                  placeholder="Escribe un mensaje..." style={{ ...inp, flex: 1 }} />
-                <button onClick={enviar} disabled={enviando || !texto.trim()} style={btn(C.bordo)}>
-                  {enviando ? '...' : 'Enviar'}
-                </button>
+              <div style={{ padding: '1rem 1.5rem', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
+                {errorArchivo && <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 6 }}>{errorArchivo}</div>}
+                {archivoSel && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#666', marginBottom: 6, background: '#f5f3ee', borderRadius: 6, padding: '4px 8px', width: 'fit-content' }}>
+                    📎 {archivoSel.name}
+                    <button onClick={() => { setArchivoSel(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                      style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>✕</button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input type="file" ref={fileInputRef} style={{ display: 'none' }}
+                    onChange={e => { setErrorArchivo(''); setArchivoSel(e.target.files?.[0] ?? null) }} />
+                  <button onClick={() => fileInputRef.current?.click()} title="Adjuntar archivo"
+                    style={{ ...btn('#f0f0f0', '#555'), fontSize: 16, padding: '10px 14px' }}>📎</button>
+                  <input value={texto} onChange={e => setTexto(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
+                    placeholder="Escribe un mensaje..." style={{ ...inp, flex: 1 }} />
+                  <button onClick={enviar} disabled={enviando || (!texto.trim() && !archivoSel)} style={btn(C.bordo)}>
+                    {enviando ? '...' : 'Enviar'}
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ padding: '1rem', background: '#fee2e2', textAlign: 'center', fontSize: 13, color: '#dc2626' }}>
