@@ -1,12 +1,14 @@
 # ── Etapa 1: dependencias ─────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+# Node 22: @supabase/supabase-js y puppeteer ya exigen >=22 (engines) desde que
+# package-lock.json se regeneró al instalar framer-motion — antes era node:20-alpine.
+FROM node:22-alpine AS deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
 # ── Etapa 2: build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -18,7 +20,7 @@ ENV TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN
 RUN npm run build
 
 # ── Etapa 3: producción ───────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
