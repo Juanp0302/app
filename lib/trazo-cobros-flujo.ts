@@ -50,6 +50,7 @@ export interface DatosContratoParaCobro {
   numeroIdentificacion: string
   email:                string
   contratoDatos?:       object
+  montoOverride?:       number   // monto ya con descuento aplicado (ver lib/codigos-descuento.ts) — si falta, se usa el precio de lista del plan
 }
 
 async function generarCobro(opts: {
@@ -119,7 +120,7 @@ export async function crearCobroTrazoParaContrato(datos: DatosContratoParaCobro)
 
   return generarCobro({
     plan: datos.plan,
-    monto: planInfo.precio,
+    monto: datos.montoOverride ?? planInfo.precio,
     descripcion: `Owl Compliance — Plan ${planInfo.label}`,
     nombreCliente: datos.nombreCliente,
     tipoIdentificacion: datos.tipoIdentificacion,

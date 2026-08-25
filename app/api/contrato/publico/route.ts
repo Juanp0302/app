@@ -23,6 +23,7 @@ import {
 import { trazoConfigurado, crearSuscripcionTrazoParaContrato } from '@/lib/trazo-flujo'
 import { wompiConfigurado, crearPagoWompiParaContrato } from '@/lib/wompi-flujo'
 import { trazoCobrosConfigurado, crearCobroTrazoParaContrato } from '@/lib/trazo-cobros-flujo'
+import { aplicarCodigoDescuento } from '@/lib/codigos-descuento'
 
 function getIP(req: NextRequest): string {
   return (
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
   const {
     nombreCliente, tipoPersona, tipoIdentificacion,
     numeroIdentificacion, ciudadCliente, nombreRepresentante,
-    ccRepresentante, plan, email, cuentaCobroSolicitada,
+    ccRepresentante, plan, email, cuentaCobroSolicitada, codigoDescuento,
   } = body
 
   const requeridos: Record<string, string> = {
@@ -151,6 +152,21 @@ export async function POST(req: NextRequest) {
   const fechaFmt = ahora.toLocaleDateString('es-CO', {
     day: 'numeric', month: 'long', year: 'numeric',
   })
+
+  // ── Código de descuento (opcional) ──────────────────────────────────────────
+  // Se valida y aplica SIEMPRE en el servidor a partir del código de texto —
+  // nunca se confía en un monto/porcentaje que mande el navegador. Si el
+  // código no es válido, el flujo sigue con el precio de lista (no se
+  // bloquea el pago por un código roto/vencido).
+  let montoFinal: number = planObj.precio
+  let descuentoAplicado: { codigo: string; montoDescuento: number } | null = null
+  if (codigoDescuento?.toString().trim()) {
+    const resultado = await aplicarCodigoDescuento(codigoDescuento.toString(), planKey)
+    if (resultado.valido && resultado.montoFinal !== undefined) {
+      montoFinal = resultado.montoFinal
+      descuentoAplicado = { codigo: resultado.codigo!, montoDescuento: resultado.montoDescuento ?? 0 }
+    }
+  }
 
   // ── Generar PDFs ────────────────────────────────────────────────────────────
 
@@ -190,8 +206,10 @@ export async function POST(req: NextRequest) {
       numeroCuenta = await crearCuentaCobro({
         clienteId:    email,
         plan:         planKey,
-        monto:        planObj.precio,
-        concepto:     `Plan ${planObj.label} — ${mesLabel(ahora)}`,
+        monto:        montoFinal,
+        concepto:     descuentoAplicado
+          ? `Plan ${planObj.label} — ${mesLabel(ahora)} (código ${descuentoAplicado.codigo}: -$${descuentoAplicado.montoDescuento.toLocaleString('es-CO')})`
+          : `Plan ${planObj.label} — ${mesLabel(ahora)}`,
         mes:          ahora.toISOString().slice(0, 7),
         fechaEmision: fechaISO,
       })
@@ -234,6 +252,7 @@ export async function POST(req: NextRequest) {
         numeroIdentificacion,
         email,
         contratoDatos: datosContrato,
+        montoOverride: montoFinal,
       })
       enlacePago = wompi.checkoutUrl
     } catch (e: any) {
@@ -248,6 +267,7 @@ export async function POST(req: NextRequest) {
         numeroIdentificacion,
         email,
         contratoDatos: datosContrato,
+        montoOverride: montoFinal,
       })
       enlacePago = cobro.link
     } catch (e: any) {
@@ -262,6 +282,7 @@ export async function POST(req: NextRequest) {
         numeroIdentificacion,
         email,
         contratoDatos: datosContrato,
+        montoOverride: montoFinal,
       })
       enlacePago = trazo.subscriptionUrl
     } catch (e: any) {
@@ -291,5 +312,11 @@ export async function POST(req: NextRequest) {
     adjuntos: adjuntosEmail,
   }).catch(e => console.error('[contrato/publico] Error Drive:', e))
 
-  return NextResponse.json({ ok: true, numeroCuenta: numeroCuenta ?? null, enlacePago })
+  return NextResponse.json({
+    ok: true,
+    numeroCuenta: numeroCuenta ?? null,
+    enlacePago,
+    montoFinal,
+    descuentoAplicado,
+  })
 }

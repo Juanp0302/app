@@ -344,6 +344,28 @@ Pendiente:
    - El endpoint interno (`/api/interno/trazo-cobros`) se dejó también, por si en algún momento hace falta automatizarlo desde afuera (ej. un cron), pero la vía principal ahora es la pantalla de superadmin.
    - El webhook automático (`/api/webhooks/trazo-cobros`) sigue intacto — esto es solo un puente mientras se confirma con soporte.
 
+## 5quater. Códigos de descuento (2026-08-25)
+
+Se agregó soporte de códigos de descuento configurables por el superadmin desde el dashboard, aplicables al pago del contrato **sin importar cuál pasarela esté activa** (`PASARELA_ACTIVA`: Trazo Suscripciones, Trazo Cobros o Wompi — ver secciones 5bis/5ter). El diseño parte de que ninguna de las tres integraciones tiene un concepto nativo de "cupón": las tres solo reciben un `amount`/`monto` numérico ya calculado de nuestro lado, así que el descuento se resuelve **antes** de llamar a cualquiera de ellas, sin tocar su lógica interna.
+
+**Archivos nuevos:**
+- `lib/codigos-descuento-db.ts` — tabla `codigos_descuento` (código único en mayúsculas, `tipo` porcentaje/fijo, `valor`, `plan` opcional — NULL aplica a todos —, `usos_maximos` opcional, `usos_actuales`, `vigente_hasta` opcional, `activo`).
+- `lib/codigos-descuento.ts` — lógica de negocio: `validarCodigoDescuento()` (calcula el descuento, no consume uso — para previsualización), `aplicarCodigoDescuento()` (valida + incrementa `usos_actuales`, solo al generarse el cobro real), y el CRUD (`crearCodigoDescuento`, `listarCodigosDescuento`, `toggleCodigoDescuento`, `eliminarCodigoDescuento`).
+- `app/api/superadmin/codigos-descuento/route.ts` — CRUD protegido con `requireSuperadmin` (mismo patrón que `api/superadmin/cortesias`).
+- `app/api/codigos-descuento/validar/route.ts` — endpoint público de previsualización (usado por el formulario de `/suscribirse` mientras el cliente escribe el código, antes de firmar).
+
+**Cambios en archivos existentes:**
+- `lib/wompi-flujo.ts`, `lib/trazo-flujo.ts`, `lib/trazo-cobros-flujo.ts` — cada `DatosContratoPara*` ganó un campo opcional `montoOverride?: number`; si se pasa, reemplaza el precio de lista del plan al construir el enlace/cobro. Sin este campo el comportamiento es idéntico al de siempre.
+- `app/api/contrato/publico/route.ts` — si el body trae `codigoDescuento`, se valida y aplica **en el servidor** (nunca se confía en un monto/porcentaje mandado por el navegador; el cliente solo manda el texto del código) vía `aplicarCodigoDescuento()`, y el `montoFinal` resultante se usa tanto en la cuenta de cobro (PDF) como en el `montoOverride` de la pasarela activa. Un código inválido/vencido no bloquea el pago — simplemente no se aplica descuento.
+- `app/suscribirse/SuscribirseContratoClient.tsx` — campo de código en el paso 3 (confirmación), con validación en vivo contra el endpoint público y precio final mostrado antes de firmar.
+- `app/dashboard/superadmin/SuperadminClient.tsx` — modal "Códigos de descuento": crear (código, tipo, valor, plan, usos máximos, vigencia), activar/desactivar, eliminar, y ver usos consumidos.
+
+**Decisiones/limitaciones aceptadas:**
+- El uso (`usos_actuales`) se incrementa al **generarse** el cobro/enlace de pago en `contrato/publico`, no al confirmarse el pago — si alguien genera el enlace y nunca paga, el uso ya quedó consumido. Aceptable mientras el volumen sea bajo; si se vuelve un problema, mover el incremento al webhook de confirmación.
+- El descuento hoy solo se aplica al **primer pago** (el del contrato). Las funciones de renovación (`crearCobroTrazoRenovacion`, `crearPagoWompiRenovacion`) no reciben `montoOverride` — cada mes vuelve a cobrarse el precio de lista, salvo que se decida más adelante que el código aplica a varios meses.
+- Caso especial: en Trazo Suscripciones (`crearSuscripcionTrazoParaContrato`), el `amount` del Plan es fijo para los 12 cobros del ciclo — un `montoOverride` ahí descuenta los 12 meses, no solo el primero. No es un problema práctico hoy porque esta pasarela sigue bloqueada (sección 4quater), pero hay que recordarlo si se retoma.
+- Sin pruebas automatizadas nuevas (no se tocó `lib/trazo.test.ts` — los 15 tests existentes siguen pasando sin cambios). `tsc --noEmit` limpio.
+
 ## 6. Cómo retomar esto
 
 1. Si ya llegó respuesta de Trazo sobre las preguntas de la sección 4, empezar por ahí — probablemente cambie el diseño de cómo nos enteramos de los cobros (webhook vs. polling).

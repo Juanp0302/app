@@ -35,6 +35,9 @@ function BarraUso({ usado, limite, color }: { usado: number; limite: number | nu
   if (limite === null) {
     return <div style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.5)' }}>Sin límite</div>
   }
+  if (limite === 0) {
+    return <div style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.4)', fontStyle: 'italic' }}>No incluido en tu plan</div>
+  }
   const pct = Math.min(100, Math.round((usado / limite) * 100))
   const barColor = pct >= 100 ? '#dc2626' : pct >= 75 ? '#f59e0b' : color
   return (
@@ -361,7 +364,7 @@ export default function SuscripcionClient({ resumen, planes }: { resumen: any; p
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
                   {[
-                    { label: `${p.tickets} ticket${p.tickets !== 1 ? 's' : ''}/mes`, icon: '🎫' },
+                    { label: p.tickets === 0 ? 'Sin tickets' : `${p.tickets} ticket${p.tickets !== 1 ? 's' : ''}/mes`, icon: '🎫' },
                     { label: `${p.chats} chat${p.chats !== 1 ? 's' : ''}/mes`,        icon: '💬' },
                   ].map(item => (
                     <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'rgba(231,223,202,0.7)' }}>

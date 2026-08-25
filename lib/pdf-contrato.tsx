@@ -147,7 +147,7 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
       key:      'basico',
       label:    'Básico',
       precio:   '$199.000 COP mensuales, más IVA si aplica',
-      servicios:'Tres consultas incluidas por mes. Alertas mensuales, plantillas de liquidación, minutas tipo de CCU para descarga, acceso al vademécum regulatorio y orientación para actualización RUTIC por solicitud.',
+      servicios:'Sin tickets — atención exclusivamente por chat para consultas rápidas y coordinación operativa. Alertas mensuales, plantillas de liquidación, minutas tipo de CCU para descarga, acceso al vademécum regulatorio y orientación para actualización RUTIC por solicitud.',
     },
     {
       key:      'pro',
@@ -455,30 +455,29 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
         <Text style={{ ...s.p, fontFamily: 'Helvetica-Bold' }}>2.1 Tickets</Text>
         <Text style={s.p}>El ticket es el canal principal para solicitudes que generen entregables, seguimiento, revisión documental, conceptos, respuestas, diagnósticos o trazabilidad. Toda solicitud recibida por chat o correo que requiera análisis será convertida en ticket. El CLIENTE deberá indicar categoría, prioridad, plazo, descripción completa, documentos de soporte y contexto. El sistema o el PRESTADOR confirmará radicación cuando la plataforma esté habilitada.</Text>
         <Text style={{ ...s.p, fontFamily: 'Helvetica-Bold' }}>2.2 Chat</Text>
-        <Text style={s.p}>El chat se usará para consultas rápidas, coordinación y aclaraciones operativas. Si una conversación requiere investigación, revisión documental o entregable, será convertida en ticket y será contabilizada como tal y se podrá descontar de la cuota mensual de tickets.</Text>
+        <Text style={s.p}>El chat se usará para consultas rápidas, coordinación y aclaraciones operativas. En los planes Pro y Premium, si una conversación requiere investigación, revisión documental o entregable, será convertida en ticket y se podrá descontar de la cuota mensual de tickets. El plan Básico no incluye tickets: la atención se presta únicamente por chat, y las solicitudes que excedan ese alcance (investigación, revisión documental, entregables) se ofrecerán como servicio on-demand mediante orden de servicio, o el CLIENTE podrá actualizar su plan para acceder a tickets.</Text>
         <Text style={{ ...s.p, fontFamily: 'Helvetica-Bold' }}>2.3 Correo electrónico</Text>
         <Text style={s.p}>El correo contacto@owlcompliance.com se usará para comunicaciones contractuales, entrega de documentos, contingencias de plataforma y solicitudes de clientes sin acceso activo. Las solicitudes que requieran seguimiento serán convertidas en ticket.</Text>
 
         {/* 3. Prioridades */}
         <Text style={s.section}>3. Prioridades y Tiempos de Primera Respuesta</Text>
+        <Text style={s.p}>Esta tabla de prioridades aplica a tickets, canal exclusivo de los planes Pro y Premium. El plan Básico no incluye tickets (ver numeral 5) — sus consultas se atienden por chat dentro del horario de servicio, sin niveles de prioridad formalizados.</Text>
         <View style={s.tableWrap}>
           <View style={s.tableHeader}>
             <Text style={[s.tcb, { flex: 0.8 }]}>Prioridad</Text>
-            <Text style={[s.tcb, { flex: 2 }]}>Descripción</Text>
-            <Text style={[s.tcb, { flex: 0.8 }]}>Básico</Text>
+            <Text style={[s.tcb, { flex: 2.4 }]}>Descripción</Text>
             <Text style={[s.tcb, { flex: 0.8 }]}>Pro</Text>
             <Text style={[s.tcb, { flex: 0.8 }]}>Premium</Text>
           </View>
           {[
-            ['Crítica','Plazo regulatorio que vence el mismo día o al día siguiente, visita inminente, incidente que exige acción inmediata.','4 horas hábiles','2 horas hábiles','1 hora hábil'],
-            ['Alta','Requerimiento con vencimiento próximo, audiencia cercana, riesgo regulatorio dentro de tres días hábiles.','1 día hábil','8 horas hábiles','4 horas hábiles'],
-            ['Normal','Consulta regulatoria general, concepto sin urgencia, orientación FUTIC o RUTIC.','2 días hábiles','1 día hábil','8 horas hábiles'],
-            ['Baja','Solicitud informativa, archivo, actualización de repositorio o consulta sin impacto inmediato.','5 días hábiles','3 días hábiles','2 días hábiles'],
-          ].map(([p, d, b, pr, pm]) => (
+            ['Crítica','Plazo regulatorio que vence el mismo día o al día siguiente, visita inminente, incidente que exige acción inmediata.','2 horas hábiles','1 hora hábil'],
+            ['Alta','Requerimiento con vencimiento próximo, audiencia cercana, riesgo regulatorio dentro de tres días hábiles.','8 horas hábiles','4 horas hábiles'],
+            ['Normal','Consulta regulatoria general, concepto sin urgencia, orientación FUTIC o RUTIC.','1 día hábil','8 horas hábiles'],
+            ['Baja','Solicitud informativa, archivo, actualización de repositorio o consulta sin impacto inmediato.','3 días hábiles','2 días hábiles'],
+          ].map(([p, d, pr, pm]) => (
             <View key={p} style={s.tableRow}>
               <Text style={[s.tcb, { flex: 0.8 }]}>{p}</Text>
-              <Text style={[s.tc, { flex: 2 }]}>{d}</Text>
-              <Text style={[s.tc, { flex: 0.8 }]}>{b}</Text>
+              <Text style={[s.tc, { flex: 2.4 }]}>{d}</Text>
               <Text style={[s.tc, { flex: 0.8 }]}>{pr}</Text>
               <Text style={[s.tc, { flex: 0.8 }]}>{pm}</Text>
             </View>
@@ -518,15 +517,15 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
             <Text style={[s.tcb, { flex: 1 }]}>Plan</Text>
             <Text style={[s.tcb, { flex: 2 }]}>Cuota mensual</Text>
           </View>
-          {[['Básico','3 consultas incluidas por mes'],['Pro','6 consultas incluidas por mes'],['Premium','10 consultas incluidas por mes']].map(([p, c]) => (
+          {[['Básico','Sin tickets — atención por chat, sin cuota de consultas formalizada'],['Pro','6 consultas (tickets) incluidas por mes'],['Premium','10 consultas (tickets) incluidas por mes']].map(([p, c]) => (
             <View key={p} style={s.tableRow}>
               <Text style={[s.tc, { flex: 1 }]}>{p}</Text>
               <Text style={[s.tc, { flex: 2 }]}>{c}</Text>
             </View>
           ))}
         </View>
-        <Text style={s.p}>Se descuenta una consulta cuando la solicitud requiere análisis, investigación, revisión documental, criterio profesional o respuesta estructurada. No descuentan cuota las alertas regulatorias, actualizaciones de calendario, comunicaciones administrativas, notificaciones de estado, entrega de facturas, corrección de errores imputables al PRESTADOR o aclaraciones menores de un entregable dentro de las rondas incluidas.</Text>
-        <Text style={s.p}>Cuando el CLIENTE alcance el ochenta por ciento de su cuota, el PRESTADOR informará el estado de consumo. Al agotarse la cuota, las nuevas solicitudes podrán atenderse como servicio on-demand, acumularse para el siguiente mes por acuerdo escrito, o quedar pendientes hasta renovación de cuota.</Text>
+        <Text style={s.p}>Para los planes Pro y Premium, se descuenta una consulta cuando la solicitud requiere análisis, investigación, revisión documental, criterio profesional o respuesta estructurada. No descuentan cuota las alertas regulatorias, actualizaciones de calendario, comunicaciones administrativas, notificaciones de estado, entrega de facturas, corrección de errores imputables al PRESTADOR o aclaraciones menores de un entregable dentro de las rondas incluidas.</Text>
+        <Text style={s.p}>Cuando el CLIENTE alcance el ochenta por ciento de su cuota, el PRESTADOR informará el estado de consumo. Al agotarse la cuota, las nuevas solicitudes podrán atenderse como servicio on-demand, acumularse para el siguiente mes por acuerdo escrito, o quedar pendientes hasta renovación de cuota. El plan Básico, al no tener cuota de tickets, canaliza toda solicitud que exceda el alcance del chat como servicio on-demand o mediante actualización de plan.</Text>
 
         {/* 6. Alcance */}
         <Text style={s.section}>6. Alcance de Planes y Exclusiones Operativas</Text>
@@ -536,7 +535,8 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
             <Text style={[s.tcb, { flex: 3 }]}>Regla</Text>
           </View>
           {[
-            ['Incluido según plan','Alertas regulatorias, consultas mensuales, revisión documental según alcance, plantillas, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad.'],
+            ['Básico','No incluye tickets. La atención se presta únicamente por chat para consultas rápidas, alertas y coordinación operativa. Cualquier solicitud que exceda ese alcance se atiende como servicio on-demand o requiere actualización de plan.'],
+            ['Incluido según plan','Alertas regulatorias, consultas mensuales (tickets, en planes Pro y Premium), revisión documental según alcance, plantillas, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad.'],
             ['No incluido salvo orden de servicio','Representación formal, recursos, demandas, audiencias, defensa integral, revisión de expedientes extensos, visitas presenciales no previstas, viáticos, radicaciones con mandato, pagos a terceros y trámites que exijan firma o mandato especial.'],
             ['Premium','Incluye acompañamiento técnico-regulatorio intensivo, soporte estratégico y tarifas preferenciales. No incluye defensa formal automática ni actuaciones con mandato sin orden de servicio.'],
           ].map(([cat, regla]) => (

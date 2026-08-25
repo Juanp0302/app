@@ -35,6 +35,7 @@ export interface DatosContratoParaWompi {
   tipoIdentificacion:   string
   email:                string
   contratoDatos?:       object   // formulario completo, para trazabilidad
+  montoOverride?:       number   // monto ya con descuento aplicado (ver lib/codigos-descuento.ts) — si falta, se usa el precio de lista del plan
 }
 
 function mapLegalIdType(tipo: string): 'CC' | 'CE' | 'NIT' | 'PP' {
@@ -57,7 +58,7 @@ export async function crearPagoWompiParaContrato(datos: DatosContratoParaWompi):
   if (!planInfo) throw new Error(`Plan inválido: ${datos.plan}`)
 
   const reference = `OWL-${datos.plan}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`
-  const monto      = planInfo.precio
+  const monto      = datos.montoOverride ?? planInfo.precio
 
   const checkoutUrl = construirEnlaceCheckout({
     reference,
