@@ -70,6 +70,7 @@ export default function TicketsClient({
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda,     setBusqueda]     = useState('')
   const [limiteError,  setLimiteError]  = useState<{ mensaje: string; plan: string } | null>(null)
+  const [sinTickets,   setSinTickets]   = useState(false)
   const [archivoNuevo,     setArchivoNuevo]     = useState<File | null>(null)
   const [archivoRespuesta, setArchivoRespuesta] = useState<File | null>(null)
   const [errorArchivo,     setErrorArchivo]     = useState('')
@@ -92,6 +93,12 @@ export default function TicketsClient({
 
   useEffect(() => { cargarTickets() }, [cargarTickets])
   useEffect(() => { fetch('/api/admins').then(r => r.json()).then(setAdmins) }, [])
+  useEffect(() => {
+    if (isAdmin || isSuperadmin) return
+    fetch('/api/suscripcion').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.tickets?.limite === 0) setSinTickets(true)
+    }).catch(() => {})
+  }, [isAdmin, isSuperadmin])
 
   async function crearTicket() {
     if (!form.asunto.trim() || !form.descripcion.trim()) return
@@ -113,7 +120,7 @@ export default function TicketsClient({
       d = await r.json()
     }
     if (!r.ok) {
-      if (d.codigo === 'LIMITE_TICKETS' || d.codigo === 'SUSCRIPCION_SUSPENDIDA') {
+      if (d.codigo === 'LIMITE_TICKETS' || d.codigo === 'SUSCRIPCION_SUSPENDIDA' || d.codigo === 'TICKETS_NO_INCLUIDOS') {
         setModalNuevo(false)
         setLimiteError({ mensaje: d.error, plan: d.plan ?? '' })
         return
@@ -218,7 +225,12 @@ export default function TicketsClient({
               <span style={{ fontWeight: 700, color: C.vino, fontSize: 15 }}>
                 Tickets <span style={{ fontSize: 12, color: '#aaa', fontWeight: 400 }}>({ticketsFiltrados.length})</span>
               </span>
-              {!canEdit && <button style={btn(C.bordo)} onClick={() => setModalNuevo(true)}>+ Nuevo</button>}
+              {!canEdit && !sinTickets && <button style={btn(C.bordo)} onClick={() => setModalNuevo(true)}>+ Nuevo</button>}
+              {!canEdit && sinTickets && (
+                <a href="/dashboard/chat" style={{ fontSize: 11, color: C.bordo, fontWeight: 600 }}>
+                  Tu plan no incluye tickets — usa el chat →
+                </a>
+              )}
             </div>
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar por #número, asunto, cliente…"

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
 const PLANES_INFO: Record<string, { label: string; precio: string; precioNum: number; tickets: number; chats: number }> = {
-  basico:  { label: 'Básico',  precio: '$199.000/mes',    precioNum: 199000,  tickets: 3,  chats: 6  },
+  basico:  { label: 'Básico',  precio: '$199.000/mes',    precioNum: 199000,  tickets: 0,  chats: 6  },
   pro:     { label: 'Pro',     precio: '$890.000/mes',    precioNum: 890000,  tickets: 6,  chats: 12 },
   premium: { label: 'Premium', precio: '$2.490.000/mes',  precioNum: 2490000, tickets: 10, chats: 20 },
 }
@@ -15,7 +15,7 @@ const CLAUSULAS_CONTRATO = [
   { titulo: 'Partes', texto: 'PRESTADOR: Juan Pablo Osorio Marín, mayor de edad, identificado con cédula de ciudadanía número 1.053.824.988 de Manizales, domiciliado en Bogotá D.C., Colombia, abogado con Tarjeta Profesional No. 284.927 del Consejo Superior de la Judicatura, quien actúa de forma independiente y bajo la marca comercial Owl Compliance, en adelante el PRESTADOR. CLIENTE: Identificado con los datos ingresados en el formulario de suscripción, en adelante el CLIENTE.' },
   { titulo: 'Declaraciones', texto: 'Declara el PRESTADOR que cuenta con conocimiento y experiencia en derecho, consultoría regulatoria y gestión de cumplimiento aplicable a proveedores de redes y servicios de telecomunicaciones, proveedores de servicios de internet e ISPs en Colombia. Declara que presta sus servicios de forma independiente y que no existe impedimento legal o contractual para celebrar este contrato. Declara el CLIENTE que actúa como PRST, ISP o como empresa vinculada a la prestación de servicios de telecomunicaciones o internet en Colombia, que tiene interés legítimo en contratar servicios de gestión regulatoria, que cuenta con capacidad legal para contratar y que suministrará información completa, veraz y oportuna para la ejecución del servicio. Las Partes reconocen que este contrato corresponde a condiciones generales predispuestas por el PRESTADOR para la contratación de planes estandarizados. El CLIENTE declara que recibió el texto contractual, los términos y condiciones, el alcance del plan, los precios y las reglas de servicio antes de contratar, y que pudo formular preguntas o solicitar aclaraciones antes de aceptar.' },
   { titulo: 'Cláusula 1. Objeto', texto: 'El PRESTADOR se obliga a prestar al CLIENTE servicios profesionales de gestión, monitoreo, consultoría jurídica y técnico-regulatoria en cumplimiento aplicable a PRST en Colombia, de acuerdo con el plan contratado y los Términos y Condiciones incorporados al presente contrato. El servicio comprende orientación regulatoria, seguimiento normativo, elaboración de documentos, revisión de insumos, apoyo en cumplimiento ante autoridades, estructuración de evidencias, gestión de alertas y acompañamiento profesional en los frentes incluidos en el plan. La plataforma Owl Compliance, cuando esté disponible, será un medio operativo de coordinación, soporte, repositorio, tickets y entrega de información. La representación formal ante autoridades, la interposición de recursos, la atención de audiencias, la firma de memoriales, demandas o actuaciones que exijan mandato especial, así como cualquier actuación judicial o administrativa con derecho de postulación, no se entienden incluidas automáticamente en la mensualidad. Esas actividades requieren orden de servicio independiente, aceptación expresa, definición de honorarios y otorgamiento del mandato correspondiente cuando aplique.' },
-  { titulo: 'Cláusula 2. Planes de Servicio y Cobertura', texto: 'El CLIENTE contrata el plan mensual correspondiente al seleccionado en el proceso de suscripción. Los planes son: Básico ($199.000 COP/mes) — tres consultas incluidas por mes, alertas mensuales, plantillas de liquidación, minutas tipo de CCU para descarga, acceso al vademécum regulatorio y orientación para actualización RUTIC por solicitud. Pro ($890.000 COP/mes) — seis consultas incluidas por mes, incluye el Plan Básico más diagnóstico inicial por una vez, revisión y ajuste de CCU, conceptos escritos, validación de políticas corporativas, repositorio de evidencias, acompañamiento remoto en visitas y elaboración de respuestas ordinarias. Premium ($2.490.000 COP/mes) — diez consultas incluidas por mes, incluye Plan Pro más acompañamiento técnico-regulatorio presencial sujeto a disponibilidad, soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand. Los servicios on-demand se contratarán mediante orden de servicio. La orden indicará alcance, honorarios, entregables, plazo, responsables, forma de pago y si requiere mandato especial. Los valores no incluyen IVA, impuestos, tasas, gastos administrativos, desplazamientos, viáticos, autenticaciones, certificados, traducciones, gastos de radicación, pagos a terceros o costos de plataforma externa.' },
+  { titulo: 'Cláusula 2. Planes de Servicio y Cobertura', texto: 'El CLIENTE contrata el plan mensual correspondiente al seleccionado en el proceso de suscripción. Los planes son: Básico ($199.000 COP/mes) — sin tickets, atención exclusivamente por chat para consultas rápidas y coordinación operativa, alertas mensuales, plantillas de liquidación, minutas tipo de CCU para descarga, acceso al vademécum regulatorio y orientación para actualización RUTIC por solicitud. Pro ($890.000 COP/mes) — seis consultas (tickets) incluidas por mes, incluye el Plan Básico más diagnóstico inicial por una vez, revisión y ajuste de CCU, conceptos escritos, validación de políticas corporativas, repositorio de evidencias, acompañamiento remoto en visitas y elaboración de respuestas ordinarias. Premium ($2.490.000 COP/mes) — diez consultas (tickets) incluidas por mes, incluye Plan Pro más acompañamiento técnico-regulatorio presencial sujeto a disponibilidad, soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand. En el plan Básico, las solicitudes que excedan el alcance del chat (investigación, revisión documental, entregables) se atienden como servicio on-demand mediante orden de servicio, o mediante actualización a un plan con tickets. Los servicios on-demand se contratarán mediante orden de servicio. La orden indicará alcance, honorarios, entregables, plazo, responsables, forma de pago y si requiere mandato especial. Los valores no incluyen IVA, impuestos, tasas, gastos administrativos, desplazamientos, viáticos, autenticaciones, certificados, traducciones, gastos de radicación, pagos a terceros o costos de plataforma externa.' },
   { titulo: 'Cláusula 3. Precio, Facturación, Impuestos y Forma de Pago', texto: 'El CLIENTE pagará la retribución mensual correspondiente al plan contratado. El pago será mensual anticipado, dentro de los primeros cinco días hábiles de cada mes de servicio. El primer pago se realizará al momento de la aceptación del contrato o de la activación del servicio. El PRESTADOR emitirá factura electrónica o documento equivalente cuando esté obligado a ello, según su régimen tributario. El CLIENTE asumirá IVA, retenciones, impuestos, tasas y demás cargas aplicables de acuerdo con la ley. Los pagos se harán por transferencia bancaria, PSE, la pasarela de pagos Trazo (trazo.co), débito autorizado o el medio que el PRESTADOR informe por escrito. Si el pago es rechazado, reversado o no se acredita oportunamente, el PRESTADOR podrá suspender el servicio previo aviso por escrito. La mora causará intereses a la tasa máxima legal permitida en Colombia, sin perjuicio de la terminación por incumplimiento. La retribución mensual podrá ajustarse al inicio de cada anualidad con aviso de treinta días calendario.' },
   { titulo: 'Cláusula 4. Obligaciones del Prestador', texto: 'Prestar los servicios incluidos en el plan contratado con diligencia profesional, criterio jurídico, actualización regulatoria y estándares razonables del sector. Mantener seguimiento al marco normativo aplicable a PRST, en especial MinTIC, CRC, SIC y demás autoridades vinculadas al servicio contratado. Responder las consultas dentro de los tiempos establecidos en los Términos y Condiciones, siempre que el CLIENTE entregue información completa y oportuna. Guardar confidencialidad sobre la información del CLIENTE. Tratar los datos personales conforme a la ley, la política de tratamiento y las instrucciones documentadas cuando actúe como encargado. No usar información del CLIENTE para fines propios no autorizados. Informar cambios normativos materiales que afecten el calendario o los entregables del plan. No subcontratar el servicio profesional principal sin aviso al CLIENTE cuando la subcontratación afecte información reservada o datos personales.' },
   { titulo: 'Cláusula 5. Obligaciones del Cliente', texto: 'Pagar oportunamente la retribución pactada. Suministrar información, documentos, accesos, antecedentes y soportes completos, veraces y oportunos. Designar un contacto interno autorizado para gestionar la relación contractual. Validar internamente los documentos, conceptos y recomendaciones antes de presentarlos ante autoridades o terceros. Informar cambios relevantes en razón social, registro, cobertura, infraestructura, operación, servicios, datos de contacto o situación regulatoria. Usar la plataforma y los entregables conforme a su finalidad, sin compartir credenciales ni sublicenciar documentos a terceros. Contar con autorización, base jurídica y habilitación legal para cargar datos personales de terceros en la plataforma o remitirlos al PRESTADOR. Contratar mediante orden de servicio las actividades que excedan el plan, incluidas actuaciones formales ante autoridades o documentos que requieran firma jurídica independiente.' },
@@ -44,7 +44,7 @@ const TYC_SECCIONES = [
   { titulo: '3. Prioridades y Tiempos de Primera Respuesta', texto: 'Prioridad Crítica: Plazo regulatorio que vence el mismo día o al día siguiente, visita inminente, incidente que exige acción inmediata. Tiempos: Básico 4 horas hábiles / Pro 2 horas hábiles / Premium 1 hora hábil. Prioridad Alta: Requerimiento con vencimiento próximo, audiencia cercana, riesgo regulatorio dentro de tres días hábiles. Tiempos: Básico 1 día hábil / Pro 8 horas hábiles / Premium 4 horas hábiles. Prioridad Normal: Consulta regulatoria general, concepto sin urgencia, orientación FUTIC o RUTIC. Tiempos: Básico 2 días hábiles / Pro 1 día hábil / Premium 8 horas hábiles. Prioridad Baja: Solicitud informativa, archivo, actualización de repositorio o consulta sin impacto inmediato. Tiempos: Básico 5 días hábiles / Pro 3 días hábiles / Premium 2 días hábiles. Los tiempos corren dentro del horario de servicio y desde que la solicitud esté completa. Las solicitudes fuera de horario inician al siguiente día hábil. La primera respuesta no equivale a entrega final del entregable.' },
   { titulo: '4. Tiempos Orientativos de Resolución', texto: 'Consulta puntual directa: 1 día hábil. Concepto regulatorio simple: 3 a 5 días hábiles desde la solicitud completa. Concepto regulatorio complejo: 5 a 10 días hábiles desde la solicitud completa. Respuesta a requerimiento de autoridad: Según plazo legal, con inicio desde la entrega completa del expediente por el CLIENTE. Revisión y ajuste de CCU: 3 a 7 días hábiles. Diagnóstico Integral Avanzado: 10 a 15 días hábiles desde la reunión de inicio y entrega completa de información. Repositorio de evidencias: 10 a 20 días hábiles según volumen de soportes. Acompañamiento virtual o presencial: Según agenda de autoridad y disponibilidad confirmada por el PRESTADOR. Los plazos se suspenden mientras el PRESTADOR espera información, validación, documentos, accesos o instrucciones del CLIENTE. Los plazos podrán ampliarse si la autoridad, el volumen documental o la complejidad del asunto lo exige.' },
   { titulo: '5. Cuota de Consultas Mensuales', texto: 'Plan Básico: 3 consultas incluidas por mes. Plan Pro: 6 consultas incluidas por mes. Plan Premium: 10 consultas incluidas por mes. Se descuenta una consulta cuando la solicitud requiere análisis, investigación, revisión documental, criterio profesional o respuesta estructurada. No descuentan cuota las alertas regulatorias, actualizaciones de calendario, comunicaciones administrativas, notificaciones de estado, entrega de facturas, corrección de errores imputables al PRESTADOR o aclaraciones menores de un entregable dentro de las rondas incluidas. Cuando el CLIENTE alcance el ochenta por ciento de su cuota, el PRESTADOR informará el estado de consumo. Al agotarse la cuota, las nuevas solicitudes podrán atenderse como servicio on-demand, acumularse para el siguiente mes por acuerdo escrito, o quedar pendientes hasta renovación de cuota.' },
-  { titulo: '6. Alcance de Planes y Exclusiones Operativas', texto: 'Incluido según plan: Alertas regulatorias, consultas mensuales, revisión documental según alcance, plantillas, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad. No incluido salvo orden de servicio: Representación formal, recursos, demandas, audiencias, defensa integral, revisión de expedientes extensos, visitas presenciales no previstas, viáticos, radicaciones con mandato, pagos a terceros y trámites que exijan firma o mandato especial. Premium: Incluye acompañamiento técnico-regulatorio intensivo, soporte estratégico y tarifas preferenciales. No incluye defensa formal automática ni actuaciones con mandato sin orden de servicio.' },
+  { titulo: '6. Alcance de Planes y Exclusiones Operativas', texto: 'Básico: No incluye tickets. La atención se presta únicamente por chat para consultas rápidas, alertas y coordinación operativa. Cualquier solicitud que exceda ese alcance se atiende como servicio on-demand o requiere actualización de plan. Incluido según plan: Alertas regulatorias, consultas mensuales (tickets, en planes Pro y Premium), revisión documental según alcance, plantillas, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad. No incluido salvo orden de servicio: Representación formal, recursos, demandas, audiencias, defensa integral, revisión de expedientes extensos, visitas presenciales no previstas, viáticos, radicaciones con mandato, pagos a terceros y trámites que exijan firma o mandato especial. Premium: Incluye acompañamiento técnico-regulatorio intensivo, soporte estratégico y tarifas preferenciales. No incluye defensa formal automática ni actuaciones con mandato sin orden de servicio.' },
   { titulo: '7. Entregables y Revisiones', texto: 'Los entregables se remitirán en Word, PDF, Excel u otro formato útil según su naturaleza. Los conceptos formales se entregarán en PDF cuando estén definitivos y en Word cuando se requiera revisión del CLIENTE. Cada entregable incluye hasta dos entregas para revisión sin costo adicional, siempre que las observaciones se reciban dentro de los cinco (5) días hábiles siguientes a la entrega. Las revisiones adicionales, extemporáneas o que cambien el alcance inicial se cotizarán como servicio adicional o consumirán cuota según corresponda. Los entregables reflejan el marco normativo vigente a la fecha de elaboración. Si ocurre un cambio normativo posterior, el PRESTADOR informará al CLIENTE y definirá si la actualización está incluida, consume cuota o requiere orden de servicio.' },
   { titulo: '8. Escalamiento a Servicio On-Demand', texto: 'Una solicitud se escalará cuando supere el alcance del plan, exija dedicación superior a la prevista, requiera representación formal, implique firma jurídica, demande revisión documental extensa, exceda la cuota mensual, exija desplazamiento o tenga impacto económico o regulatorio que amerite encargo separado. El PRESTADOR informará el motivo del escalamiento, alcance, tarifa, plazo y documentos requeridos. El servicio adicional iniciará con aceptación de la orden de servicio y pago anticipado cuando aplique.' },
   { titulo: '9. Actualizaciones del Marco Regulatorio', texto: 'El PRESTADOR hará seguimiento al marco aplicable a PRST, incluyendo MinTIC, CRC, SIC y autoridades relacionadas. Las alertas regulatorias informarán cambios materiales con impacto razonable en la operación del CLIENTE. Las alertas se enviarán dentro de los dos (2) días hábiles siguientes a la identificación del cambio relevante. La actualización de calendario se realizará en máximo tres (3) días hábiles cuando la plataforma esté habilitada. La actualización de plantillas se hará en máximo diez (10) días hábiles cuando el cambio afecte modelos generales del servicio.' },
@@ -80,6 +80,10 @@ export default function SuscribirseContratoClient() {
   const [enviado,   setEnviado]   = useState(false)
   const [enlacePago, setEnlacePago] = useState<string | null>(null)
 
+  const [codigoDescuento, setCodigoDescuento] = useState('')
+  const [descuento, setDescuento] = useState<{ valido: boolean; motivo?: string; montoFinal?: number; montoDescuento?: number } | null>(null)
+  const [validandoCodigo, setValidandoCodigo] = useState(false)
+
   const [form, setForm] = useState({
     email:                '',
     nombreCliente:        '',
@@ -94,6 +98,24 @@ export default function SuscribirseContratoClient() {
 
   function setF(k: keyof typeof form, v: string | boolean) {
     setForm(f => ({ ...f, [k]: v }))
+  }
+
+  async function validarCodigo() {
+    if (!codigoDescuento.trim()) { setDescuento(null); return }
+    setValidandoCodigo(true)
+    try {
+      const r = await fetch('/api/codigos-descuento/validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: codigoDescuento.trim(), plan }),
+      })
+      const d = await r.json()
+      setDescuento(d)
+    } catch {
+      setDescuento({ valido: false, motivo: 'Error de conexión validando el código' })
+    } finally {
+      setValidandoCodigo(false)
+    }
   }
 
   function paso1Valido() {
@@ -116,7 +138,7 @@ export default function SuscribirseContratoClient() {
       const resContrato = await fetch('/api/contrato/publico', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...form, plan }),
+        body:    JSON.stringify({ ...form, plan, codigoDescuento: descuento?.valido ? codigoDescuento.trim() : undefined }),
       })
       const dataContrato = await resContrato.json()
       if (!resContrato.ok) {
@@ -361,9 +383,46 @@ export default function SuscribirseContratoClient() {
 
               <div style={{ fontSize: '0.74rem', color: 'rgba(231,223,202,0.55)', lineHeight: 1.8 }}>
                 <div>Firmante: <strong style={{ color: C.marfil }}>{form.nombreRepresentante} — {form.nombreCliente}</strong></div>
-                <div>Plan: <strong style={{ color: C.marfil }}>Plan {info.label} — {info.precio}</strong></div>
+                <div>
+                  Plan: <strong style={{ color: C.marfil }}>Plan {info.label} — {info.precio}</strong>
+                  {descuento?.valido && descuento.montoFinal !== undefined && (
+                    <span style={{ color: C.olivo }}> → ${descuento.montoFinal.toLocaleString('es-CO')}/mes con el código aplicado</span>
+                  )}
+                </div>
                 <div>Correo: <strong style={{ color: C.marfil }}>{form.email}</strong></div>
                 {form.cuentaCobroSolicitada && <div style={{ color: C.olivo }}>Incluye cuenta de cobro mensual</div>}
+              </div>
+
+              <div>
+                <label style={labelStyle}>Código de descuento (opcional)</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    value={codigoDescuento}
+                    onChange={e => { setCodigoDescuento(e.target.value.toUpperCase()); setDescuento(null) }}
+                    onBlur={validarCodigo}
+                    placeholder="Ej. BIENVENIDA10"
+                    style={{ ...inputStyle, flex: 1, textTransform: 'uppercase' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={validarCodigo}
+                    disabled={!codigoDescuento.trim() || validandoCodigo}
+                    style={{
+                      background: 'transparent', color: C.olivo, border: `1px solid ${C.olivo}`, borderRadius: '8px',
+                      padding: '0 1rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                      cursor: codigoDescuento.trim() && !validandoCodigo ? 'pointer' : 'not-allowed',
+                      fontFamily: "'Josefin Sans', sans-serif", opacity: validandoCodigo ? 0.6 : 1,
+                    }}>
+                    {validandoCodigo ? '…' : 'Aplicar'}
+                  </button>
+                </div>
+                {descuento && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: descuento.valido ? '#4ade80' : '#f87171' }}>
+                    {descuento.valido
+                      ? `✓ Código aplicado — descuento de $${(descuento.montoDescuento ?? 0).toLocaleString('es-CO')}`
+                      : `✕ ${descuento.motivo ?? 'Código inválido'}`}
+                  </div>
+                )}
               </div>
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.7rem', cursor: 'pointer' }}>

@@ -59,6 +59,13 @@ export async function POST(req: NextRequest) {
       if (!permiso.ok) {
         if (permiso.razon === 'suscripcion_suspendida')
           return NextResponse.json({ error: 'Tu suscripción está suspendida. Renueva tu plan para continuar.', codigo: 'SUSCRIPCION_SUSPENDIDA' }, { status: 403 })
+        if (permiso.razon === 'no_incluido') {
+          const p = permiso as any
+          return NextResponse.json({
+            error: `Tu plan ${p.plan} no incluye tickets — solo tienes acceso a chat. Actualiza tu plan para abrir tickets.`,
+            codigo: 'TICKETS_NO_INCLUIDOS', plan: p.plan,
+          }, { status: 403 })
+        }
         if (permiso.razon === 'limite_alcanzado') {
           const p = permiso as any
           return NextResponse.json({

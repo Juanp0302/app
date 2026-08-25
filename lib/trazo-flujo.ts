@@ -45,6 +45,7 @@ export interface DatosContratoParaTrazo {
   email:                string
   contratoDatos?:       object   // formulario completo, para trazabilidad
   renovacionDe?:        string   // subscription_id anterior (renovaciones)
+  montoOverride?:       number   // monto ya con descuento aplicado (ver lib/codigos-descuento.ts) — si falta, se usa el precio de lista del plan
 }
 
 /**
@@ -73,7 +74,12 @@ export async function crearSuscripcionTrazoParaContrato(datos: DatosContratoPara
     name: `Owl ${planInfo.label} — ${datos.nombreCliente}`,
     plan_details: {
       currency:      'COP',
-      amount:        planInfo.precio,
+      // Ojo: Trazo Suscripciones usa un único monto fijo para los 12 cobros
+      // del plan (no hay concepto de "solo el primer mes"), así que un
+      // montoOverride con descuento aplicaría a todos los cobros, no solo al
+      // inicial. Aceptable mientras este flujo no sea la pasarela activa
+      // (ver docs/trazo-integracion.md, sección 4quater — hoy bloqueado).
+      amount:        datos.montoOverride ?? planInfo.precio,
       description:   `Owl Compliance Plan ${planInfo.label} — cobro {{charge_number}} ({{month}})`,
       frequency:     'monthly',
       total_charges: 12,

@@ -71,6 +71,14 @@ export default function SuperadminClient() {
   const [cortesiaOk,     setCortesiaOk]     = useState<string | null>(null)
   const [guardandoCortesia, setGuardandoCortesia] = useState(false)
 
+  const [showCodigos,    setShowCodigos]    = useState(false)
+  const [codigos,        setCodigos]        = useState<any[]>([])
+  const [codigoForm,     setCodigoForm]     = useState({ codigo: '', tipo: 'porcentaje', valor: '10', plan: '', usosMaximos: '', vigenteHasta: '' })
+  const [codigoError,    setCodigoError]    = useState('')
+  const [guardandoCodigo, setGuardandoCodigo] = useState(false)
+  const [toggleandoCodigo, setToggleandoCodigo] = useState<string | null>(null)
+  const [eliminandoCodigo, setEliminandoCodigo] = useState<string | null>(null)
+
   function cerrarCortesia() {
     setShowCortesia(false)
     setCortesiaForm({ razon_social: '', email: '', nit: '', contacto: '', plan: 'basico', meses: '3' })
@@ -98,6 +106,77 @@ export default function SuperadminClient() {
       setCortesiaError('Error de conexión creando la cortesía.')
     } finally {
       setGuardandoCortesia(false)
+    }
+  }
+
+  async function cargarCodigos() {
+    try {
+      const r = await fetch('/api/superadmin/codigos-descuento')
+      if (!r.ok) return
+      const d = await r.json()
+      setCodigos(Array.isArray(d.codigos) ? d.codigos : [])
+    } catch (err) {
+      console.error('[superadmin] error al cargar códigos de descuento:', err)
+    }
+  }
+
+  function cerrarCodigos() {
+    setShowCodigos(false)
+    setCodigoForm({ codigo: '', tipo: 'porcentaje', valor: '10', plan: '', usosMaximos: '', vigenteHasta: '' })
+    setCodigoError('')
+  }
+
+  async function crearCodigo() {
+    if (!codigoForm.codigo.trim() || !codigoForm.valor) {
+      setCodigoError('Código y valor son obligatorios.')
+      return
+    }
+    setCodigoError('')
+    setGuardandoCodigo(true)
+    try {
+      const r = await fetch('/api/superadmin/codigos-descuento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo: codigoForm.codigo.trim(),
+          tipo: codigoForm.tipo,
+          valor: Number(codigoForm.valor),
+          plan: codigoForm.plan || null,
+          usosMaximos: codigoForm.usosMaximos ? Number(codigoForm.usosMaximos) : null,
+          vigenteHasta: codigoForm.vigenteHasta || null,
+        }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setCodigoError(d.error ?? 'Error creando el código'); return }
+      setCodigoForm({ codigo: '', tipo: 'porcentaje', valor: '10', plan: '', usosMaximos: '', vigenteHasta: '' })
+      await cargarCodigos()
+    } catch {
+      setCodigoError('Error de conexión creando el código.')
+    } finally {
+      setGuardandoCodigo(false)
+    }
+  }
+
+  async function toggleCodigo(id: string, activo: boolean) {
+    setToggleandoCodigo(id)
+    try {
+      await fetch('/api/superadmin/codigos-descuento', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, activo }),
+      })
+      await cargarCodigos()
+    } finally {
+      setToggleandoCodigo(null)
+    }
+  }
+
+  async function eliminarCodigo(id: string) {
+    if (!window.confirm('¿Eliminar este código de descuento? Esta acción no se puede deshacer.')) return
+    setEliminandoCodigo(id)
+    try {
+      await fetch(`/api/superadmin/codigos-descuento?id=${id}`, { method: 'DELETE' })
+      await cargarCodigos()
+    } finally {
+      setEliminandoCodigo(null)
     }
   }
 
@@ -162,7 +241,7 @@ export default function SuperadminClient() {
     }
   }
 
-  useEffect(() => { cargar(); cargarCobrosPendientes() }, [])
+  useEffect(() => { cargar(); cargarCobrosPendientes(); cargarCodigos() }, [])
 
   async function toggleAutoCuentaCobro(clienteId: string, valor: boolean) {
     setAccToggling(clienteId)
@@ -291,6 +370,12 @@ export default function SuperadminClient() {
             border: 'none', borderRadius: 6, padding: '0.3rem 0.8rem',
             background: C.olivo }}>
             + Generar cortesía
+          </button>
+          <button onClick={() => setShowCodigos(true)} style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: C.olivo, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: 'rgba(150,134,34,0.08)' }}>
+            % Códigos de descuento
           </button>
           <a href="/dashboard/superadmin/asignacion" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
@@ -857,6 +942,147 @@ export default function SuperadminClient() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showCodigos && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '1rem' }}
+          onClick={e => { if (e.target === e.currentTarget) cerrarCodigos() }}>
+          <div style={{ background: '#1a0204', border: '1px solid rgba(150,134,34,0.3)', borderRadius: 16,
+            padding: '2rem', width: '100%', maxWidth: 640, maxHeight: '92vh', overflowY: 'auto', position: 'relative' }}>
+            <button onClick={cerrarCodigos} style={{ position: 'absolute', top: '1rem', right: '1rem',
+              background: 'rgba(231,223,202,0.08)', border: 'none', color: 'rgba(231,223,202,0.5)',
+              borderRadius: 6, padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}>✕</button>
+
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+              Códigos de descuento
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'rgba(231,223,202,0.5)', margin: '0 0 1.4rem', lineHeight: 1.6 }}>
+              Se aplican al firmar el contrato en <code>/suscribirse</code>, sin importar qué pasarela de pago
+              esté activa (Trazo o Wompi) — el descuento se calcula sobre el precio del plan antes de generar
+              el enlace de pago.
+            </p>
+
+            {/* Formulario de creación */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginBottom: '1.6rem',
+              background: 'rgba(231,223,202,0.03)', border: '1px solid rgba(150,134,34,0.15)', borderRadius: 10, padding: '1.1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                <div>
+                  <label style={labelStyle}>Código *</label>
+                  <input value={codigoForm.codigo}
+                    onChange={e => setCodigoForm(f => ({ ...f, codigo: e.target.value.toUpperCase() }))}
+                    placeholder="Ej. BIENVENIDA10" style={{ ...inputStyle, textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Plan (vacío = todos)</label>
+                  <select value={codigoForm.plan} onChange={e => setCodigoForm(f => ({ ...f, plan: e.target.value }))}
+                    style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <option value="">Todos los planes</option>
+                    <option value="basico">Básico</option>
+                    <option value="pro">Pro</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                <div>
+                  <label style={labelStyle}>Tipo *</label>
+                  <select value={codigoForm.tipo} onChange={e => setCodigoForm(f => ({ ...f, tipo: e.target.value }))}
+                    style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <option value="porcentaje">Porcentaje (%)</option>
+                    <option value="fijo">Monto fijo (COP)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>{codigoForm.tipo === 'porcentaje' ? 'Porcentaje (1-100) *' : 'Monto en COP *'}</label>
+                  <input type="number" min={1} max={codigoForm.tipo === 'porcentaje' ? 100 : undefined}
+                    value={codigoForm.valor} onChange={e => setCodigoForm(f => ({ ...f, valor: e.target.value }))} style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                <div>
+                  <label style={labelStyle}>Usos máximos (vacío = ilimitado)</label>
+                  <input type="number" min={1} value={codigoForm.usosMaximos}
+                    onChange={e => setCodigoForm(f => ({ ...f, usosMaximos: e.target.value }))} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Vigente hasta (vacío = sin vencimiento)</label>
+                  <input type="date" value={codigoForm.vigenteHasta}
+                    onChange={e => setCodigoForm(f => ({ ...f, vigenteHasta: e.target.value }))} style={inputStyle} />
+                </div>
+              </div>
+
+              {codigoError && (
+                <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 8,
+                  padding: '0.6rem 0.9rem', fontSize: '0.75rem', color: '#f87171' }}>
+                  {codigoError}
+                </div>
+              )}
+
+              <button onClick={crearCodigo} disabled={guardandoCodigo} style={{
+                background: guardandoCodigo ? 'rgba(150,134,34,0.3)' : C.olivo,
+                color: C.vino, border: 'none', borderRadius: 8, padding: '0.65rem 1.2rem', fontWeight: 700,
+                fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: guardandoCodigo ? 'not-allowed' : 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}>
+                {guardandoCodigo ? 'Creando…' : '+ Crear código'}
+              </button>
+            </div>
+
+            {/* Lista de códigos existentes */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {codigos.map((c: any) => {
+                const vencido = c.vigente_hasta && c.vigente_hasta < new Date().toISOString().slice(0, 10)
+                const agotado = c.usos_maximos !== null && c.usos_actuales >= c.usos_maximos
+                const valorLabel = c.tipo === 'porcentaje' ? `${c.valor}%` : `$${Number(c.valor).toLocaleString('es-CO')}`
+                return (
+                  <div key={c.id} style={{ background: 'rgba(231,223,202,0.04)', border: '1px solid rgba(150,134,34,0.15)',
+                    borderRadius: 8, padding: '0.7rem 1rem', display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, fontFamily: 'monospace', color: C.marfil }}>{c.codigo}</span>
+                    <span style={{ fontSize: '0.72rem', color: C.olivo }}>{valorLabel}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'rgba(231,223,202,0.45)' }}>{c.plan ? `Plan ${c.plan}` : 'Todos los planes'}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'rgba(231,223,202,0.45)' }}>
+                      {c.usos_actuales} usado{c.usos_actuales === 1 ? '' : 's'}{c.usos_maximos !== null ? ` / ${c.usos_maximos}` : ''}
+                    </span>
+                    {c.vigente_hasta && (
+                      <span style={{ fontSize: '0.68rem', color: vencido ? '#dc2626' : 'rgba(231,223,202,0.4)' }}>
+                        hasta {c.vigente_hasta}
+                      </span>
+                    )}
+                    {(vencido || agotado) && (
+                      <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>
+                        {vencido ? 'Vencido' : 'Agotado'}
+                      </span>
+                    )}
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <button
+                        onClick={() => toggleCodigo(c.id, !c.activo)}
+                        disabled={toggleandoCodigo === c.id}
+                        style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                          background: c.activo ? 'rgba(22,163,74,0.15)' : 'rgba(231,223,202,0.08)',
+                          color: c.activo ? '#4ade80' : 'rgba(231,223,202,0.4)',
+                          border: `1px solid ${c.activo ? 'rgba(22,163,74,0.4)' : 'rgba(231,223,202,0.2)'}`,
+                          borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {c.activo ? 'Activo' : 'Inactivo'}
+                      </button>
+                      <button
+                        onClick={() => eliminarCodigo(c.id)}
+                        disabled={eliminandoCodigo === c.id}
+                        style={{ fontSize: '0.62rem', fontWeight: 700, color: '#dc2626', background: 'transparent',
+                          border: '1px solid rgba(220,38,38,0.4)', borderRadius: 6, padding: '0.3rem 0.6rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {codigos.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'rgba(231,223,202,0.3)', fontSize: '0.8rem' }}>
+                  No hay códigos de descuento creados todavía.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

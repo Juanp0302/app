@@ -7,7 +7,9 @@ import { queryOne, execute } from './db'
 // ── Definición de planes ──────────────────────────────────────────────────────
 
 export const PLANES = {
-  basico:  { label: 'Básico',  tickets: 3,  chats: 6,  precio: 199000 },
+  // El plan Básico NO incluye tickets — solo chat. `tickets: 0` bloquea la
+  // creación de tickets vía puedeCrear() más abajo (razón 'no_incluido').
+  basico:  { label: 'Básico',  tickets: 0,  chats: 6,  precio: 199000 },
   pro:     { label: 'Pro',     tickets: 6,  chats: 12, precio: 890000 },
   premium: { label: 'Premium', tickets: 10, chats: 20, precio: 2490000 },
 } as const
@@ -93,6 +95,12 @@ async function puedeCrear(clienteId: string, tipo: 'ticket' | 'chat') {
 
   const usado  = tipo === 'ticket' ? (c.tickets_mes ?? 0) : (c.chats_mes ?? 0)
   const limite = tipo === 'ticket' ? plan.tickets         : plan.chats
+
+  // Plan sin este servicio incluido (ej. Básico no incluye tickets) — distinto
+  // de "ya usaste todo tu cupo del mes".
+  if (limite === 0) {
+    return { ok: false, razon: 'no_incluido', limite, usado, plan: c.plan }
+  }
 
   if (usado >= limite) {
     return { ok: false, razon: 'limite_alcanzado', limite, usado, plan: c.plan }
