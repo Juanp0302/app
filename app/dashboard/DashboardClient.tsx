@@ -26,11 +26,13 @@ export default function DashboardClient({
     { titulo: 'Habeas Data',      desc: 'Consultar y suprimir datos personales (Ley 1581)', href: '/dashboard/habeas-data', icono: '🔐' },
     { titulo: 'Repositorio PQR',  desc: 'Normativa, plantillas de respuesta y guías por tipología de PQR', href: '/dashboard/pqr', icono: '📨' },
     { titulo: 'Proyectos Regulatorios', desc: 'Seguimiento y participación en proyectos de la CRC, el MinTIC y la SIC', href: '/dashboard/proyectos-regulatorios', icono: '🏛️' },
+    { titulo: 'Prospectos ISP', desc: 'Estrategia de contacto uno a uno — 200 empresas priorizadas', href: '/dashboard/prospectos', icono: '🎯' },
   ] : [
     ...(isAdmin ? [
       { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },
       { titulo: 'Recordatorios',    desc: 'Configurar y ejecutar alertas de vencimientos por email',       href: '/dashboard/recordatorios', icono: '🔔' },
       { titulo: 'Administradores',  desc: 'Gestionar perfiles con acceso total a la plataforma',           href: '/dashboard/admins',        icono: '🛡️' },
+      { titulo: 'Prospectos ISP',   desc: 'Tus empresas asignadas para contacto uno a uno',                 href: '/dashboard/prospectos',    icono: '🎯' },
     ] : []),
     { titulo: 'Mapa de Cumplimiento', desc: 'Matriz de obligaciones regulatorias y estados de cumplimiento', href: '/dashboard/mapa',       icono: '📋' },
     { titulo: 'Calendario',           desc: 'Vencimientos del mes y próximos recordatorios',               href: '/dashboard/calendario', icono: '📅' },
