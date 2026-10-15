@@ -38,7 +38,18 @@ async function copiar(texto: string, onDone: () => void) {
   try { await navigator.clipboard.writeText(texto); onDone() } catch { /* noop */ }
 }
 
-export default function ProspectosClient({ userId, isSuperadmin }: { userId: string; isSuperadmin: boolean }) {
+/** Primer nombre de quien está conectado, para reemplazar [NOMBRE] en los mensajes.
+ *  Si el nombre de la cuenta es genérico ("Super Administrador"), devuelve null y se deja [NOMBRE]. */
+function primerNombreDe(userName: string): string | null {
+  const t = (userName || '').trim().split(/\s+/)[0]
+  if (!t || /^(super|admin|administrador|owl)$/i.test(t)) return null
+  return t
+}
+
+export default function ProspectosClient({ userId, userName, isSuperadmin }: { userId: string; userName: string; isSuperadmin: boolean }) {
+  const miNombre = primerNombreDe(userName)
+  /** Reemplaza [NOMBRE] por el nombre de quien envía, para que el mensaje salga listo para pegar. */
+  const llenar = (t: string | null | undefined) => (t ? (miNombre ? t.split('[NOMBRE]').join(miNombre) : t) : '')
   const [prospectos, setProspectos] = useState<any[]>([])
   const [resumen, setResumen]       = useState<Record<string, number>>({})
   const [admins, setAdmins]         = useState<any[]>([])
@@ -355,15 +366,44 @@ export default function ProspectosClient({ userId, isSuperadmin }: { userId: str
 
               {tabDetalle === 'mensajes' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                  <MensajeBox titulo="WhatsApp 1 — Apertura (día 0)" texto={activo.whatsapp_1} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="WhatsApp 2 — Dato de valor (día 6)" texto={activo.whatsapp_2} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="WhatsApp 3 — Cierre amable (día 12)" texto={activo.whatsapp_3} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="Apertura de llamada (día 1-2)" texto={activo.llamada_apertura} copiado={copiado} setCopiado={setCopiado} />
-                  {activo.guion_llamada && <MensajeBox titulo="Guion de llamada completo" texto={activo.guion_llamada} copiado={copiado} setCopiado={setCopiado} pre />}
-                  {activo.investigacion_1 && <MensajeBox titulo="Investigación 1" texto={activo.investigacion_1} copiado={copiado} setCopiado={setCopiado} />}
-                  {activo.investigacion_2 && <MensajeBox titulo="Investigación 2" texto={activo.investigacion_2} copiado={copiado} setCopiado={setCopiado} />}
-                  {activo.investigacion_3 && <MensajeBox titulo="Investigación 3" texto={activo.investigacion_3} copiado={copiado} setCopiado={setCopiado} />}
-                  {!activo.whatsapp_1 && !activo.guion_llamada && (
+                  {/* Estrategia actual: invitación al webinar + Comunidad ISPs Colombia */}
+                  <div style={{ fontSize: 12, color: '#555', background: '#f8f6f1', border: '1px solid #e7dfca', borderRadius: 8, padding: '0.7rem 0.9rem', lineHeight: 1.6 }}>
+                    <strong style={{ color: C.vino }}>Estrategia: invitar, no vender.</strong> Webinar “Que el MinTIC no sancione tu ISP” (con Inerxia) · miércoles 21 de octubre, 6:00 p. m. · y la Comunidad ISPs Colombia. Quien recibe cada mensaje ya vio el anterior: no repita la presentación.
+                    {miNombre === null && <div style={{ marginTop: 4, color: '#b45309' }}>Los mensajes llevan <b>[NOMBRE]</b>: reemplácelo por su nombre antes de enviar.</div>}
+                  </div>
+
+                  {/\bno aplica\b/i.test(activo.canal_sugerido ?? '') && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '0.5rem 0.8rem', borderRadius: 8 }}>
+                      📞 Este prospecto tiene teléfono fijo: la invitación va por llamada (use la apertura de abajo). Si consigue su celular, ahí sí use el WhatsApp.
+                    </div>
+                  )}
+
+                  <MensajeBox titulo="1 · Invitación por WhatsApp — enviar 15-16 oct" texto={llenar(activo.invitacion_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
+                  <MensajeBox titulo="2 · Apertura de llamada — 1-2 días después del WhatsApp (en “usted”)" texto={llenar(activo.llamada_apertura)} copiado={copiado} setCopiado={setCopiado} />
+                  <MensajeBox titulo="3 · Recordatorio por WhatsApp — lunes 19 oct" texto={llenar(activo.recordatorio_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
+                  <MensajeBox titulo="4 · Aviso del día — miércoles 21 oct, mediodía" texto={llenar(activo.aviso_dia_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
+
+                  {/* Guías anteriores, que se mantienen para después del webinar */}
+                  <details style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '0.8rem 1.1rem' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.bordo, letterSpacing: '0.04em' }}>
+                      Guías para después del webinar (enfoque de servicio) — {`${(activo.whatsapp_1 || activo.guion_llamada) ? 'disponibles' : 'sin datos'}`}
+                    </summary>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginTop: '0.9rem' }}>
+                      <div style={{ fontSize: 12, color: '#777', lineHeight: 1.6 }}>
+                        Estos textos se escribieron antes del cambio de estrategia. Úselos solo después del webinar, y recuerde que ya hubo un primer contacto con la invitación: adapte el saludo (“como le comenté…”).
+                      </div>
+                      <MensajeBox titulo="Apertura de servicio (anterior)" texto={llenar(activo.whatsapp_1)} copiado={copiado} setCopiado={setCopiado} />
+                      <MensajeBox titulo="Dato de valor (anterior)" texto={llenar(activo.whatsapp_2)} copiado={copiado} setCopiado={setCopiado} />
+                      <MensajeBox titulo="Cierre amable (anterior)" texto={llenar(activo.whatsapp_3)} copiado={copiado} setCopiado={setCopiado} />
+                      {activo.llamada_servicio && <MensajeBox titulo="Apertura de llamada de servicio (anterior)" texto={llenar(activo.llamada_servicio)} copiado={copiado} setCopiado={setCopiado} />}
+                      {activo.guion_llamada && <MensajeBox titulo="Guion de llamada completo" texto={llenar(activo.guion_llamada)} copiado={copiado} setCopiado={setCopiado} pre />}
+                      {activo.investigacion_1 && <MensajeBox titulo="Investigación 1" texto={activo.investigacion_1} copiado={copiado} setCopiado={setCopiado} />}
+                      {activo.investigacion_2 && <MensajeBox titulo="Investigación 2" texto={activo.investigacion_2} copiado={copiado} setCopiado={setCopiado} />}
+                      {activo.investigacion_3 && <MensajeBox titulo="Investigación 3" texto={activo.investigacion_3} copiado={copiado} setCopiado={setCopiado} />}
+                    </div>
+                  </details>
+
+                  {!activo.invitacion_whatsapp && !activo.whatsapp_1 && !activo.guion_llamada && (
                     <div style={{ color: '#aaa', fontSize: 13 }}>No hay mensajes personalizados cargados para este prospecto.</div>
                   )}
                 </div>

@@ -8,5 +8,5 @@ export default async function ProspectosPage() {
   const user = session.user as any
   if (user.role !== 'admin' && !user.is_superadmin) redirect('/dashboard')
 
-  return <ProspectosClient userId={user.id} isSuperadmin={!!user.is_superadmin} />
+  return <ProspectosClient userId={user.id} userName={user.name ?? ''} isSuperadmin={!!user.is_superadmin} />
 }
