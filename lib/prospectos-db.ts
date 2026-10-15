@@ -35,7 +35,11 @@ export async function migrateProspectos() {
       whatsapp_1            TEXT,            -- apertura (día 0)
       whatsapp_2            TEXT,            -- valor (día 6)
       whatsapp_3            TEXT,            -- cierre (día 12)
-      llamada_apertura      TEXT,            -- primeras frases de la llamada (día 1-2)
+      llamada_apertura      TEXT,            -- primeras frases de la llamada (tras la invitación)
+      invitacion_whatsapp   TEXT,            -- WA1 nuevo: invitación al webinar + comunidad
+      recordatorio_whatsapp TEXT,            -- recordatorio, 2 días antes del webinar
+      aviso_dia_whatsapp    TEXT,            -- aviso el día del webinar
+      llamada_servicio      TEXT,            -- apertura de llamada anterior (enfoque de servicio), para después del webinar
       guion_llamada         TEXT,            -- guion completo paso a paso (hoja "Original")
       investigacion_1       TEXT,
       investigacion_2       TEXT,
@@ -86,6 +90,10 @@ export interface ProspectoRow {
   whatsapp_2: string | null
   whatsapp_3: string | null
   llamada_apertura: string | null
+  invitacion_whatsapp: string | null
+  recordatorio_whatsapp: string | null
+  aviso_dia_whatsapp: string | null
+  llamada_servicio: string | null
   guion_llamada: string | null
   investigacion_1: string | null
   investigacion_2: string | null
@@ -102,7 +110,7 @@ export interface ProspectoRow {
   responsable_email?: string | null
 }
 
-export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at' | 'updated_at' | 'responsable_nombre' | 'responsable_email'>): Promise<string> {
+export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at' | 'updated_at' | 'responsable_nombre' | 'responsable_email' | 'invitacion_whatsapp' | 'recordatorio_whatsapp' | 'aviso_dia_whatsapp' | 'llamada_servicio'>): Promise<string> {
   await migrateProspectos()
   const id = crypto.randomUUID()
   await execute(
