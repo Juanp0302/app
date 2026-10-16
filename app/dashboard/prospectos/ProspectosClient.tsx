@@ -38,6 +38,22 @@ async function copiar(texto: string, onDone: () => void) {
   try { await navigator.clipboard.writeText(texto); onDone() } catch { /* noop */ }
 }
 
+/** Busca un celular colombiano (10 dígitos que empiezan por 3) dentro del texto del teléfono.
+ *  Acepta separadores (espacios, guiones, puntos), el prefijo 57 / +57 y casos con dos números
+ *  juntos ("097-7485602 320-4291514"). Devuelve el número listo para WhatsApp (57 + 10 dígitos),
+ *  o null si no hay un celular reconocible (fijos, "Sin dato", números incompletos). */
+function celularParaWhatsApp(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const m = String(raw).match(/(?<!\d)(?:\+?57[\s\-.]*)?(3\d{2})[\s\-.]*(\d{3})[\s\-.]*(\d{4})(?!\d)/)
+  return m ? `57${m[1]}${m[2]}${m[3]}` : null
+}
+
+/** Enlace que abre el chat de WhatsApp con ese número y el mensaje ya escrito (no lo envía). */
+function enlaceWhatsApp(telefono: string | null | undefined, mensaje: string): string | null {
+  const num = celularParaWhatsApp(telefono)
+  return num ? `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}` : null
+}
+
 /** Primer nombre de quien está conectado, para reemplazar [NOMBRE] en los mensajes.
  *  Si el nombre de la cuenta es genérico ("Super Administrador"), devuelve null y se deja [NOMBRE]. */
 function primerNombreDe(userName: string): string | null {
@@ -378,10 +394,23 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                     </div>
                   )}
 
-                  <MensajeBox titulo="1 · Invitación por WhatsApp — enviar 15-16 oct" texto={llenar(activo.invitacion_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
+                  {celularParaWhatsApp(activo.telefono) ? (
+                    <div style={{ fontSize: 12, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
+                      💬 Celular para WhatsApp: <b>+{celularParaWhatsApp(activo.telefono)}</b>. El botón verde abre el chat con el mensaje ya escrito; usted solo debe oprimir enviar y después cambiar el estado a mano.
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#7c2d12', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
+                      Sin celular reconocible (teléfono registrado: <b>{activo.telefono || '—'}</b>). No hay botón de WhatsApp: llame y pida el celular.
+                    </div>
+                  )}
+
+                  <MensajeBox titulo="1 · Invitación por WhatsApp — enviar 15-16 oct" texto={llenar(activo.invitacion_whatsapp)} copiado={copiado} setCopiado={setCopiado}
+                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.invitacion_whatsapp))} />
                   <MensajeBox titulo="2 · Apertura de llamada — 1-2 días después del WhatsApp (en “usted”)" texto={llenar(activo.llamada_apertura)} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="3 · Recordatorio por WhatsApp — lunes 19 oct" texto={llenar(activo.recordatorio_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="4 · Aviso del día — miércoles 21 oct, mediodía" texto={llenar(activo.aviso_dia_whatsapp)} copiado={copiado} setCopiado={setCopiado} />
+                  <MensajeBox titulo="3 · Recordatorio por WhatsApp — lunes 19 oct" texto={llenar(activo.recordatorio_whatsapp)} copiado={copiado} setCopiado={setCopiado}
+                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.recordatorio_whatsapp))} />
+                  <MensajeBox titulo="4 · Aviso del día — miércoles 21 oct, mediodía" texto={llenar(activo.aviso_dia_whatsapp)} copiado={copiado} setCopiado={setCopiado}
+                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.aviso_dia_whatsapp))} />
 
                   {/* Guías anteriores, que se mantienen para después del webinar */}
                   <details style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '0.8rem 1.1rem' }}>
@@ -442,15 +471,23 @@ function Campo({ k, v, full }: { k: string; v: any; full?: boolean }) {
   )
 }
 
-function MensajeBox({ titulo, texto, copiado, setCopiado, pre }: { titulo: string; texto: string; copiado: string | null; setCopiado: (v: string | null) => void; pre?: boolean }) {
+function MensajeBox({ titulo, texto, copiado, setCopiado, pre, waLink }: { titulo: string; texto: string; copiado: string | null; setCopiado: (v: string | null) => void; pre?: boolean; waLink?: string | null }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '1rem 1.2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.olivo }}>{titulo}</span>
-        <button onClick={() => copiar(texto, () => { setCopiado(titulo); setTimeout(() => setCopiado(null), 1500) })}
-          style={{ fontSize: 11, fontWeight: 700, background: 'none', border: `1px solid ${C.olivo}`, color: C.olivo, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>
-          {copiado === titulo ? '✓ Copiado' : 'Copiar'}
-        </button>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {waLink && (
+            <a href={waLink} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 11, fontWeight: 700, background: '#16a34a', border: '1px solid #16a34a', color: '#fff', borderRadius: 6, padding: '3px 10px', textDecoration: 'none' }}>
+              💬 Abrir en WhatsApp
+            </a>
+          )}
+          <button onClick={() => copiar(texto, () => { setCopiado(titulo); setTimeout(() => setCopiado(null), 1500) })}
+            style={{ fontSize: 11, fontWeight: 700, background: 'none', border: `1px solid ${C.olivo}`, color: C.olivo, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>
+            {copiado === titulo ? '✓ Copiado' : 'Copiar'}
+          </button>
+        </div>
       </div>
       <div style={{ fontSize: pre ? 11 : 13, color: '#333', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: pre ? 'monospace' : 'inherit' }}>{texto}</div>
     </div>
