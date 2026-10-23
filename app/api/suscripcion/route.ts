@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryOne, execute } from '@/lib/db'
 import { resumenUso, migrateSuscripcion, PLANES, type PlanKey, type EstadoSuscripcion } from '@/lib/suscripcion'
+import { clienteRequiereRevision, avisarSiPasoARevision } from '@/lib/revision'
 
 async function getUser() {
   const session = await auth()
@@ -80,7 +81,11 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
 
   vals.push(clienteId)
+  const requeriaAntes = await clienteRequiereRevision(clienteId)
   await execute(`UPDATE clientes SET ${campos.join(', ')} WHERE id = ?`, vals)
+  // Si el cambio hace que el cliente pase a requerir revisión (ej. Básico → Pro activo), sus documentos ya
+  // cargados entran a la cola solos; aquí se avisa con UN correo resumen por administrador.
+  await avisarSiPasoARevision(clienteId, requeriaAntes, 'upgrade')
 
   return NextResponse.json({ ok: true })
 }

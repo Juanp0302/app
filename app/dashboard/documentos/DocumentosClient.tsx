@@ -60,7 +60,7 @@ interface Archivo {
   uploaded_at:          string
   subido_por:           string
   subido_por_email:     string
-  estado_revision:      'pendiente' | 'aprobado' | 'rechazado'
+  estado_revision:      'pendiente' | 'aprobado' | 'rechazado' | 'no_requiere'
   revision_comentario:  string | null
   revisado_por_nombre:  string | null
   revisado_at:          string | null
@@ -88,6 +88,11 @@ export default function DocumentosClient({
   const [grupos,       setGrupos]       = useState<Grupo[]>([])
   const [total,        setTotal]        = useState(0)
   const [loading,      setLoading]      = useState(false)
+  // Revisión por asesor: incluida en Pro/Premium o contratada como Diagnóstico Integral
+  const [revision,      setRevision]      = useState<{ requiere: boolean; porPlan: boolean; diagnostico_estado: string | null } | null>(null)
+  const [diagConfirmar, setDiagConfirmar] = useState(false)
+  const [diagEnviando,  setDiagEnviando]  = useState(false)
+  const [diagError,     setDiagError]     = useState('')
   const [uploadOpen,   setUploadOpen]   = useState(false)
   const [abiertos,     setAbiertos]     = useState<Set<string>>(new Set())
 
@@ -147,12 +152,25 @@ export default function DocumentosClient({
       const json = await res.json()
       setGrupos(json.grupos ?? [])
       setTotal(json.total ?? 0)
+      setRevision(json.revision ?? null)
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { if (clienteId) cargar(clienteId) }, [clienteId, cargar])
+
+  async function solicitarDiagnostico() {
+    setDiagEnviando(true); setDiagError('')
+    try {
+      const res  = await fetch('/api/diagnostico', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ accion:'solicitar' }) })
+      const json = await res.json()
+      if (!res.ok) { setDiagError(json.error ?? 'No se pudo enviar la solicitud'); return }
+      setDiagConfirmar(false)
+      if (clienteId) await cargar(clienteId)
+    } catch { setDiagError('No se pudo enviar la solicitud') }
+    finally { setDiagEnviando(false) }
+  }
 
   const oblsUnicas = obligaciones.reduce((acc: any[], o: any) => {
     const key = `${o.aspecto}||${o.obligacion}`
@@ -486,6 +504,57 @@ export default function DocumentosClient({
           </div>
         )}
 
+        {/* Diagnóstico Integral: solo clientes cuyo plan no incluye revisión */}
+        {userRole !== 'admin' && revision && !revision.porPlan && (
+          <div style={{ marginBottom:'1.5rem', border:'1px solid rgba(150,134,34,0.35)', background:'rgba(150,134,34,0.08)', borderRadius:10, padding:'1rem 1.25rem' }}>
+            <div style={{ fontSize:'0.9rem', fontWeight:700, marginBottom:'0.3rem' }}>Diagnóstico Integral</div>
+            {revision.diagnostico_estado === 'solicitado' ? (
+              <div style={{ fontSize:'0.8rem', color:'rgba(231,223,202,0.75)' }}>
+                Recibimos tu solicitud. Un asesor se comunicará contigo para activar el servicio.
+              </div>
+            ) : revision.diagnostico_estado === 'activo' ? (
+              <div style={{ fontSize:'0.8rem', color:'#86efac' }}>
+                Tu diagnóstico está activo: un asesor revisa los documentos que subes y recibirás tu Mapa de Madurez.
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize:'0.8rem', color:'rgba(231,223,202,0.75)', marginBottom:'0.75rem' }}>
+                  {revision.diagnostico_estado === 'cerrado' ? 'Tu diagnóstico fue entregado. ' : ''}
+                  Con tu plan los documentos se guardan sin revisión. Puedes contratar el diagnóstico integral para que un asesor revise cada soporte y te entregue tu Mapa de Madurez.
+                </div>
+                <button onClick={() => { setDiagError(''); setDiagConfirmar(true) }}
+                  style={{ fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:C.vino, background:C.olivo, border:'none', borderRadius:6, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit' }}>
+                  Solicitar diagnóstico integral
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {diagConfirmar && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:'1rem' }}>
+            <div style={{ background:C.vino, border:'1px solid rgba(150,134,34,0.4)', borderRadius:12, padding:'1.5rem', maxWidth:460, width:'100%' }}>
+              <div style={{ fontSize:'1.05rem', fontWeight:700, marginBottom:'0.75rem' }}>¿Solicitar el diagnóstico integral?</div>
+              <p style={{ fontSize:'0.85rem', lineHeight:1.55, color:'rgba(231,223,202,0.85)', margin:'0 0 0.6rem' }}>
+                Este servicio tiene un <strong>valor adicional</strong> al de tu plan. Al solicitarlo, un asesor se pondrá en contacto contigo para confirmar el alcance y activarlo.
+              </p>
+              <p style={{ fontSize:'0.85rem', lineHeight:1.55, color:'rgba(231,223,202,0.85)', margin:'0 0 1rem' }}>
+                Si tienes dudas antes de continuar, escríbele a un asesor a <a href="mailto:contacto@owlcompliance.com" style={{ color:C.olivo }}>contacto@owlcompliance.com</a>.
+              </p>
+              {diagError && <div style={{ fontSize:'0.8rem', color:'#fca5a5', marginBottom:'0.75rem' }}>{diagError}</div>}
+              <div style={{ display:'flex', gap:'0.6rem', justifyContent:'flex-end' }}>
+                <button onClick={() => setDiagConfirmar(false)} disabled={diagEnviando}
+                  style={{ fontSize:'0.72rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.marfil, background:'transparent', border:'1px solid rgba(231,223,202,0.3)', borderRadius:6, padding:'0.5rem 1rem', cursor:'pointer', fontFamily:'inherit' }}>
+                  Cancelar
+                </button>
+                <button onClick={solicitarDiagnostico} disabled={diagEnviando}
+                  style={{ fontSize:'0.72rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:C.vino, background:C.olivo, border:'none', borderRadius:6, padding:'0.5rem 1rem', cursor: diagEnviando ? 'wait' : 'pointer', fontFamily:'inherit' }}>
+                  {diagEnviando ? 'Enviando…' : 'Entiendo, solicitar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header + acciones */}
         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'1rem', marginBottom:'2rem' }}>
           <div>
@@ -570,6 +639,7 @@ export default function DocumentosClient({
                 <div style={{ borderTop:'1px solid rgba(150,134,34,0.12)', padding:'0.5rem' }}>
                   {grupo.archivos.map(arch => {
                     const rev    = arch.estado_revision ?? 'pendiente'
+                    const sinRevision = rev === 'no_requiere'
                     const revBg  = rev === 'aprobado'  ? 'rgba(22,163,74,0.08)'  : rev === 'rechazado' ? 'rgba(220,38,38,0.08)'  : 'rgba(0,0,0,0.15)'
                     const revBdr = rev === 'aprobado'  ? '1px solid rgba(22,163,74,0.2)' : rev === 'rechazado' ? '1px solid rgba(220,38,38,0.2)' : 'none'
                     const isRevExp = revExpandidos.has(arch.id)
@@ -588,12 +658,12 @@ export default function DocumentosClient({
                               <span style={{
                                 fontSize:'0.58rem', fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase',
                                 padding:'1px 7px', borderRadius:10,
-                                background: rev === 'aprobado' ? 'rgba(22,163,74,0.2)' : rev === 'rechazado' ? 'rgba(220,38,38,0.2)' : 'rgba(245,158,11,0.15)',
-                                color:      rev === 'aprobado' ? '#16a34a'              : rev === 'rechazado' ? '#dc2626'              : '#f59e0b',
+                                background: rev === 'aprobado' ? 'rgba(22,163,74,0.2)' : rev === 'rechazado' ? 'rgba(220,38,38,0.2)' : sinRevision ? 'rgba(231,223,202,0.1)' : 'rgba(245,158,11,0.15)',
+                                color:      rev === 'aprobado' ? '#16a34a'              : rev === 'rechazado' ? '#dc2626'              : sinRevision ? 'rgba(231,223,202,0.6)' : '#f59e0b',
                               }}>
-                                {rev === 'aprobado' ? '✓ Aprobado' : rev === 'rechazado' ? '✕ Rechazado' : '● Pendiente revisión'}
+                                {rev === 'aprobado' ? '✓ Aprobado' : rev === 'rechazado' ? '✕ Rechazado' : sinRevision ? '✓ Cargado' : '● Pendiente revisión'}
                               </span>
-                              {rev !== 'pendiente' && arch.revisado_por_nombre && (
+                              {rev !== 'pendiente' && !sinRevision && arch.revisado_por_nombre && (
                                 <span style={{ fontSize:'0.58rem', color:'rgba(231,223,202,0.35)' }}>
                                   por {arch.revisado_por_nombre}
                                 </span>
@@ -619,7 +689,7 @@ export default function DocumentosClient({
                               Ver
                             </a>
                             {/* Botón de revisión solo para admins */}
-                            {userRole === 'admin' && (
+                            {userRole === 'admin' && !sinRevision && (
                               <button onClick={() => toggleRevision(arch.id)}
                                 style={{ fontSize:'0.65rem', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase',
                                   color: isRevExp ? C.marfil : C.olivo, background: isRevExp ? 'rgba(150,134,34,0.25)' : 'transparent',
@@ -635,7 +705,7 @@ export default function DocumentosClient({
                         </div>
 
                         {/* Panel de revisión inline (solo admin) */}
-                        {userRole === 'admin' && isRevExp && (
+                        {userRole === 'admin' && !sinRevision && isRevExp && (
                           <div style={{ borderTop:'1px solid rgba(150,134,34,0.15)', padding:'0.85rem 1rem', background:'rgba(0,0,0,0.2)' }}>
                             <textarea
                               rows={2}

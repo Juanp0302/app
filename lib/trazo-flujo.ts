@@ -21,6 +21,7 @@ import { crearPlan, crearSuscripcion, type TrazoIdType } from './trazo'
 import { PLANES, type PlanKey } from './suscripcion'
 import { guardarSuscripcionTrazo, buscarSuscripcionTrazo, actualizarSuscripcionTrazo } from './trazo-db'
 import { queryOne, execute } from './db'
+import { conAvisoDeRevision } from './revision'
 
 const APP_URL = (process.env.NEXTAUTH_URL ?? 'https://app.owlcompliance.com').replace(/\/$/, '')
 
@@ -176,11 +177,12 @@ export async function procesarWebhookTrazo(payload: WebhookTrazo): Promise<Resul
 
         if (userExistente) {
           clienteId = userExistente.cliente_id as string
-          await execute(
+          // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+          await conAvisoDeRevision(clienteId, () => execute(
             `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', suscripcion_externa_id = ?,
-               suscripcion_vencimiento = ?, updated_at = datetime('now') WHERE id = ?`,
+               suscripcion_vencimiento = ?, es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
             [seguimiento.plan, subscriptionId, payload.detail?.billing?.next_charge_date ?? null, clienteId]
-          )
+          ))
         } else {
           const contrato = seguimiento.contrato_datos ? JSON.parse(seguimiento.contrato_datos) : {}
           const { crearCuentaClienteAutomatica } = await import('./clientes')
@@ -198,10 +200,11 @@ export async function procesarWebhookTrazo(payload: WebhookTrazo): Promise<Resul
           clienteId = cuenta.clienteId
         }
       } else {
-        await execute(
-          `UPDATE clientes SET suscripcion_estado = 'activa', suscripcion_vencimiento = ?, updated_at = datetime('now') WHERE id = ?`,
+        // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+        await conAvisoDeRevision(clienteId, () => execute(
+          `UPDATE clientes SET suscripcion_estado = 'activa', suscripcion_vencimiento = ?, es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
           [payload.detail?.billing?.next_charge_date ?? null, clienteId]
-        )
+        ))
       }
 
       await actualizarSuscripcionTrazo(subscriptionId, { estado: 'activa', cliente_id: clienteId! })

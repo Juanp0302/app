@@ -6,6 +6,8 @@
 import crypto from 'crypto'
 import { queryOne, queryAll, execute } from './db'
 import { getProvider, isCloudRef, localAbsPath } from './storage'
+import { sqlRequiereRevision } from './revision-regla'
+import { migrateSuscripcion } from './suscripcion'
 
 export function slugify(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 60)
@@ -98,12 +100,19 @@ export async function listarDocumentos(clienteId: string) {
   `, [clienteId])
 }
 
-/** Lista documentos pendientes de revisión (para la cola del admin). */
+/**
+ * Lista documentos pendientes de revisión (para la cola del admin).
+ * Solo cuenta los de clientes que REQUIEREN revisión (Pro/Premium activo o
+ * diagnóstico integral activo); los de planes sin revisión no aparecen. Ver
+ * lib/revision-regla.ts.
+ */
 export async function listarPendientesRevision(clienteId?: string) {
   await migrateOnce()
+  await migrateSuscripcion()
+  const pendiente = `(d.estado_revision = 'pendiente' OR d.estado_revision IS NULL) AND ${sqlRequiereRevision('c')}`
   const where = clienteId
-    ? `WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL) AND d.cliente_id = ?`
-    : `WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)`
+    ? `WHERE ${pendiente} AND d.cliente_id = ?`
+    : `WHERE ${pendiente}`
   const args = clienteId ? [clienteId] : []
   return queryAll(`
     SELECT d.*,

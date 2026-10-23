@@ -26,6 +26,7 @@ import { crearCobro, type CrearCobroInput, type TrazoIdType } from './trazo'
 import { PLANES, type PlanKey } from './suscripcion'
 import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, eliminarCobroTrazo, type TrazoCobroRow } from './trazo-cobros-db'
 import { queryOne, execute } from './db'
+import { conAvisoDeRevision } from './revision'
 
 export { listarCobrosTrazo, eliminarCobroTrazo }
 
@@ -228,10 +229,11 @@ async function activarCuentaPorCobro(seguimiento: TrazoCobroRow): Promise<string
 
     if (userExistente) {
       clienteId = userExistente.cliente_id as string
-      await execute(
-        `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
+      // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+      await conAvisoDeRevision(clienteId, () => execute(
+        `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
         [seguimiento.plan, clienteId]
-      )
+      ))
     } else {
       const contrato = seguimiento.contrato_datos ? JSON.parse(seguimiento.contrato_datos) : {}
       const { crearCuentaClienteAutomatica } = await import('./clientes')
@@ -247,10 +249,11 @@ async function activarCuentaPorCobro(seguimiento: TrazoCobroRow): Promise<string
       clienteId = cuenta.clienteId
     }
   } else {
-    await execute(
-      `UPDATE clientes SET suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
+    // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+    await conAvisoDeRevision(clienteId, () => execute(
+      `UPDATE clientes SET suscripcion_estado = 'activa', es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
       [clienteId]
-    )
+    ))
   }
 
   await actualizarCobroTrazo(seguimiento.external_reference, { estado: 'pagada', cliente_id: clienteId! })

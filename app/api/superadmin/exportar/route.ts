@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryAll } from '@/lib/db'
+import { sqlRequiereRevision } from '@/lib/revision-regla'
+import { migrateSuscripcion } from '@/lib/suscripcion'
 
 const SEP = ';'
 
@@ -107,11 +109,13 @@ export async function GET(req: NextRequest) {
        GROUP BY d.revisado_por`
     ) as any[]
 
+    await migrateSuscripcion()   // crea las columnas que usa la regla de revisión
     const docPendientes = await queryAll(
       `SELECT c.admin_revision_id AS admin_id, COUNT(*) AS pendientes
        FROM documentos d
        JOIN clientes c ON c.id = d.cliente_id
        WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND ${sqlRequiereRevision('c')}
          AND c.admin_revision_id IS NOT NULL
        GROUP BY c.admin_revision_id`
     ) as any[]

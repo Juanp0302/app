@@ -185,3 +185,57 @@ export async function notificarRevisionDocumento(params: {
     fecha:         params.fecha,
   })
 }
+
+/**
+ * Aviso al superadmin de un evento del diagnóstico integral (solicitud de un
+ * cliente Básico, activación o cierre). Usa la misma forma que
+ * notificarSuscripcion: el webhook de Apps Script ya sabe enviarla por correo.
+ */
+export async function notificarDiagnostico(params: {
+  clienteId:    string
+  cliente:      string
+  clienteEmail: string
+  evento:       'solicitado' | 'activado' | 'cerrado'
+  fecha:        string
+}): Promise<void> {
+  const superadminEmail = process.env.SUPERADMIN_EMAIL ?? 'owlcompliance2026@gmail.com'
+  const etiqueta = params.evento === 'solicitado' ? 'SOLICITADO' : params.evento === 'activado' ? 'ACTIVADO' : 'CERRADO'
+  return enviar({
+    id:            params.clienteId,
+    tipo_entidad:  'ticket',
+    especialidad:  'transversal',
+    asunto:        `[DIAGNÓSTICO INTEGRAL ${etiqueta}] ${params.cliente}`,
+    cliente:       params.cliente,
+    cliente_email: params.clienteEmail,
+    admin_email:   superadminEmail,
+    estado:        params.evento,
+    fecha:         params.fecha,
+  })
+}
+
+/**
+ * UN solo correo resumen por administrador cuando los documentos de un cliente
+ * pasan a revisión de golpe (upgrade de plan o activación del diagnóstico), en
+ * lugar de un correo por documento.
+ */
+export async function notificarDocumentosEnRevision(params: {
+  clienteId:   string
+  cliente:     string
+  motivo:      'upgrade' | 'diagnostico'
+  porAdmin:    { email: string; cantidad: number }[]
+  fecha:       string
+}): Promise<void> {
+  const motivoTxt = params.motivo === 'upgrade' ? 'cambio de plan' : 'diagnóstico integral activado'
+  await Promise.all(params.porAdmin.map(a =>
+    enviar({
+      id:           params.clienteId,
+      tipo_entidad: 'documento_subido',
+      especialidad: 'transversal',
+      asunto:       `${params.cliente}: ${a.cantidad} documento${a.cantidad === 1 ? '' : 's'} pasaron a revisión (${motivoTxt})`,
+      cliente:      params.cliente,
+      admin_email:  a.email,
+      estado:       'pendiente',
+      fecha:        params.fecha,
+    })
+  ))
+}

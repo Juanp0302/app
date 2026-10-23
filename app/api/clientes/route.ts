@@ -4,6 +4,7 @@ import { db, queryOne, queryAll, execute } from '@/lib/db'
 import { migrateSuscripcion } from '@/lib/suscripcion'
 import { migrateMustChangePassword } from '@/lib/password'
 import { crearCuentaClienteAutomatica } from '@/lib/clientes'
+import { clienteRequiereRevision, avisarSiPasoARevision } from '@/lib/revision'
 import crypto from 'crypto'
 
 // Migración segura: añadir columna admin_revision_id si no existe
@@ -181,13 +182,21 @@ export async function PATCH(req: NextRequest) {
 
   // ── Actualizar estado de suscripción ─────────────────────────────────────────
   if (typeof body.suscripcion_estado !== 'undefined') {
+    await migrateSuscripcion()
+    const requeriaAntes = await clienteRequiereRevision(clienteId)
     await execute(`UPDATE clientes SET suscripcion_estado = ?, updated_at = datetime('now') WHERE id = ?`, [body.suscripcion_estado, clienteId])
+    await avisarSiPasoARevision(clienteId, requeriaAntes, 'upgrade')   // p. ej. un Pro que pasa a 'activa'
     return NextResponse.json({ ok: true })
   }
 
   // ── Cambiar plan ──────────────────────────────────────────────────────────────
   if (typeof body.plan !== 'undefined') {
+    await migrateSuscripcion()
+    const requeriaAntes = await clienteRequiereRevision(clienteId)
     await execute(`UPDATE clientes SET plan = ?, updated_at = datetime('now') WHERE id = ?`, [body.plan, clienteId])
+    // Si pasó de "sin revisión" a "con revisión" (ej. Básico → Pro), sus documentos ya cargados entran a la
+    // cola de revisión solos (la regla se evalúa al consultar); aquí solo se avisa con UN correo resumen.
+    await avisarSiPasoARevision(clienteId, requeriaAntes, 'upgrade')
     return NextResponse.json({ ok: true })
   }
 
