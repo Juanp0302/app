@@ -81,12 +81,34 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
 
 // ── Tabla leads ─────────────────────────────────────────────────────────────
 
+const ORIGEN_LABEL: Record<string, string> = { contacto: 'Contacto', autodiagnostico: 'Autodiagnóstico', webinar: 'Webinar' }
+const ORIGEN_COLOR: Record<string, string> = { contacto: '#0ea5e9', autodiagnostico: '#16a34a', webinar: '#8b5cf6' }
+const origenLabel = (o?: string | null) => ORIGEN_LABEL[o ?? 'contacto'] ?? (o ? o.charAt(0).toUpperCase() + o.slice(1) : 'Contacto')
+const origenColor = (o?: string | null) => ORIGEN_COLOR[o ?? 'contacto'] ?? '#d97706'
+
+/** landing_page llega a veces como ruta ("/webinar.html") y a veces como URL completa. */
+function rutaLanding(v?: string | null) {
+  if (!v) return '—'
+  try { return new URL(v, 'https://x.local').pathname } catch { return v }
+}
+
+function datosDe(l: any): [string, string][] {
+  try {
+    const o = l.datos ? JSON.parse(l.datos) : {}
+    return Object.entries(o).filter(([, v]) => v !== '' && v != null).map(([k, v]) => [k.replace(/_/g, ' '), String(v)])
+  } catch { return [] }
+}
+
 function TablaLeads({ leads }: { leads: any[] }) {
   const [busq, setBusq] = useState('')
+  const [origen, setOrigen] = useState('todos')
+  const [abierto, setAbierto] = useState<number | null>(null)
+  const origenes = Array.from(new Set(leads.map((l: any) => l.origen ?? 'contacto')))
   const filtrados = leads.filter(l => {
+    if (origen !== 'todos' && (l.origen ?? 'contacto') !== origen) return false
     if (!busq) return true
     const q = busq.toLowerCase()
-    return [l.nombre, l.empresa, l.correo, l.asunto, l.utm_source, l.utm_campaign]
+    return [l.nombre, l.empresa, l.correo, l.telefono, l.asunto, l.utm_source, l.utm_campaign]
       .some(v => v?.toLowerCase().includes(q))
   })
 
@@ -102,8 +124,19 @@ function TablaLeads({ leads }: { leads: any[] }) {
 
   return (
     <div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {['todos', ...origenes].map(o => (
+          <button key={o} onClick={() => setOrigen(o)}
+            style={{ fontSize: 12, fontWeight: 600, padding: '4px 12px', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+              border: `1px solid ${o === 'todos' ? '#999' : origenColor(o)}`,
+              background: origen === o ? (o === 'todos' ? '#555' : origenColor(o)) : 'transparent',
+              color: origen === o ? '#fff' : (o === 'todos' ? '#555' : origenColor(o)) }}>
+            {o === 'todos' ? 'Todos' : origenLabel(o)}
+          </button>
+        ))}
+      </div>
       <input value={busq} onChange={e => setBusq(e.target.value)}
-        placeholder="Buscar por nombre, empresa, correo, fuente…"
+        placeholder="Buscar por nombre, empresa, correo, teléfono, fuente…"
         style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd',
           fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12 }} />
       <div style={{ overflowX: 'auto' }}>
@@ -113,7 +146,9 @@ function TablaLeads({ leads }: { leads: any[] }) {
               <th style={th}>Fecha</th>
               <th style={th}>Nombre</th>
               <th style={th}>Empresa</th>
+              <th style={th}>Formulario</th>
               <th style={th}>Correo</th>
+              <th style={th}>Teléfono</th>
               <th style={th}>Asunto</th>
               <th style={th}>Fuente</th>
               <th style={th}>Medio</th>
@@ -123,17 +158,23 @@ function TablaLeads({ leads }: { leads: any[] }) {
           </thead>
           <tbody>
             {filtrados.length === 0 ? (
-              <tr><td colSpan={9} style={{ ...td, color: '#aaa', textAlign: 'center', padding: '2rem' }}>
+              <tr><td colSpan={11} style={{ ...td, color: '#aaa', textAlign: 'center', padding: '2rem' }}>
                 Sin resultados
               </td></tr>
-            ) : filtrados.map((l: any) => (
-              <tr key={l.id}>
+            ) : filtrados.map((l: any) => [
+              <tr key={l.id} onClick={() => setAbierto(abierto === l.id ? null : l.id)} style={{ cursor: 'pointer' }}>
                 <td style={{ ...td, whiteSpace: 'nowrap', color: '#aaa', fontSize: 11 }}>
                   {new Date(l.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                 </td>
                 <td style={td}>{l.nombre ?? '—'}</td>
                 <td style={{ ...td, fontWeight: 600 }}>{l.empresa ?? '—'}</td>
+                <td style={td}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, whiteSpace: 'nowrap',
+                    background: origenColor(l.origen) + '22', color: origenColor(l.origen) }}>{origenLabel(l.origen)}</span>
+                  {l.reunion === 'Sí' && <span title="Pidió reunión" style={{ marginLeft: 6 }}>📅</span>}
+                </td>
                 <td style={{ ...td, color: C.bordo }}>{l.correo ?? '—'}</td>
+                <td style={{ ...td, whiteSpace: 'nowrap' }}>{l.telefono ?? '—'}</td>
                 <td style={{ ...td, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {l.asunto ?? '—'}
                 </td>
@@ -142,10 +183,21 @@ function TablaLeads({ leads }: { leads: any[] }) {
                 <td style={td}>{l.utm_campaign ?? '—'}</td>
                 <td style={{ ...td, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   fontSize: 11, color: '#aaa' }}>
-                  {l.landing_page ? new URL(l.landing_page).pathname : '—'}
+                  {rutaLanding(l.landing_page)}
                 </td>
-              </tr>
-            ))}
+              </tr>,
+              abierto === l.id && (
+                <tr key={`${l.id}-det`}>
+                  <td colSpan={11} style={{ ...td, background: '#faf8f3', fontSize: 12.5 }}>
+                    {l.mensaje && <div style={{ marginBottom: 6 }}><strong>Mensaje:</strong> {l.mensaje}</div>}
+                    {datosDe(l).map(([k, v]) => (
+                      <div key={k}><strong style={{ textTransform: 'capitalize' }}>{k}:</strong> {v}</div>
+                    ))}
+                    {!l.mensaje && datosDe(l).length === 0 && <span style={{ color: '#aaa' }}>Sin más datos.</span>}
+                  </td>
+                </tr>
+              ),
+            ])}
           </tbody>
         </table>
       </div>
@@ -231,6 +283,11 @@ export default function LeadsClient() {
 
             {/* Barras por dimensión UTM */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+              <div style={card}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 12,
+                  textTransform: 'uppercase', letterSpacing: '0.07em' }}>Por formulario</div>
+                <BarraHorizontal items={(data.stats.porOrigen ?? []).map((o: any) => ({ ...o, label: origenLabel(o.label) }))} color="#0ea5e9" />
+              </div>
               <div style={card}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 12,
                   textTransform: 'uppercase', letterSpacing: '0.07em' }}>Por fuente (utm_source)</div>

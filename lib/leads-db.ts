@@ -29,6 +29,24 @@ export async function migrateLeads() {
       created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     )
   `)
+  // Columnas agregadas después: de qué formulario viene el lead y sus datos propios.
+  for (const sql of [
+    `ALTER TABLE leads ADD COLUMN origen TEXT`,      // contacto | autodiagnostico | webinar | <otro formulario>
+    `ALTER TABLE leads ADD COLUMN telefono TEXT`,
+    `ALTER TABLE leads ADD COLUMN reunion TEXT`,     // 'Sí' | 'No'
+    `ALTER TABLE leads ADD COLUMN datos TEXT`,       // JSON con los campos propios del formulario (NIT, % cumplimiento…)
+  ]) {
+    try { await execute(sql) } catch { /* la columna ya existe */ }
+  }
+}
+
+/** Deduce el formulario de origen cuando el flujo no lo informa (flujos viejos de n8n). */
+export function inferirOrigen(d: { origen?: string; asunto?: string; landing_page?: string }): string {
+  const o = (d.origen ?? '').trim().toLowerCase()
+  if (o) return o.slice(0, 40)
+  if (/^webinar/i.test(d.asunto ?? '') || /webinar/i.test(d.landing_page ?? '')) return 'webinar'
+  if (/autodiagn/i.test(d.asunto ?? '') || /autodiagn/i.test(d.landing_page ?? '')) return 'autodiagnostico'
+  return 'contacto'
 }
 
 export interface LeadData {
@@ -44,6 +62,10 @@ export interface LeadData {
   utm_content?:  string
   landing_page?: string
   referrer?:     string
+  origen?:       string
+  telefono?:     string
+  reunion?:      string
+  datos?:        string   // JSON
 }
 
 export async function insertarLead(data: LeadData): Promise<number> {
@@ -51,8 +73,8 @@ export async function insertarLead(data: LeadData): Promise<number> {
     sql: `INSERT INTO leads
             (nombre, empresa, correo, asunto, mensaje,
              utm_source, utm_medium, utm_campaign, utm_term, utm_content,
-             landing_page, referrer)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+             landing_page, referrer, origen, telefono, reunion, datos)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     args: [
       data.nombre       ?? null,
       data.empresa      ?? null,
@@ -66,6 +88,10 @@ export async function insertarLead(data: LeadData): Promise<number> {
       data.utm_content  ?? null,
       data.landing_page ?? null,
       data.referrer     ?? null,
+      inferirOrigen(data),
+      data.telefono     ?? null,
+      data.reunion      ?? null,
+      data.datos        ?? null,
     ],
   })
   return Number(r.lastInsertRowid)
@@ -79,7 +105,7 @@ export async function obtenerLeads(limite = 500) {
 }
 
 export async function statsLeads() {
-  const [total, porSource, porMedium, porCampaign, porDia] = await Promise.all([
+  const [total, porSource, porMedium, porCampaign, porDia, porOrigen] = await Promise.all([
     queryOne(`SELECT COUNT(*) as cnt FROM leads`) as Promise<any>,
     queryAll(`SELECT COALESCE(utm_source,'(sin fuente)') as label, COUNT(*) as cnt
               FROM leads GROUP BY utm_source ORDER BY cnt DESC LIMIT 10`) as Promise<any[]>,
@@ -89,6 +115,8 @@ export async function statsLeads() {
               FROM leads GROUP BY utm_campaign ORDER BY cnt DESC LIMIT 10`) as Promise<any[]>,
     queryAll(`SELECT DATE(created_at) as dia, COUNT(*) as cnt
               FROM leads GROUP BY DATE(created_at) ORDER BY dia DESC LIMIT 30`) as Promise<any[]>,
+    queryAll(`SELECT COALESCE(origen,'contacto') as label, COUNT(*) as cnt
+              FROM leads GROUP BY COALESCE(origen,'contacto') ORDER BY cnt DESC`) as Promise<any[]>,
   ])
-  return { total: total?.cnt ?? 0, porSource, porMedium, porCampaign, porDia: porDia.reverse() }
+  return { total: total?.cnt ?? 0, porSource, porMedium, porCampaign, porDia: porDia.reverse(), porOrigen }
 }

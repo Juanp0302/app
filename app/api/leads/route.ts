@@ -24,6 +24,14 @@ function verifyWebhookSecret(req: NextRequest): boolean {
   return auth === `Bearer ${secret}`
 }
 
+/** `datos` puede llegar como objeto o como texto JSON (n8n lo manda como texto). Siempre se guarda como JSON. */
+function normalizarDatos(v: unknown): string | undefined {
+  if (v == null || v === '') return undefined
+  if (typeof v === 'object') return JSON.stringify(v).slice(0, 8000)
+  const t = String(v)
+  try { JSON.parse(t); return t.slice(0, 8000) } catch { return JSON.stringify({ texto: t.slice(0, 2000) }) }
+}
+
 // ── POST: N8N envía el lead ───────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -51,6 +59,10 @@ export async function POST(req: NextRequest) {
     utm_content:  body.utm_content,
     landing_page: body.landing_page ?? body.landingPage,
     referrer:     body.referrer,
+    origen:       body.origen,
+    telefono:     body.telefono ?? body.phone,
+    reunion:      body.reunion,
+    datos:        normalizarDatos(body.datos),
   })
 
   return NextResponse.json({ ok: true, id })
