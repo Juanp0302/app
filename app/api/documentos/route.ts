@@ -10,6 +10,7 @@ import { queryAll, queryOne } from '@/lib/db'
 import { guardarDocumento, eliminarDocumento, eliminarDocumentosMasivo, listarDocumentos, revisarDocumento, type BorradoScope } from '@/lib/documentos'
 import { notificarDocumentoSubido, notificarRevisionDocumento, notificarSinAsignar } from '@/lib/notificaciones'
 import { adminParaAsignacion, aspectoAEspecialidad } from '@/lib/asignacion'
+import { infoRevisionCliente } from '@/lib/revision'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
   if (!clienteId) return NextResponse.json({ error: 'clienteId requerido' }, { status: 400 })
 
   const docs = await listarDocumentos(clienteId)
+  // Si el cliente no requiere revisión (plan Básico, cortesía, trial, sin plan), sus documentos
+  // pendientes se muestran como "no_requiere" en vez de "pendiente de revisión".
+  const revision = await infoRevisionCliente(clienteId)
+  const sinRevision = revision ? !revision.requiere : false
 
   const arbol: Record<string, any> = {}
   for (const d of docs) {
@@ -42,14 +47,28 @@ export async function GET(req: NextRequest) {
       subido_por: (d as any).subido_por_nombre, subido_por_email: (d as any).subido_por_email,
       periodicidad: (d as any).periodicidad,
       formato_codigo:       (d as any).formato_codigo       ?? null,
-      estado_revision:      (d as any).estado_revision      ?? 'pendiente',
+      estado_revision:      sinRevision && (((d as any).estado_revision ?? 'pendiente') === 'pendiente')
+                              ? 'no_requiere'
+                              : ((d as any).estado_revision ?? 'pendiente'),
       revision_comentario:  (d as any).revision_comentario  ?? null,
       revisado_por_nombre:  (d as any).revisado_por_nombre  ?? null,
       revisado_at:          (d as any).revisado_at          ?? null,
     })
   }
 
-  return NextResponse.json({ total: docs.length, grupos: Object.values(arbol) })
+  return NextResponse.json({
+    total: docs.length,
+    grupos: Object.values(arbol),
+    revision: revision && {
+      requiere:           revision.requiere,
+      porPlan:            revision.porPlan,
+      plan:               revision.plan,
+      diagnostico_estado: revision.diagnostico_estado,
+      solicitado_at:      revision.diagnostico_solicitado_at,
+      activado_at:        revision.diagnostico_activado_at,
+      cerrado_at:         revision.diagnostico_cerrado_at,
+    },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -96,6 +115,14 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await archivo.arrayBuffer())
   const docId = await guardarDocumento({ clienteId, clienteOblId: clienteOblId || null, aspecto, obligacion, anio, trimestre, nombreArchivo: archivo.name, mimeType: mimeEfectivo, buffer, userId: user.id ?? '', userEmail: user.email ?? '', formatoCodigo })
 
+  // Solo los clientes que REQUIEREN revisión (Pro/Premium activo o diagnóstico integral activo) pasan por un
+  // administrador. Plan Básico, cortesía, trial y sin plan: el documento queda guardado pero NO se notifica a
+  // nadie y no entra a la cola de revisión (ver lib/revision-regla.ts).
+  const revisionCliente = await infoRevisionCliente(clienteId)
+  if (!revisionCliente?.requiere) {
+    return NextResponse.json({ ok: true, docId, requiereRevision: false })
+  }
+
   // Determinar a quién notificar: 1) revisor manual del cliente, 2) asignación por especialidad, 3) todos
   const clienteRow = await queryOne(`
     SELECT c.razon_social, c.admin_revision_id, u.email AS admin_revision_email
@@ -136,7 +163,7 @@ export async function POST(req: NextRequest) {
     fecha:         new Date().toLocaleString('es-CO'),
   })
 
-  return NextResponse.json({ ok: true, docId })
+  return NextResponse.json({ ok: true, docId, requiereRevision: true })
 }
 
 export async function DELETE(req: NextRequest) {

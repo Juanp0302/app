@@ -366,6 +366,17 @@ Se agregó soporte de códigos de descuento configurables por el superadmin desd
 - Caso especial: en Trazo Suscripciones (`crearSuscripcionTrazoParaContrato`), el `amount` del Plan es fijo para los 12 cobros del ciclo — un `montoOverride` ahí descuenta los 12 meses, no solo el primero. No es un problema práctico hoy porque esta pasarela sigue bloqueada (sección 4quater), pero hay que recordarlo si se retoma.
 - Sin pruebas automatizadas nuevas (no se tocó `lib/trazo.test.ts` — los 15 tests existentes siguen pasando sin cambios). `tsc --noEmit` limpio.
 
+## 5quinquies. Revisión de documentos por plan y Diagnóstico Integral (2026-10-23)
+
+Cambio que toca los flujos de pago (Trazo Cobros, Trazo Suscripciones y Wompi):
+
+- **Regla** (`lib/revision-regla.ts`): los documentos de un cliente requieren revisión de un administrador solo si `diagnostico_estado = 'activo'` o (plan Pro/Premium, no cortesía, `suscripcion_estado = 'activa'`). Básico, cortesía, trial y sin plan = sin revisión. Se evalúa al consultar (no se guarda por documento), así que un upgrade mete a la cola todos los documentos pendientes de inmediato.
+- **Efecto en los pagos:** al activarse una suscripción por pago real, los 6 `UPDATE clientes` de `trazo-cobros-flujo.ts`, `trazo-flujo.ts` y `wompi-flujo.ts` ahora (1) ponen `es_cortesia = 0` (antes nunca se limpiaba, y una ex-cortesía que pagaba Pro quedaba sin revisión) y (2) van envueltos en `conAvisoDeRevision` (`lib/revision.ts`), que envía UN correo resumen por administrador si el cliente pasó a requerir revisión.
+- **Diagnóstico Integral:** servicio on-demand para clientes sin revisión por plan. El cliente solicita (`/api/diagnostico`, con aviso de costo adicional) → el superadmin activa → cualquier administrador cierra al entregar el Mapa de Madurez. Pantalla de administración: `/dashboard/diagnosticos`.
+- **Datos:** columnas nuevas `clientes.diagnostico_estado/_solicitado_at/_activado_at/_cerrado_at` (migración perezosa en `migrateSuscripcion`). No se escribió nada en producción.
+- **Pruebas:** `lib/revision.test.ts` (BD temporal, rutas reales). `tsc` limpio; los 15 tests de Trazo siguen pasando.
+- **Consecuencia a recordar:** bajar de plan (Pro→Básico) o cerrar un diagnóstico saca de la cola los documentos que sigan pendientes.
+
 ## 6. Cómo retomar esto
 
 1. Si ya llegó respuesta de Trazo sobre las preguntas de la sección 4, empezar por ahí — probablemente cambie el diseño de cómo nos enteramos de los cobros (webhook vs. polling).

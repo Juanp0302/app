@@ -23,6 +23,7 @@ import { wompiConfigurado, construirEnlaceCheckout, verificarFirmaEvento, type W
 import { PLANES, type PlanKey } from './suscripcion'
 import { guardarPagoWompi, buscarPagoWompi, actualizarPagoWompi } from './wompi-db'
 import { queryOne, execute } from './db'
+import { conAvisoDeRevision } from './revision'
 
 export { wompiConfigurado }
 
@@ -160,10 +161,11 @@ export async function procesarWebhookWompi(payload: WompiEventoWebhook): Promise
 
       if (userExistente) {
         clienteId = userExistente.cliente_id as string
-        await execute(
-          `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', suscripcion_externa_id = ?, updated_at = datetime('now') WHERE id = ?`,
+        // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+        await conAvisoDeRevision(clienteId, () => execute(
+          `UPDATE clientes SET plan = ?, suscripcion_estado = 'activa', suscripcion_externa_id = ?, es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
           [seguimiento.plan, tx.id, clienteId]
-        )
+        ))
       } else {
         const contrato = seguimiento.contrato_datos ? JSON.parse(seguimiento.contrato_datos) : {}
         const { crearCuentaClienteAutomatica } = await import('./clientes')
@@ -180,10 +182,11 @@ export async function procesarWebhookWompi(payload: WompiEventoWebhook): Promise
         clienteId = cuenta.clienteId
       }
     } else {
-      await execute(
-        `UPDATE clientes SET suscripcion_estado = 'activa', updated_at = datetime('now') WHERE id = ?`,
+      // Un pago real termina la cortesía (es_cortesia = 0); si el plan es Pro/Premium, sus documentos entran a revisión.
+      await conAvisoDeRevision(clienteId, () => execute(
+        `UPDATE clientes SET suscripcion_estado = 'activa', es_cortesia = 0, updated_at = datetime('now') WHERE id = ?`,
         [clienteId]
-      )
+      ))
     }
 
     await actualizarPagoWompi(tx.reference, { estado: 'aprobada', transaction_id: tx.id, cliente_id: clienteId! })

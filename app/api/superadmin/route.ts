@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { queryAll, queryOne, execute } from '@/lib/db'
 import { notificarAsignacion } from '@/lib/notificaciones'
+import { sqlRequiereRevision } from '@/lib/revision-regla'
+import { migrateSuscripcion } from '@/lib/suscripcion'
 
 async function requireSuperadmin() {
   const session = await auth()
@@ -16,6 +18,8 @@ async function requireSuperadmin() {
 export async function GET() {
   const user = await requireSuperadmin()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  await migrateSuscripcion()   // crea las columnas que usa la regla de revisión
 
   // Admins activos
   const admins = await queryAll(
@@ -94,6 +98,7 @@ export async function GET() {
        FROM documentos d
        JOIN clientes c ON c.id = d.cliente_id
        WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND ${sqlRequiereRevision('c')}
          AND c.admin_revision_id IS NOT NULL
        GROUP BY c.admin_revision_id`
     ) as any[]
@@ -143,6 +148,7 @@ export async function GET() {
        FROM documentos d
        JOIN clientes c ON c.id = d.cliente_id
        WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
+         AND ${sqlRequiereRevision('c')}
          AND (c.admin_revision_id IS NULL OR c.admin_revision_id = '')
        ORDER BY d.uploaded_at ASC`
     ) as any[]
