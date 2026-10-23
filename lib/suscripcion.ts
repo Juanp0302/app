@@ -37,6 +37,8 @@ export async function migrateSuscripcion() {
     `ALTER TABLE clientes ADD COLUMN es_cortesia INTEGER DEFAULT 0`,
     // Diagnóstico integral (servicio on-demand para clientes sin revisión por plan).
     // diagnostico_estado: NULL | 'solicitado' | 'activo' | 'cerrado'. Ver lib/revision.ts.
+    `ALTER TABLE clientes ADD COLUMN plan_solicitado TEXT`,
+    `ALTER TABLE clientes ADD COLUMN plan_solicitado_at TEXT`,
     `ALTER TABLE clientes ADD COLUMN diagnostico_estado TEXT`,
     `ALTER TABLE clientes ADD COLUMN diagnostico_solicitado_at TEXT`,
     `ALTER TABLE clientes ADD COLUMN diagnostico_activado_at TEXT`,

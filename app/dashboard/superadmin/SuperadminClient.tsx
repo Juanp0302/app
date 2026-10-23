@@ -779,6 +779,11 @@ export default function SuperadminClient() {
                       )}
                     </div>
                     <div style={{ fontSize: '0.65rem', color: 'rgba(231,223,202,0.4)' }}>{c.user_email}</div>
+                    {c.plan_solicitado && c.plan_solicitado !== planActual && (
+                      <div style={{ fontSize: '0.62rem', color: '#f59e0b', marginTop: 3 }}>
+                        Solicitó plan {c.plan_solicitado === 'basico' ? 'Básico' : c.plan_solicitado === 'pro' ? 'Pro' : 'Premium'} · pendiente de activación
+                      </div>
+                    )}
                     {ciclo && (
                       <div style={{ fontSize: '0.6rem', color: alertaVence ? '#f59e0b' : 'rgba(231,223,202,0.3)', marginTop: 3 }}>
                         {ciclo}{alertaVence && diasRestantes !== null ? ` · vence en ${diasRestantes}d` : ''}

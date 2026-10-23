@@ -355,3 +355,28 @@ describe('consultas del superadmin con la regla aplicada (sintaxis y resultado)'
     expect(razones.has('Empresa sinPlan')).toBe(false)     // sin plan: nunca
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('solicitud de cambio de plan por el cliente', () => {
+  it('solo registra la solicitud: el plan y el estado de la cuenta NO cambian', async () => {
+    await crearCliente('pide', { plan: 'basico', estado: 'activa' })
+    const ruta = await import('@/app/api/suscripcion/solicitar/route')
+    auth.mockResolvedValue(sesionCliente('pide'))
+    const res = await ruta.POST(new NextRequest('http://localhost/api/suscripcion/solicitar', { method: 'POST', body: JSON.stringify({ plan: 'premium' }) }))
+    expect(res.status).toBe(200)
+    const c = await queryOne(`SELECT plan, suscripcion_estado, plan_solicitado, plan_solicitado_at FROM clientes WHERE id = ?`, [ids.pide]) as any
+    expect(c.plan).toBe('basico')
+    expect(c.suscripcion_estado).toBe('activa')
+    expect(c.plan_solicitado).toBe('premium')
+    expect(c.plan_solicitado_at).toBeTruthy()
+    expect((await rev.infoRevisionCliente(ids.pide))?.requiere).toBe(false)   // pedir Premium no activa la revisión
+  })
+
+  it('un plan inventado se rechaza y un admin no puede usar la ruta', async () => {
+    const ruta = await import('@/app/api/suscripcion/solicitar/route')
+    auth.mockResolvedValue(sesionCliente('pide'))
+    expect((await ruta.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ plan: 'gratis-total' }) }))).status).toBe(400)
+    auth.mockResolvedValue(sesionAdmin())
+    expect((await ruta.POST(new NextRequest('http://localhost/x', { method: 'POST', body: JSON.stringify({ plan: 'pro' }) }))).status).toBe(403)
+  })
+})

@@ -1,8 +1,8 @@
 /**
  * POST /api/suscripcion/solicitar
- * El cliente solicita activar o cambiar de plan. Sin pasarela de pago
- * integrada, el plan queda en estado 'trial' pendiente de activación
- * manual por el equipo de Owl Compliance.
+ * El cliente solicita activar o cambiar de plan. Solo queda registrada la
+ * solicitud (plan_solicitado); el plan real y el estado de la cuenta cambian
+ * cuando el equipo lo activa o cuando se confirma el pago.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
@@ -30,8 +30,10 @@ export async function POST(req: NextRequest) {
   const cliente = await queryOne(`SELECT id FROM clientes WHERE user_id = ?`, [user.id]) as any
   if (!cliente) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
+  // Solo se registra la solicitud: el plan y el estado de la cuenta NO se tocan aquí.
+  // El plan cambia cuando el equipo lo aprueba o cuando llega el pago (flujos de pago).
   await execute(
-    `UPDATE clientes SET plan = ?, suscripcion_estado = 'trial' WHERE id = ?`,
+    `UPDATE clientes SET plan_solicitado = ?, plan_solicitado_at = datetime('now') WHERE id = ?`,
     [planKey, cliente.id]
   )
 
