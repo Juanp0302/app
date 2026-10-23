@@ -345,7 +345,9 @@ describe('consultas del superadmin con la regla aplicada (sintaxis y resultado)'
     expect(Array.isArray(pend)).toBe(true)
 
     const sinAsignar = await queryAll(
-      `SELECT d.id, c.razon_social FROM documentos d JOIN clientes c ON c.id = d.cliente_id
+      `SELECT d.id, oc.aspecto, oc.obligacion, c.razon_social FROM documentos d JOIN clientes c ON c.id = d.cliente_id
+       LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+       LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
        WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL) AND ${rule.sqlRequiereRevision('c')}
          AND (c.admin_revision_id IS NULL OR c.admin_revision_id = '')`) as any[]
     const razones = new Set(sinAsignar.map(r => r.razon_social))

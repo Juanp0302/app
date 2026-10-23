@@ -143,16 +143,18 @@ export async function GET() {
   let docsSinAsignar: any[] = []
   try {
     docsSinAsignar = await queryAll(
-      `SELECT d.id, d.nombre_archivo, d.aspecto, d.obligacion, d.uploaded_at,
+      `SELECT d.id, d.nombre_archivo, oc.aspecto, oc.obligacion, d.uploaded_at,
               c.razon_social, c.id AS cliente_id
        FROM documentos d
        JOIN clientes c ON c.id = d.cliente_id
+       LEFT JOIN cliente_obligaciones co ON co.id = d.cliente_obl_id
+       LEFT JOIN obligaciones_catalogo oc ON oc.sub_id = co.catalogo_id
        WHERE (d.estado_revision = 'pendiente' OR d.estado_revision IS NULL)
          AND ${sqlRequiereRevision('c')}
          AND (c.admin_revision_id IS NULL OR c.admin_revision_id = '')
        ORDER BY d.uploaded_at ASC`
     ) as any[]
-  } catch { docsSinAsignar = [] }
+  } catch (e) { console.error('[superadmin] No se pudo listar documentos sin asignar:', e); docsSinAsignar = [] }
 
   // Últimos tickets urgentes abiertos
   const urgentes = await queryAll(
