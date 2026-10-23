@@ -147,19 +147,19 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
       key:      'basico',
       label:    'Básico',
       precio:   '$199.000 COP mensuales, más IVA si aplica',
-      servicios:'Sin tickets — atención exclusivamente por chat para consultas rápidas y coordinación operativa. Alertas mensuales, plantillas de liquidación, minutas tipo de CCU para descarga, acceso al vademécum regulatorio y orientación para actualización RUTIC por solicitud.',
+      servicios:'Sin tickets — atención exclusivamente por chat para consultas rápidas y coordinación operativa. Alertas mensuales, acceso al repositorio de respuestas tipo a PQR y orientación para actualización RUTIC por solicitud.',
     },
     {
       key:      'pro',
       label:    'Pro',
       precio:   '$890.000 COP mensuales, más IVA si aplica',
-      servicios:'Seis consultas incluidas por mes. Incluye el Plan Básico, diagnóstico inicial por una vez, revisión y ajuste de CCU, conceptos escritos, validación de políticas corporativas, repositorio de evidencias, acompañamiento remoto en visitas y elaboración de respuestas ordinarias.',
+      servicios:'Seis consultas incluidas por mes. Incluye el Plan Básico, diagnóstico inicial por una vez, conceptos escritos, validación de políticas corporativas, repositorio de evidencias y soporte virtual en la preparación de las visitas del MinTIC.',
     },
     {
       key:      'premium',
       label:    'Premium',
       precio:   '$2.490.000 COP mensuales, más IVA si aplica',
-      servicios:'Diez consultas incluidas por mes. Incluye Plan Pro, acompañamiento técnico-regulatorio presencial sujeto a disponibilidad, soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand.',
+      servicios:'Diez consultas incluidas por mes. Incluye Plan Pro, acompañamiento virtual y presencial en sitio durante las visitas de inspección del MinTIC (el presencial sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR), soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand.',
     },
   ]
 
@@ -294,11 +294,11 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
         {/* CLÁUSULA 6 */}
         <Text style={s.section}>Cláusula 6. Alcance de los Planes y Exclusiones</Text>
         <Text style={s.p}>Salvo pacto expreso en orden de servicio, no están incluidos en la mensualidad los siguientes servicios: representación judicial o administrativa formal, interposición de recursos, demandas, audiencias, defensa integral en investigaciones sancionatorias, radicación de trámites con mandato, revisión masiva de expedientes, desplazamientos, viáticos, atención fuera de horario, emisión de dictámenes periciales, certificaciones de cumplimiento, implementación técnica directa de sistemas, pago de tasas o derechos y servicios de terceros.</Text>
-        <Text style={s.p}>Las visitas presenciales, acompañamientos en sitio, urgencias críticas, respuestas a requerimientos complejos, revisión de expedientes extensos y actuaciones que impliquen responsabilidad jurídica formal deberán cotizarse o confirmarse por orden de servicio, aun cuando el cliente tenga Plan Premium.</Text>
+        <Text style={s.p}>Las visitas presenciales y acompañamientos en sitio no incluidos en el plan contratado (el Plan Premium incluye el acompañamiento presencial en las visitas de inspección del MinTIC, sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR), las urgencias críticas, respuestas a requerimientos complejos, revisión de expedientes extensos y actuaciones que impliquen responsabilidad jurídica formal deberán cotizarse o confirmarse por orden de servicio, aun cuando el cliente tenga Plan Premium.</Text>
 
         {/* CLÁUSULA 7 */}
         <Text style={s.section}>Cláusula 7. Propiedad Intelectual</Text>
-        <Text style={s.p}>Los métodos, metodologías, marcos de análisis, bases de conocimiento, plantillas generales, vademécum, herramientas, automatizaciones y materiales desarrollados por el PRESTADOR son de su propiedad exclusiva. El contrato concede al CLIENTE una licencia de uso interna, no exclusiva, no transferible y limitada a su operación.</Text>
+        <Text style={s.p}>Los métodos, metodologías, marcos de análisis, bases de conocimiento, plantillas generales, repositorio de respuestas tipo a PQR, herramientas, automatizaciones y materiales desarrollados por el PRESTADOR son de su propiedad exclusiva. El contrato concede al CLIENTE una licencia de uso interna, no exclusiva, no transferible y limitada a su operación.</Text>
         <Text style={s.p}>Los documentos, datos e información propios del CLIENTE, así como los productos elaborados específicamente para él, serán de propiedad del CLIENTE.</Text>
         <Text style={s.p}>Las plantillas generales entregadas podrán usarse internamente, pero no comercializarse, sublicenciarse, publicarse o entregarse a terceros como producto propio.</Text>
 
@@ -497,7 +497,6 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
             ['Concepto regulatorio simple','3 a 5 días hábiles desde la solicitud completa.'],
             ['Concepto regulatorio complejo','5 a 10 días hábiles desde la solicitud completa.'],
             ['Respuesta a requerimiento de autoridad','Según plazo legal, con inicio desde la entrega completa del expediente por el CLIENTE.'],
-            ['Revisión y ajuste de CCU','3 a 7 días hábiles.'],
             ['Diagnóstico Integral Avanzado','10 a 15 días hábiles desde la reunión de inicio y entrega completa de información.'],
             ['Repositorio de evidencias','10 a 20 días hábiles según volumen de soportes.'],
             ['Acompañamiento virtual o presencial','Según agenda de autoridad y disponibilidad confirmada por el PRESTADOR.'],
@@ -536,7 +535,7 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
           </View>
           {[
             ['Básico','No incluye tickets. La atención se presta únicamente por chat para consultas rápidas, alertas y coordinación operativa. Cualquier solicitud que exceda ese alcance se atiende como servicio on-demand o requiere actualización de plan.'],
-            ['Incluido según plan','Alertas regulatorias, consultas mensuales (tickets, en planes Pro y Premium), revisión documental según alcance, plantillas, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad.'],
+            ['Incluido según plan','Alertas regulatorias, consultas mensuales (tickets, en planes Pro y Premium), revisión documental según alcance, diagnósticos, conceptos, soporte remoto o presencial cuando el plan lo indique y exista disponibilidad.'],
             ['No incluido salvo orden de servicio','Representación formal, recursos, demandas, audiencias, defensa integral, revisión de expedientes extensos, visitas presenciales no previstas, viáticos, radicaciones con mandato, pagos a terceros y trámites que exijan firma o mandato especial.'],
             ['Premium','Incluye acompañamiento técnico-regulatorio intensivo, soporte estratégico y tarifas preferenciales. No incluye defensa formal automática ni actuaciones con mandato sin orden de servicio.'],
           ].map(([cat, regla]) => (
