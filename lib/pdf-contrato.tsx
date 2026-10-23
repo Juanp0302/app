@@ -147,19 +147,19 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
       key:      'basico',
       label:    'Básico',
       precio:   '$199.000 COP mensuales, más IVA si aplica',
-      servicios:'Sin tickets — atención exclusivamente por chat para consultas rápidas y coordinación operativa. Alertas mensuales, acceso al repositorio de respuestas tipo a PQR y orientación para actualización RUTIC por solicitud.',
+      servicios:'Sin tickets — seis (6) chats incluidos por mes para consultas rápidas y coordinación operativa. Alertas mensuales, acceso al repositorio de respuestas tipo a PQR y orientación para actualización RUTIC por solicitud.',
     },
     {
       key:      'pro',
       label:    'Pro',
       precio:   '$890.000 COP mensuales, más IVA si aplica',
-      servicios:'Seis consultas incluidas por mes. Incluye el Plan Básico, diagnóstico inicial por una vez, conceptos escritos, validación de políticas corporativas, repositorio de evidencias y soporte virtual en la preparación de las visitas del MinTIC.',
+      servicios:'Seis (6) tickets y doce (12) chats incluidos por mes. Incluye el Plan Básico, diagnóstico inicial por una vez, conceptos escritos, validación de políticas corporativas, repositorio de evidencias y soporte virtual en la preparación de las visitas del MinTIC.',
     },
     {
       key:      'premium',
       label:    'Premium',
       precio:   '$2.490.000 COP mensuales, más IVA si aplica',
-      servicios:'Diez consultas incluidas por mes. Incluye Plan Pro, acompañamiento virtual y presencial en sitio durante las visitas de inspección del MinTIC (el presencial sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR), soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand.',
+      servicios:'Diez (10) tickets y veinte (20) chats incluidos por mes. Incluye Plan Pro, acompañamiento virtual y presencial en sitio durante las visitas de inspección del MinTIC (el presencial sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR), soporte en trámites de espectro u obligaciones de hacer, apoyo en reportes periódicos, y tarifas preferenciales para servicios on-demand.',
     },
   ]
 
@@ -294,7 +294,7 @@ function ContratoDoc({ d }: { d: DatosContrato }) {
         {/* CLÁUSULA 6 */}
         <Text style={s.section}>Cláusula 6. Alcance de los Planes y Exclusiones</Text>
         <Text style={s.p}>Salvo pacto expreso en orden de servicio, no están incluidos en la mensualidad los siguientes servicios: representación judicial o administrativa formal, interposición de recursos, demandas, audiencias, defensa integral en investigaciones sancionatorias, radicación de trámites con mandato, revisión masiva de expedientes, desplazamientos, viáticos, atención fuera de horario, emisión de dictámenes periciales, certificaciones de cumplimiento, implementación técnica directa de sistemas, pago de tasas o derechos y servicios de terceros.</Text>
-        <Text style={s.p}>Las visitas presenciales y acompañamientos en sitio no incluidos en el plan contratado (el Plan Premium incluye el acompañamiento presencial en las visitas de inspección del MinTIC, sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR), las urgencias críticas, respuestas a requerimientos complejos, revisión de expedientes extensos y actuaciones que impliquen responsabilidad jurídica formal deberán cotizarse o confirmarse por orden de servicio, aun cuando el cliente tenga Plan Premium.</Text>
+        <Text style={s.p}>El PRESTADOR puede atender visitas presenciales y acompañamientos en sitio: el Plan Premium incluye el acompañamiento presencial en las visitas de inspección del MinTIC, sujeto a la agenda de la autoridad y a la disponibilidad confirmada por el PRESTADOR. En todos los casos, los costos de traslado, desplazamiento, transporte, alojamiento, alimentación y demás viáticos del equipo del PRESTADOR no están incluidos en ningún plan y serán asumidos por el CLIENTE; el PRESTADOR le informará su valor antes del desplazamiento. Las urgencias críticas, las respuestas a requerimientos complejos, revisión de expedientes extensos y actuaciones que impliquen responsabilidad jurídica formal deberán cotizarse o confirmarse por orden de servicio, aun cuando el cliente tenga Plan Premium.</Text>
 
         {/* CLÁUSULA 7 */}
         <Text style={s.section}>Cláusula 7. Propiedad Intelectual</Text>
@@ -516,15 +516,15 @@ function TyCDoc({ fechaAceptacion, clienteEmail, ip }: {
             <Text style={[s.tcb, { flex: 1 }]}>Plan</Text>
             <Text style={[s.tcb, { flex: 2 }]}>Cuota mensual</Text>
           </View>
-          {[['Básico','Sin tickets — atención por chat, sin cuota de consultas formalizada'],['Pro','6 consultas (tickets) incluidas por mes'],['Premium','10 consultas (tickets) incluidas por mes']].map(([p, c]) => (
+          {[['Básico','6 chats incluidos por mes — sin tickets'],['Pro','6 tickets y 12 chats incluidos por mes'],['Premium','10 tickets y 20 chats incluidos por mes']].map(([p, c]) => (
             <View key={p} style={s.tableRow}>
               <Text style={[s.tc, { flex: 1 }]}>{p}</Text>
               <Text style={[s.tc, { flex: 2 }]}>{c}</Text>
             </View>
           ))}
         </View>
-        <Text style={s.p}>Para los planes Pro y Premium, se descuenta una consulta cuando la solicitud requiere análisis, investigación, revisión documental, criterio profesional o respuesta estructurada. No descuentan cuota las alertas regulatorias, actualizaciones de calendario, comunicaciones administrativas, notificaciones de estado, entrega de facturas, corrección de errores imputables al PRESTADOR o aclaraciones menores de un entregable dentro de las rondas incluidas.</Text>
-        <Text style={s.p}>Cuando el CLIENTE alcance el ochenta por ciento de su cuota, el PRESTADOR informará el estado de consumo. Al agotarse la cuota, las nuevas solicitudes podrán atenderse como servicio on-demand, acumularse para el siguiente mes por acuerdo escrito, o quedar pendientes hasta renovación de cuota. El plan Básico, al no tener cuota de tickets, canaliza toda solicitud que exceda el alcance del chat como servicio on-demand o mediante actualización de plan.</Text>
+        <Text style={s.p}>Se descuenta una consulta del cupo del canal utilizado (tickets en los planes Pro y Premium; chats en todos los planes) cuando la solicitud requiere análisis, investigación, revisión documental, criterio profesional o respuesta estructurada. No descuentan cuota las alertas regulatorias, actualizaciones de calendario, comunicaciones administrativas, notificaciones de estado, entrega de facturas, corrección de errores imputables al PRESTADOR o aclaraciones menores de un entregable dentro de las rondas incluidas.</Text>
+        <Text style={s.p}>Cuando el CLIENTE alcance el ochenta por ciento de su cuota, el PRESTADOR informará el estado de consumo. Al agotarse la cuota, las nuevas solicitudes podrán atenderse como servicio on-demand, acumularse para el siguiente mes por acuerdo escrito, o quedar pendientes hasta renovación de cuota. El plan Básico, al no incluir tickets, canaliza toda solicitud que exceda el alcance del chat como servicio on-demand o mediante actualización de plan.</Text>
 
         {/* 6. Alcance */}
         <Text style={s.section}>6. Alcance de Planes y Exclusiones Operativas</Text>
