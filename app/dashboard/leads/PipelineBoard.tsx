@@ -1,96 +1,154 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ETAPAS, ETAPAS_ACTIVAS, ETAPA_LABEL, ETAPA_COLOR, PLANES, PLAN_LABEL, CRITERIOS,
   puntaje, temperaturaDe, TEMPERATURA_LABEL, TEMPERATURA_COLOR, hoyBogota, type Etapa,
 } from '@/lib/pipeline'
 import { guionesPara } from '@/lib/guiones-ventas'
+import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
 import { celularParaWhatsApp, enlaceWhatsApp } from '@/lib/whatsapp'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622' }
 const Q_LABEL = ['Sin info', 'Parcial', 'Confirmado']
 const ORIGEN_CORTO: Record<string, string> = { webinar: 'Webinar', autodiagnostico: 'Autodiag.', contacto: 'Contacto' }
 
-function Tarjeta({ l, onAbrir }: { l: any; onAbrir: () => void }) {
+const datosDe = (l: any): Record<string, any> => { try { return JSON.parse(l?.datos ?? '{}') ?? {} } catch { return {} } }
+const activo = (l: any) => !['ganado', 'perdido'].includes(l.etapa)
+const paraHoy = (l: any) => activo(l) && !!l.proxima_fecha && l.proxima_fecha <= hoyBogota()
+
+/** De dónde viene, en una línea: "Webinar · asistió 112 min", "Webinar · inscrito", "Autodiag. + Contacto". */
+function origenTexto(l: any) {
+  const origenes = String(l.origenes ?? l.origen ?? 'contacto').split(',')
+  if (Number(l.asistio_max ?? l.asistio_webinar)) return `Webinar · asistió${l.minutos_webinar ? ` ${l.minutos_webinar} min` : ''}`
+  if (origenes.includes('webinar')) return 'Webinar · inscrito, no asistió'
+  return origenes.map(o => ORIGEN_CORTO[o] ?? o).join(' + ')
+}
+
+/** Lo que toca ahora: el paso de la cadencia si está activa, si no la próxima acción. */
+function siguienteTexto(l: any) {
+  const p = pasoActual(l)
+  if (p) return `Paso ${p.indice + 1}/${p.total} · ${p.paso.titulo}`
+  return l.proxima_accion ?? ''
+}
+
+function Tarjeta({ l, onAbrir, verResponsable }: { l: any; onAbrir: () => void; verResponsable: boolean }) {
   const t = temperaturaDe(l)
-  const atrasada = l.proxima_fecha && l.proxima_fecha < hoyBogota() && !['ganado', 'perdido'].includes(l.etapa)
+  const atrasada = activo(l) && l.proxima_fecha && l.proxima_fecha < hoyBogota()
+  const sig = siguienteTexto(l)
   return (
     <div onClick={onAbrir} style={{ background: '#fff', border: '1px solid #e5e7eb', borderLeft: `4px solid ${TEMPERATURA_COLOR[t]}`,
       borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 12.5 }}>
       <div style={{ fontWeight: 700, color: C.vino }}>{l.empresa || l.nombre || '(sin nombre)'}</div>
       {l.empresa && l.nombre && <div style={{ color: '#666' }}>{l.nombre}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, color: '#888', fontSize: 11 }}>
-        <span title={TEMPERATURA_LABEL[t]}>{TEMPERATURA_LABEL[t]}</span>
+      <div style={{ marginTop: 3, fontSize: 11, color: '#6d28d9', fontWeight: 600 }} title={TEMPERATURA_LABEL[t]}>{origenTexto(l)}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#888', fontSize: 11 }}>
+        <span>{verResponsable ? (l.responsable_nombre ?? 'Sin asignar') : ''}</span>
         <span title="Dolor + Presupuesto + Decisión (máx. 6)">{puntaje(l)}/6</span>
       </div>
-      {Number(l.formularios) > 1 && (
-        <div style={{ marginTop: 3, fontSize: 10.5, color: '#6d28d9' }} title="Formularios que ha llenado este contacto">
-          {Number(l.formularios)} formularios · {(l.origenes ?? '').split(',').map((o: string) => ORIGEN_CORTO[o] ?? o).join(', ')}
-        </div>
-      )}
-      {l.proxima_accion && (
+      {datosDe(l).revisar_icp && <div style={{ fontSize: 10.5, color: '#b45309', marginTop: 2 }}>⚠ Revisar si es un ISP</div>}
+      {sig && (
         <div style={{ marginTop: 4, fontSize: 11, color: atrasada ? '#dc2626' : '#555', fontWeight: atrasada ? 700 : 400 }}>
-          {atrasada ? '⚠ ' : '→ '}{l.proxima_accion}{l.proxima_fecha ? ` (${l.proxima_fecha})` : ''}
+          {atrasada ? '⚠ ' : '→ '}{sig}{l.proxima_fecha ? ` (${l.proxima_fecha})` : ''}
         </div>
       )}
     </div>
   )
 }
 
-/** Fecha AAAA-MM-DD en Bogotá dentro de `dias` días. */
-const enDias = (dias: number) => hoyBogota(new Date(Date.now() + dias * 86400_000))
-
-function Guiones({ lead, envios, vendedor }: { lead: any; envios: any[]; vendedor: string | null }) {
+function useCopiar() {
   const [copiado, setCopiado] = useState<string | null>(null)
-  // El teléfono puede estar en cualquiera de sus formularios.
-  const telefono = [lead.telefono, ...envios.map(e => e.telefono)].find(t => celularParaWhatsApp(t)) ?? null
-  const guiones = guionesPara(lead, envios, vendedor)
-  if (!guiones.length) return null
-
-  function copiar(id: string, texto: string) {
+  const copiar = (id: string, texto: string) =>
     navigator.clipboard?.writeText(texto).then(() => { setCopiado(id); setTimeout(() => setCopiado(null), 1500) }).catch(() => {})
-  }
+  return { copiado, copiar }
+}
 
+const btn = (color: string, lleno = false): React.CSSProperties => ({
+  fontSize: 11, fontWeight: 700, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit',
+  textDecoration: 'none', border: `1px solid ${color}`, background: lleno ? color : '#fff', color: lleno ? '#fff' : color,
+})
+
+function MensajeCaja({ id, titulo, cuando, texto, wa, destacado, children }: {
+  id: string; titulo: string; cuando?: string; texto: string; wa: string | null; destacado?: boolean; children?: React.ReactNode
+}) {
+  const { copiado, copiar } = useCopiar()
+  return (
+    <div style={{ border: `1px solid ${destacado ? '#16a34a' : '#eee'}`, background: destacado ? '#f0fdf4' : '#fff', borderRadius: 8, padding: '8px 10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.olivo }}>{titulo}</span>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" style={btn('#16a34a', true)}>💬 Abrir en WhatsApp</a>}
+          <button onClick={() => copiar(id, texto)} style={btn(C.olivo)}>{copiado === id ? '✓ Copiado' : 'Copiar'}</button>
+        </div>
+      </div>
+      {cuando && <div style={{ fontSize: 11, color: '#999', margin: '2px 0 4px' }}>{cuando}</div>}
+      <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.55, whiteSpace: 'pre-wrap', marginTop: cuando ? 0 : 4 }}>{texto}</div>
+      {children}
+    </div>
+  )
+}
+
+/** Paso actual de la cadencia con sus botones: "Enviado" programa el siguiente; "Respondió" detiene la cadencia. */
+function Cadencia({ lead, telefono, vendedor, ocupado, accion }: {
+  lead: any; telefono: string | null; vendedor: string | null; ocupado: boolean; accion: (a: 'paso_enviado' | 'respondio') => void
+}) {
+  const c = lead.cadencia ? CADENCIAS[lead.cadencia as CadenciaId] : null
+  if (!c) return null
+  const p = pasoActual(lead)
+  const estado = lead.cadencia_estado
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.vino }}>Cadencia: {c.nombre}</div>
+      <div style={{ display: 'flex', gap: 4, margin: '6px 0' }}>
+        {c.pasos.map((s, i) => (
+          <div key={i} title={s.titulo} style={{ flex: 1, height: 6, borderRadius: 3,
+            background: i < Number(lead.paso_cadencia ?? 0) ? '#16a34a' : p && i === p.indice ? '#86efac' : '#e5e7eb' }} />
+        ))}
+      </div>
+      {estado === 'respondio' && <div style={{ fontSize: 12.5, color: '#15803d', fontWeight: 600 }}>✓ Respondió: la cadencia se detuvo. Ahora toca agendar la reunión (guiones abajo).</div>}
+      {estado === 'terminada' && <div style={{ fontSize: 12.5, color: '#b45309' }}>Se enviaron todos los pasos sin respuesta. Márquelo Perdido (motivo "no responde") o déjelo para más adelante.</div>}
+      {p && (() => {
+        const texto = textoDelPaso(p.paso, lead, vendedor)
+        const wa = p.paso.canal === 'whatsapp' ? enlaceWhatsApp(telefono, texto) : null
+        return (
+          <MensajeCaja id="cadencia" destacado texto={texto} wa={wa}
+            titulo={`Paso ${p.indice + 1} de ${p.total} · ${p.paso.titulo}`}
+            cuando={lead.proxima_fecha ? `Programado para ${lead.proxima_fecha}` : undefined}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button disabled={ocupado} onClick={() => accion('paso_enviado')} style={{ ...btn('#16a34a', true), flex: 1, padding: '6px 0' }}>
+                {p.paso.canal === 'llamada' ? '✓ Ya llamé (no contestó o no hubo cita)' : '✓ Ya lo envié'}
+              </button>
+              <button disabled={ocupado} onClick={() => accion('respondio')} style={{ ...btn(C.vino), flex: 1, padding: '6px 0' }}>
+                Respondió
+              </button>
+            </div>
+          </MensajeCaja>
+        )
+      })()}
+    </div>
+  )
+}
+
+function Guiones({ lead, envios, telefono, vendedor }: { lead: any; envios: any[]; telefono: string | null; vendedor: string | null }) {
+  // Mientras la cadencia esté activa, sus pasos reemplazan los guiones de primer contacto.
+  const enCadencia = !!pasoActual(lead) && ['nuevo', 'contactado'].includes(lead.etapa)
+  const guiones = enCadencia ? [] : guionesPara(lead, envios, vendedor)
+  if (!guiones.length) return null
   return (
     <div style={{ marginTop: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 700, color: C.vino }}>Qué decirle</div>
-      <div style={{ fontSize: 11.5, color: telefono ? '#15803d' : '#b45309', margin: '3px 0 6px' }}>
-        {telefono
-          ? <>💬 WhatsApp: <b>+{celularParaWhatsApp(telefono)}</b>. El botón abre el chat con el mensaje escrito; usted solo oprime enviar.</>
-          : 'No tiene un celular reconocible: copie el mensaje y envíelo por correo, o llame.'}
-        {' '}Complete lo que está [ENTRE CORCHETES] antes de enviar.
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {guiones.map(g => {
-          const wa = g.canal === 'whatsapp' ? enlaceWhatsApp(telefono, g.texto) : null
-          return (
-            <div key={g.id} style={{ border: '1px solid #eee', borderRadius: 8, padding: '8px 10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: C.olivo }}>{g.titulo}</span>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  {wa && (
-                    <a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 700, background: '#16a34a',
-                      color: '#fff', borderRadius: 6, padding: '3px 9px', textDecoration: 'none' }}>💬 Abrir en WhatsApp</a>
-                  )}
-                  <button onClick={() => copiar(g.id, g.texto)} style={{ fontSize: 11, fontWeight: 700, background: 'none', border: `1px solid ${C.olivo}`,
-                    color: C.olivo, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {copiado === g.id ? '✓ Copiado' : 'Copiar'}
-                  </button>
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: '#999', margin: '2px 0 4px' }}>{g.cuando}</div>
-              <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{g.texto}</div>
-            </div>
-          )
-        })}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+        {guiones.map(g => (
+          <MensajeCaja key={g.id} id={g.id} titulo={g.titulo} cuando={g.cuando} texto={g.texto}
+            wa={g.canal === 'whatsapp' ? enlaceWhatsApp(telefono, g.texto) : null} />
+        ))}
       </div>
     </div>
   )
 }
 
-function Detalle({ lead, envios, vendedor, onCerrar, onGuardado }: {
-  lead: any; envios: any[]; vendedor: string | null; onCerrar: () => void; onGuardado: () => void
+function Detalle({ lead, envios, vendedor, esSuperadmin, admins, onCerrar, onGuardado }: {
+  lead: any; envios: any[]; vendedor: string | null; esSuperadmin: boolean; admins: any[]; onCerrar: () => void; onGuardado: () => void
 }) {
   const [f, setF] = useState({
     etapa: lead.etapa as Etapa,
@@ -105,54 +163,73 @@ function Detalle({ lead, envios, vendedor, onCerrar, onGuardado }: {
   const inp: React.CSSProperties = { width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd',
     fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }
   const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3, display: 'block' }
+  // El celular puede estar en cualquiera de sus formularios.
+  const telefono = [lead.telefono, ...envios.map(e => e.telefono)].find(t => celularParaWhatsApp(t)) ?? null
+  const datos = datosDe(lead)
 
-  async function guardar(extra: Partial<typeof f> = {}) {
+  async function enviar(cuerpo: Record<string, any>) {
     setGuardando(true); setError('')
-    const datos = { ...f, ...extra }
     try {
       const r = await fetch('/api/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: lead.id, ...datos, plan_objetivo: datos.plan_objetivo || null, proxima_fecha: datos.proxima_fecha || null }) })
+        body: JSON.stringify({ id: lead.id, ...cuerpo }) })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { setError(j.error ?? 'No se pudo guardar'); return }
       onGuardado(); onCerrar()
     } finally { setGuardando(false) }
   }
+  const guardar = () => enviar({ ...f, plan_objetivo: f.plan_objetivo || null, proxima_fecha: f.proxima_fecha || null })
 
   return (
     <div onClick={onCerrar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 420, maxWidth: '100%', background: '#fff', padding: '1.25rem', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 440, maxWidth: '100%', background: '#fff', padding: '1.25rem', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.vino }}>{lead.empresa || lead.nombre}</div>
-            <div style={{ fontSize: 12, color: '#666' }}>{[lead.nombre, lead.correo, lead.telefono].filter(Boolean).join(' · ')}</div>
+            <div style={{ fontSize: 12, color: '#666' }}>{[lead.nombre, lead.correo].filter(Boolean).join(' · ')}</div>
           </div>
           <button onClick={onCerrar} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>×</button>
         </div>
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {envios.map(e => (
-            <div key={e.id} style={{ fontSize: 12, background: '#faf8f3', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontWeight: 700, color: '#6d28d9' }}>
-                {ORIGEN_CORTO[e.origen ?? 'contacto'] ?? e.origen} · {new Date(e.created_at).toLocaleDateString('es-CO')}
-                {e.asistio_webinar ? ' · asistió' : ''}{e.reunion === 'Sí' ? ' · pidió reunión' : ''}
-              </div>
-              {e.asunto && <div>{e.asunto}</div>}
-              {e.mensaje && <div style={{ color: '#555' }}>{e.mensaje}</div>}
+
+        <div style={{ marginTop: 10, background: '#f5f3ff', borderRadius: 8, padding: '8px 10px', fontSize: 12.5 }}>
+          <div style={{ fontWeight: 700, color: '#6d28d9' }}>De dónde viene: {origenTexto(lead)}</div>
+          <div style={{ color: telefono ? '#15803d' : '#b45309', marginTop: 2 }}>
+            {telefono ? <>💬 WhatsApp +{celularParaWhatsApp(telefono)}. El botón abre el chat con el mensaje escrito; usted solo oprime enviar.</>
+              : 'Sin celular reconocible: copie el mensaje y envíelo por correo.'}
+          </div>
+          {datos.revisar_icp && <div style={{ color: '#b45309', marginTop: 2 }}>⚠ Por lo que escribió en "ISP" puede no ser un operador. Confírmelo en el primer contacto.</div>}
+          {envios.length > 1 && envios.map(e => (
+            <div key={e.id} style={{ marginTop: 4, color: '#555' }}>
+              • {ORIGEN_CORTO[e.origen ?? 'contacto'] ?? e.origen} · {new Date(e.created_at).toLocaleDateString('es-CO')}
+              {e.asunto ? ` · ${e.asunto}` : ''}{e.reunion === 'Sí' ? ' · pidió reunión' : ''}
             </div>
           ))}
+          {envios.length <= 1 && lead.mensaje && <div style={{ marginTop: 4, color: '#555' }}>{lead.mensaje}</div>}
         </div>
 
-        <Guiones lead={lead} envios={envios} vendedor={vendedor} />
+        {esSuperadmin && (
+          <div style={{ marginTop: 10 }}>
+            <label style={lbl}>Responsable</label>
+            <select defaultValue={lead.responsable_id ?? ''} disabled={guardando}
+              onChange={e => enviar({ responsable_id: e.target.value || null })} style={inp}>
+              <option value="">Sin asignar</option>
+              {admins.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </div>
+        )}
 
-        {lead.etapa === 'nuevo' && (
-          <button onClick={() => guardar({ etapa: 'contactado', proxima_accion: f.proxima_accion || 'Seguimiento si no responde', proxima_fecha: enDias(3) })}
+        <Cadencia lead={lead} telefono={telefono} vendedor={vendedor} ocupado={guardando} accion={a => enviar({ accion: a })} />
+        <Guiones lead={lead} envios={envios} telefono={telefono} vendedor={vendedor} />
+
+        {lead.etapa === 'nuevo' && !pasoActual(lead) && (
+          <button onClick={() => enviar({ etapa: 'contactado', proxima_accion: f.proxima_accion || 'Seguimiento si no responde',
+            proxima_fecha: hoyBogota(new Date(Date.now() + 3 * 86400_000)) })}
             disabled={guardando} title="Pasa a Contactado y deja seguimiento en 3 días"
-            style={{ marginTop: 10, width: '100%', padding: '7px 0', background: '#fff', color: '#15803d', border: '1px solid #16a34a',
-              borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
+            style={{ ...btn('#16a34a'), marginTop: 10, width: '100%', padding: '7px 0', fontSize: 12.5 }}>
             ✓ Ya le escribí: marcar contactado y seguimiento en 3 días
           </button>
         )}
 
-        <label style={{ ...lbl, marginTop: 12 }}>Etapa</label>
+        <label style={{ ...lbl, marginTop: 14 }}>Etapa</label>
         <select value={f.etapa} onChange={e => set('etapa', e.target.value)} style={inp}>
           {ETAPAS.map(e => <option key={e} value={e}>{ETAPA_LABEL[e]}</option>)}
         </select>
@@ -192,7 +269,7 @@ function Detalle({ lead, envios, vendedor, onCerrar, onGuardado }: {
         </>)}
 
         {error && <div style={{ marginTop: 12, color: '#b91c1c', fontSize: 12.5, background: '#fef2f2', padding: 8, borderRadius: 6 }}>{error}</div>}
-        <button onClick={() => guardar()} disabled={guardando} style={{ marginTop: 16, width: '100%', padding: '9px 0', background: C.vino, color: '#fff',
+        <button onClick={guardar} disabled={guardando} style={{ marginTop: 16, width: '100%', padding: '9px 0', background: C.vino, color: '#fff',
           border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           {guardando ? 'Guardando…' : 'Guardar'}
         </button>
@@ -201,34 +278,61 @@ function Detalle({ lead, envios, vendedor, onCerrar, onGuardado }: {
   )
 }
 
+/** Orden de trabajo: atrasados primero, luego más calientes y, entre asistentes, quien más tiempo estuvo conectado. */
+const prioridad = (a: any, b: any) =>
+  (a.proxima_fecha ?? '9999').localeCompare(b.proxima_fecha ?? '9999') ||
+  temperaturaDe(a) - temperaturaDe(b) || Number(b.minutos_webinar ?? 0) - Number(a.minutos_webinar ?? 0) || puntaje(b) - puntaje(a)
+
 /** `envios` = cada formulario recibido (para mostrar el historial del contacto); el tablero usa `pipeline.leads`. */
-export default function PipelineBoard({ envios, pipeline, vendedor, onCambio }: {
-  envios: any[]; pipeline: any; vendedor: string | null; onCambio: () => void
+export default function PipelineBoard({ envios, pipeline, vendedor, esSuperadmin = false, onCambio }: {
+  envios: any[]; pipeline: any; vendedor: string | null; esSuperadmin?: boolean; onCambio: () => void
 }) {
   const leads: any[] = pipeline?.leads ?? []
   const [abierto, setAbierto] = useState<any>(null)
-  const [soloCalientes, setSoloCalientes] = useState(false)
+  const [vista, setVista] = useState<'hoy' | 'tablero'>('hoy')
+  const [responsable, setResponsable] = useState('todos')
+  const [segmento, setSegmento] = useState<'todos' | 'asistio' | 'inscrito'>('todos')
   const [verPerdidos, setVerPerdidos] = useState(false)
+  const [admins, setAdmins] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!esSuperadmin) return
+    fetch('/api/admins').then(r => (r.ok ? r.json() : [])).then(a => setAdmins(Array.isArray(a) ? a : [])).catch(() => {})
+  }, [esSuperadmin])
+
+  const filtrados = useMemo(() => leads.filter(l => {
+    if (responsable === 'sin' ? l.responsable_id : responsable !== 'todos' && l.responsable_id !== responsable) return false
+    if (segmento === 'asistio' && temperaturaDe(l) !== 1) return false
+    if (segmento === 'inscrito' && !(temperaturaDe(l) === 2 && String(l.origenes ?? l.origen).includes('webinar'))) return false
+    return true
+  }), [leads, responsable, segmento])
+
+  const hoy = useMemo(() => filtrados.filter(paraHoy).sort(prioridad), [filtrados])
 
   const columnas = useMemo(() => {
     const out: Record<string, any[]> = {}
     for (const e of ETAPAS) out[e] = []
-    for (const l of leads) {
-      if (soloCalientes && temperaturaDe(l) > 2) continue
-      ;(out[l.etapa] ?? out.nuevo).push(l)
-    }
-    for (const e of ETAPAS) out[e].sort((a, b) => temperaturaDe(a) - temperaturaDe(b) || puntaje(b) - puntaje(a))
+    for (const l of filtrados) (out[l.etapa] ?? out.nuevo).push(l)
+    for (const e of ETAPAS) out[e].sort(prioridad)
     return out
-  }, [leads, soloCalientes])
+  }, [filtrados])
+
+  const responsables = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const l of leads) if (l.responsable_id) m.set(l.responsable_id, l.responsable_nombre ?? l.responsable_id)
+    return [...m.entries()]
+  }, [leads])
 
   const embudo: { etapa: Etapa; cnt: number }[] = pipeline?.embudo ?? []
   const base = embudo[0]?.cnt || 0
+  const chip = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 14, cursor: 'pointer',
+    fontFamily: 'inherit', border: `1px solid ${C.vino}`, background: on ? C.vino : 'transparent', color: on ? '#fff' : C.vino })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '1rem 1.25rem' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-          Embudo (llegaron a cada etapa)
+          Embudo (llegaron a cada etapa){!esSuperadmin && ' · sus leads'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {embudo.map((e, i) => {
@@ -254,25 +358,66 @@ export default function PipelineBoard({ envios, pipeline, vendedor, onCambio }: 
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 12.5 }}>
-        <label><input type="checkbox" checked={soloCalientes} onChange={e => setSoloCalientes(e.target.checked)} /> Solo webinar (asistentes e inscritos)</label>
-        <label><input type="checkbox" checked={verPerdidos} onChange={e => setVerPerdidos(e.target.checked)} /> Mostrar perdidos ({columnas.perdido.length})</label>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', alignItems: 'flex-start', paddingBottom: 8 }}>
-        {[...ETAPAS_ACTIVAS, ...(verPerdidos ? (['perdido'] as Etapa[]) : [])].map(e => (
-          <div key={e} style={{ minWidth: 230, flex: '0 0 230px', background: '#efece4', borderRadius: 10, padding: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: ETAPA_COLOR[e], textTransform: 'uppercase', marginBottom: 8 }}>
-              {ETAPA_LABEL[e]} ({columnas[e].length})
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '60vh', overflowY: 'auto' }}>
-              {columnas[e].map(l => <Tarjeta key={l.id} l={l} onAbrir={() => setAbierto(l)} />)}
-            </div>
-          </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+        <button onClick={() => setVista('hoy')} style={chip(vista === 'hoy')}>Para hoy ({hoy.length})</button>
+        <button onClick={() => setVista('tablero')} style={chip(vista === 'tablero')}>Tablero</button>
+        <span style={{ width: 12 }} />
+        {([['todos', 'Todos'], ['asistio', 'Asistieron al webinar'], ['inscrito', 'Inscritos, no asistieron']] as const).map(([k, t]) => (
+          <button key={k} onClick={() => setSegmento(k)} style={{ ...chip(segmento === k), borderColor: '#6d28d9',
+            background: segmento === k ? '#6d28d9' : 'transparent', color: segmento === k ? '#fff' : '#6d28d9' }}>{t}</button>
         ))}
+        {esSuperadmin && (
+          <select value={responsable} onChange={e => setResponsable(e.target.value)}
+            style={{ marginLeft: 6, padding: '4px 8px', borderRadius: 8, border: '1px solid #ddd', fontFamily: 'inherit', fontSize: 12 }}>
+            <option value="todos">Todos los responsables</option>
+            {responsables.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+            <option value="sin">Sin asignar</option>
+          </select>
+        )}
+        {vista === 'tablero' && (
+          <label style={{ marginLeft: 6 }}><input type="checkbox" checked={verPerdidos} onChange={e => setVerPerdidos(e.target.checked)} /> Mostrar perdidos ({columnas.perdido.length})</label>
+        )}
       </div>
 
-      {abierto && <Detalle lead={abierto}
+      {vista === 'hoy' && (
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '0.5rem 0' }}>
+          {hoy.length === 0 && <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '2rem' }}>No hay nada pendiente para hoy.</p>}
+          {hoy.map(l => {
+            const atrasada = l.proxima_fecha < hoyBogota()
+            return (
+              <div key={l.id} onClick={() => setAbierto(l)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 14px',
+                borderBottom: '1px solid #f3f3f3', cursor: 'pointer', borderLeft: `4px solid ${TEMPERATURA_COLOR[temperaturaDe(l)]}` }}>
+                <div style={{ flex: '1 1 40%', minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: C.vino, fontSize: 13 }}>{l.empresa || l.nombre}</div>
+                  <div style={{ fontSize: 11.5, color: '#666' }}>{l.nombre} · <span style={{ color: '#6d28d9' }}>{origenTexto(l)}</span></div>
+                </div>
+                <div style={{ flex: '1 1 45%', fontSize: 12, color: atrasada ? '#dc2626' : '#333', fontWeight: atrasada ? 700 : 400 }}>
+                  {atrasada ? `⚠ Atrasado (${l.proxima_fecha}) · ` : ''}{siguienteTexto(l)}
+                </div>
+                {esSuperadmin && <div style={{ fontSize: 11, color: '#888', width: 110, textAlign: 'right' }}>{l.responsable_nombre ?? 'Sin asignar'}</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {vista === 'tablero' && (
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', alignItems: 'flex-start', paddingBottom: 8 }}>
+          {[...ETAPAS_ACTIVAS, ...(verPerdidos ? (['perdido'] as Etapa[]) : [])].map(e => (
+            <div key={e} style={{ minWidth: 230, flex: '0 0 230px', background: '#efece4', borderRadius: 10, padding: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: ETAPA_COLOR[e], textTransform: 'uppercase', marginBottom: 8 }}>
+                {ETAPA_LABEL[e]} ({columnas[e].length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '60vh', overflowY: 'auto' }}>
+                {columnas[e].map(l => <Tarjeta key={l.id} l={l} verResponsable={esSuperadmin} onAbrir={() => setAbierto(l)} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {abierto && <Detalle lead={abierto} esSuperadmin={esSuperadmin}
+        admins={[...admins, ...responsables.filter(([id]) => !admins.some(a => a.id === id)).map(([id, nombre]) => ({ id, nombre }))]}
         envios={envios.filter(e => e.id === abierto.id || e.principal_id === abierto.id).length
           ? envios.filter(e => e.id === abierto.id || e.principal_id === abierto.id) : [abierto]}
         vendedor={vendedor} onCerrar={() => setAbierto(null)} onGuardado={onCambio} />}

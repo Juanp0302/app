@@ -7,6 +7,6 @@ export default async function LeadsPage() {
   const session = await auth()
   const user = session?.user as any
   if (!user) redirect('/login')
-  if (!user.is_superadmin) redirect('/dashboard')
-  return <LeadsClient vendedor={primerNombreDe(user.name ?? '')} />
+  if (!user.is_superadmin && user.role !== 'admin') redirect('/dashboard')
+  return <LeadsClient vendedor={primerNombreDe(user.name ?? '')} esSuperadmin={!!user.is_superadmin} />
 }

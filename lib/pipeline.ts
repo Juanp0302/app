@@ -4,6 +4,11 @@
  * calificación Dolor / Presupuesto / Decisión y temperatura del lead. Sin acceso a BD.
  */
 
+/** Enlaces que van en los mensajes de venta. */
+export const ENLACES = {
+  autodiagnostico: 'https://www.owlcompliance.com/autodiagnostico',
+}
+
 export const ETAPAS = [
   'nuevo', 'contactado', 'reunion_agendada', 'reunion_realizada', 'propuesta', 'ganado', 'perdido',
 ] as const

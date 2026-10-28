@@ -6,12 +6,9 @@
  *
  * Para cambiar un texto, se edita aquí; el tablero lo toma solo.
  */
-import { temperaturaDe, type Etapa } from './pipeline'
+import { temperaturaDe, ENLACES, type Etapa } from './pipeline'
 
-/** Enlaces que van en los mensajes. */
-export const ENLACES = {
-  autodiagnostico: 'https://www.owlcompliance.com/autodiagnostico',
-}
+export { ENLACES }
 
 export interface Guion {
   id: string

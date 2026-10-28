@@ -23,6 +23,7 @@ beforeAll(async () => {
     ('Ana', 'ana@isp.co', 'webinar', NULL),
     ('Ana', 'Ana@ISP.co', 'autodiagnostico', NULL),
     ('Otro', 'otro@x.co', 'contacto', NULL)`)
+  await db.execute(`CREATE TABLE users (id TEXT PRIMARY KEY, nombre TEXT, email TEXT, is_superadmin INTEGER, created_at TEXT)`)
   db.close()
 })
 

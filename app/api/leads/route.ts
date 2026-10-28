@@ -1,8 +1,9 @@
 /**
  * POST /api/leads  — recibe un lead desde N8N (webhook)
- * GET  /api/leads  — devuelve lista + estadísticas + embudo (solo superadmin)
+ * GET  /api/leads  — superadmin: lista + estadísticas + embudo; admin: solo el pipeline de sus leads asignados
  * PATCH /api/leads — { id, etapa?, q_dolor?, q_presupuesto?, q_decision?, plan_objetivo?, proxima_accion?,
- *                      proxima_fecha?, dolor_nota?, motivo_descarte? } (solo superadmin; valida requisitos de etapa)
+ *                      proxima_fecha?, dolor_nota?, motivo_descarte?, responsable_id?, accion? }
+ *                      (superadmin o el admin responsable; valida requisitos de etapa)
  *
  * Seguridad POST: N8N debe enviar el header Authorization: Bearer <LEADS_WEBHOOK_SECRET>
  * Si LEADS_WEBHOOK_SECRET no está configurado, se acepta cualquier petición
@@ -11,12 +12,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { migrateLeads, insertarLead, obtenerLeads, statsLeads, actualizarPipeline, statsPipeline, obtenerPipeline } from '@/lib/leads-db'
+import { migrateLeads, insertarLead, obtenerLeads, statsLeads, actualizarPipeline, statsPipeline, obtenerPipeline, obtenerEnviosDe } from '@/lib/leads-db'
 
-async function requireSuperadmin() {
+/** Pipeline: el superadmin ve todo; un admin, solo los leads que tiene asignados. */
+async function requireVendedor() {
   const session = await auth()
   const user = session?.user as any
-  return user?.is_superadmin ? user : null
+  return user && (user.is_superadmin || user.role === 'admin') ? user : null
 }
 
 function verifyWebhookSecret(req: NextRequest): boolean {
@@ -73,10 +75,15 @@ export async function POST(req: NextRequest) {
 // ── GET: dashboard superadmin ─────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const user = await requireSuperadmin()
+  const user = await requireVendedor()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   await migrateLeads()
+
+  if (!user.is_superadmin) {
+    const [resumen, principales, envios] = await Promise.all([statsPipeline(user.id), obtenerPipeline(user.id), obtenerEnviosDe(user.id)])
+    return NextResponse.json({ leads: envios, pipeline: { ...resumen, leads: principales } })
+  }
 
   const { searchParams } = new URL(req.url)
   const solo = searchParams.get('solo')
@@ -94,7 +101,7 @@ export async function GET(req: NextRequest) {
 // ── PATCH: mover etapa / calificar (Dolor, Presupuesto, Decisión) ────────────
 
 export async function PATCH(req: NextRequest) {
-  const user = await requireSuperadmin()
+  const user = await requireVendedor()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   let body: any
@@ -106,7 +113,7 @@ export async function PATCH(req: NextRequest) {
 
   await migrateLeads()
   const { id: _omit, ...cambios } = body
-  const r = await actualizarPipeline(id, cambios, user.id)
+  const r = await actualizarPipeline(id, cambios, user)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status })
   return NextResponse.json({ ok: true })
 }

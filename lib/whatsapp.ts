@@ -10,7 +10,8 @@
  *  o null si no hay un celular reconocible (fijos, "Sin dato", números incompletos). */
 export function celularParaWhatsApp(raw: string | null | undefined): string | null {
   if (!raw) return null
-  const m = String(raw).match(/(?<!\d)(?:\+?57[\s\-.]*)?(3\d{2})[\s\-.]*(\d{3})[\s\-.]*(\d{4})(?!\d)/)
+  // Los paréntesis ("(323) 577 3607") se tratan como separadores.
+  const m = String(raw).replace(/[()]/g, ' ').match(/(?<!\d)(?:\+?57[\s\-.]*)?(3\d{2})[\s\-.]*(\d{3})[\s\-.]*(\d{4})(?!\d)/)
   return m ? `57${m[1]}${m[2]}${m[3]}` : null
 }
 

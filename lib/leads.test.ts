@@ -20,6 +20,10 @@ const enviar = (body: any) =>
   route.POST(new NextRequest('http://localhost/api/leads', { method: 'POST', body: JSON.stringify(body) }))
 
 beforeAll(async () => {
+  // El tablero muestra el nombre del responsable (JOIN con users).
+  const { execute } = await import('@/lib/db')
+  await execute(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, nombre TEXT, email TEXT, is_superadmin INTEGER, created_at TEXT)`)
+  await execute(`INSERT INTO users (id, nombre, email, is_superadmin) VALUES ('s', 'Juan Pablo', 's@owl.co', 1), ('adri', 'Adriana Linares', 'a@owl.co', 0)`)
   route = await import('@/app/api/leads/route')
   ;({ auth } = await import('@/lib/auth') as any)
 })
@@ -66,8 +70,13 @@ describe('/api/leads', () => {
     expect(cont).toEqual({ contacto: 2, autodiagnostico: 1, webinar: 1, 'taller-habeas': 1 })
   })
 
-  it('solo el superadmin puede consultarlos', async () => {
+  it('un admin sin leads asignados no ve los de nadie ni el análisis; un cliente no entra', async () => {
     auth.mockResolvedValue({ user: { id: 'a', role: 'admin', is_superadmin: false } })
+    const j: any = await (await route.GET(new NextRequest('http://localhost/api/leads'))).json()
+    expect(j.pipeline.leads).toEqual([])
+    expect(j.leads).toEqual([])
+    expect(j.stats).toBeUndefined()
+    auth.mockResolvedValue({ user: { id: 'c', role: 'cliente', is_superadmin: false } })
     expect((await route.GET(new NextRequest('http://localhost/api/leads'))).status).toBe(403)
   })
 
@@ -143,6 +152,67 @@ describe('/api/leads', () => {
     it('rechaza fechas mal escritas', async () => {
       const id = (await leads()).pipeline.leads[0].id
       expect((await patch({ id, proxima_fecha: 'mañana' })).status).toBe(400)
+    })
+  })
+
+  describe('responsables y cadencia', () => {
+    const patch = (body: any) =>
+      route.PATCH(new NextRequest('http://localhost/api/leads', { method: 'PATCH', body: JSON.stringify(body) }))
+    const get = async () => (await (await route.GET(new NextRequest('http://localhost/api/leads'))).json()) as any
+    const como = (u: any) => auth.mockResolvedValue({ user: u })
+    const SUPER = { id: 's', is_superadmin: true, role: 'admin' }
+    const ADRIANA = { id: 'adri', is_superadmin: false, role: 'admin' }
+    let idZoe: number, idRaro: number
+
+    it('el superadmin asigna; un admin ve solo sus leads y sin el análisis de fuentes', async () => {
+      como(SUPER)
+      const j = await get()
+      idZoe = j.pipeline.leads.find((l: any) => l.nombre === 'Zoe').id
+      idRaro = j.pipeline.leads.find((l: any) => l.nombre === 'Raro').id
+      expect((await patch({ id: idZoe, responsable_id: 'adri' })).status).toBe(200)
+      como(ADRIANA)
+      const a = await get()
+      expect(a.pipeline.leads.map((l: any) => l.nombre)).toEqual(['Zoe'])
+      expect(a.stats).toBeUndefined()
+      expect(a.leads.every((l: any) => l.id === idZoe || l.principal_id === idZoe)).toBe(true)
+    })
+
+    it('un admin no edita leads ajenos ni reasigna', async () => {
+      como(ADRIANA)
+      expect((await patch({ id: idRaro, proxima_accion: 'x' })).status).toBe(403)
+      expect((await patch({ id: idZoe, responsable_id: 'adri' })).status).toBe(403)
+      como({ id: 'c', role: 'cliente' })
+      expect((await route.GET(new NextRequest('http://localhost/api/leads'))).status).toBe(403)
+    })
+
+    it('marcar enviado avanza la cadencia en días hábiles; "respondió" la detiene', async () => {
+      const { execute } = await import('@/lib/db')
+      await execute(`UPDATE leads SET cadencia = 'webinar-inscrito', paso_cadencia = 0, cadencia_estado = 'activa', etapa = 'nuevo' WHERE id = ?`, [idZoe])
+      como(ADRIANA)
+      expect((await patch({ id: idZoe, accion: 'paso_enviado' })).status).toBe(200)
+      let zoe = (await get()).pipeline.leads[0]
+      expect(zoe.paso_cadencia).toBe(1)
+      expect(zoe.etapa).toBe('contactado')
+      expect(zoe.proxima_accion).toBe('WhatsApp · autodiagnóstico')
+      const { sumarDiasHabiles } = await import('@/lib/cadencias')
+      const { hoyBogota } = await import('@/lib/pipeline')
+      expect(zoe.proxima_fecha).toBe(sumarDiasHabiles(hoyBogota(), 3))
+
+      expect((await patch({ id: idZoe, accion: 'respondio' })).status).toBe(200)
+      zoe = (await get()).pipeline.leads[0]
+      expect(zoe.cadencia_estado).toBe('respondio')
+      expect(zoe.proxima_fecha).toBe(hoyBogota())
+      expect((await patch({ id: idZoe, accion: 'paso_enviado' })).status).toBe(400)   // ya no hay paso pendiente
+    })
+
+    it('al último paso sin respuesta la cadencia queda terminada', async () => {
+      const { execute } = await import('@/lib/db')
+      await execute(`UPDATE leads SET cadencia = 'webinar-inscrito', paso_cadencia = 2, cadencia_estado = 'activa' WHERE id = ?`, [idZoe])
+      como(ADRIANA)
+      await patch({ id: idZoe, accion: 'paso_enviado' })
+      const zoe = (await get()).pipeline.leads[0]
+      expect(zoe.cadencia_estado).toBe('terminada')
+      expect(zoe.proxima_accion).toMatch(/Cadencia terminada/)
     })
   })
 

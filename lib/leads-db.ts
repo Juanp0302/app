@@ -6,6 +6,7 @@
 
 import { db, execute, queryAll, queryOne } from './db'
 import { ETAPAS, ETAPAS_ACTIVAS, bloqueoDeAvance, soloDigitos, hoyBogota, type Etapa } from './pipeline'
+import { CADENCIAS, pasoActual, sumarDiasHabiles, type CadenciaId } from './cadencias'
 
 let _migrated = false
 
@@ -52,6 +53,13 @@ export async function migrateLeads() {
     // Misma persona/empresa que llena otro formulario: la fila queda como envío y apunta al lead principal,
     // que es el único que vive en el pipeline (NULL = es principal).
     `ALTER TABLE leads ADD COLUMN principal_id INTEGER`,
+    // Quién trabaja el lead (users.id). Los admins solo ven los suyos; el superadmin ve todos.
+    `ALTER TABLE leads ADD COLUMN responsable_id TEXT`,
+    // Cadencia de seguimiento (lib/cadencias.ts): cuál, qué paso toca (0 = el primero) y si sigue activa.
+    `ALTER TABLE leads ADD COLUMN cadencia TEXT`,
+    `ALTER TABLE leads ADD COLUMN paso_cadencia INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE leads ADD COLUMN cadencia_estado TEXT`,              // activa | respondio | terminada
+    `ALTER TABLE leads ADD COLUMN minutos_webinar INTEGER`,           // minutos conectado al webinar (si asistió)
   ]) {
     try { await execute(sql) } catch { /* la columna ya existe */ }
   }
@@ -197,17 +205,26 @@ export async function statsLeads() {
  * Leads del tablero: solo los principales, sin límite, con lo agregado de todos sus formularios
  * (orígenes, si asistió al webinar, si pidió reunión, cuántos envíos).
  */
-export async function obtenerPipeline() {
+export async function obtenerPipeline(responsableId: string | null = null) {
   return queryAll(`
-    SELECT p.*,
+    SELECT p.*, u.nombre AS responsable_nombre,
       (SELECT group_concat(DISTINCT COALESCE(s.origen,'contacto')) FROM leads s WHERE s.id = p.id OR s.principal_id = p.id) AS origenes,
       (SELECT MAX(s.asistio_webinar) FROM leads s WHERE s.id = p.id OR s.principal_id = p.id) AS asistio_max,
       (SELECT MAX(s.reunion = 'Sí') FROM leads s WHERE s.id = p.id OR s.principal_id = p.id) AS pidio_reunion,
       (SELECT COUNT(*) FROM leads s WHERE s.id = p.id OR s.principal_id = p.id)              AS formularios,
       (SELECT MAX(s.created_at) FROM leads s WHERE s.id = p.id OR s.principal_id = p.id)     AS ultimo_formulario
     FROM leads p
-    WHERE p.principal_id IS NULL
-    ORDER BY p.created_at DESC`)
+    LEFT JOIN users u ON u.id = p.responsable_id
+    WHERE p.principal_id IS NULL ${responsableId ? 'AND p.responsable_id = ?' : ''}
+    ORDER BY p.created_at DESC`, responsableId ? [responsableId] : [])
+}
+
+/** Envíos (filas de formularios) de los leads de un responsable, para la ficha de un admin. */
+export async function obtenerEnviosDe(responsableId: string) {
+  return queryAll(`
+    SELECT s.* FROM leads s
+    JOIN leads p ON p.id = COALESCE(s.principal_id, s.id)
+    WHERE p.responsable_id = ? ORDER BY s.created_at DESC`, [responsableId])
 }
 
 export interface CambiosPipeline {
@@ -216,7 +233,12 @@ export interface CambiosPipeline {
   dolor_nota?: string; plan_objetivo?: string | null
   proxima_accion?: string; proxima_fecha?: string | null
   motivo_descarte?: string
+  responsable_id?: string | null
+  /** paso_enviado: marca el paso actual de la cadencia y programa el siguiente. respondio: detiene la cadencia. */
+  accion?: 'paso_enviado' | 'respondio'
 }
+
+export interface UsuarioPipeline { id: string; is_superadmin?: boolean }
 
 const CAMPOS_PIPELINE = [
   'q_dolor', 'q_presupuesto', 'q_decision', 'dolor_nota', 'plan_objetivo',
@@ -230,11 +252,42 @@ const textoCorto = (v: unknown) => (v == null || v === '' ? null : String(v).sli
  * Aplica calificación / próxima acción y, si cambia la etapa, valida los requisitos de avance
  * (lib/pipeline.ts) y deja registro en leads_etapas. Si el id es un envío secundario, actúa sobre su principal.
  */
-export async function actualizarPipeline(id: number, cambios: CambiosPipeline, userId?: string | null):
+export async function actualizarPipeline(id: number, cambiosIn: CambiosPipeline, user: UsuarioPipeline):
   Promise<{ ok: true } | { error: string; status: number }> {
   let lead: any = await queryOne(`SELECT * FROM leads WHERE id = ?`, [id])
   if (lead?.principal_id) lead = await queryOne(`SELECT * FROM leads WHERE id = ?`, [lead.principal_id])
   if (!lead) return { error: 'Lead no encontrado', status: 404 }
+  if (!user.is_superadmin && lead.responsable_id !== user.id)
+    return { error: 'Este lead no está asignado a usted', status: 403 }
+  if (cambiosIn.responsable_id !== undefined && !user.is_superadmin)
+    return { error: 'Solo el superadmin reasigna leads', status: 403 }
+
+  const cambios: CambiosPipeline = { ...cambiosIn }
+  const extra: Record<string, any> = {}
+  if (cambios.accion === 'paso_enviado') {
+    const actual = pasoActual(lead)
+    if (!actual) return { error: 'Este lead no tiene un paso de cadencia pendiente', status: 400 }
+    const siguiente = CADENCIAS[lead.cadencia as CadenciaId].pasos[actual.indice + 1]
+    extra.paso_cadencia = actual.indice + 1
+    if (siguiente) {
+      cambios.proxima_accion = siguiente.titulo
+      cambios.proxima_fecha = sumarDiasHabiles(hoyBogota(), siguiente.esperaDias)
+    } else {
+      extra.cadencia_estado = 'terminada'
+      cambios.proxima_accion = 'Cadencia terminada sin respuesta: marcar Perdido o dejar para más adelante'
+      cambios.proxima_fecha = hoyBogota()
+    }
+    if (lead.etapa === 'nuevo' && !cambios.etapa) cambios.etapa = 'contactado'
+  } else if (cambios.accion === 'respondio') {
+    if (lead.cadencia) extra.cadencia_estado = 'respondio'
+    cambios.proxima_accion = cambios.proxima_accion || 'Respondió: agendar la reunión'
+    cambios.proxima_fecha = cambios.proxima_fecha || hoyBogota()
+    if (lead.etapa === 'nuevo' && !cambios.etapa) cambios.etapa = 'contactado'
+  } else if (cambios.accion !== undefined) {
+    return { error: 'Acción inválida', status: 400 }
+  }
+  if (cambios.responsable_id !== undefined) extra.responsable_id = cambios.responsable_id || null
+
   if (cambios.etapa && !(ETAPAS as readonly string[]).includes(cambios.etapa))
     return { error: 'Etapa inválida', status: 400 }
   if (cambios.proxima_fecha && !/^\d{4}-\d{2}-\d{2}$/.test(String(cambios.proxima_fecha)))
@@ -246,6 +299,7 @@ export async function actualizarPipeline(id: number, cambios: CambiosPipeline, u
     if (v === undefined) continue
     nuevo[k] = k.startsWith('q_') ? clampQ(v) : textoCorto(v)
   }
+  Object.assign(nuevo, extra)
   const fusion = { ...lead, ...nuevo }
 
   const cambiaEtapa = cambios.etapa && cambios.etapa !== lead.etapa
@@ -263,7 +317,7 @@ export async function actualizarPipeline(id: number, cambios: CambiosPipeline, u
   }
   if (cambiaEtapa) {
     await execute(`INSERT INTO leads_etapas (lead_id, etapa_anterior, etapa_nueva, user_id) VALUES (?,?,?,?)`,
-      [lead.id, lead.etapa, cambios.etapa!, userId ?? null])
+      [lead.id, lead.etapa, cambios.etapa!, user.id ?? null])
   }
   return { ok: true }
 }
@@ -281,13 +335,18 @@ function semanaBogota(iso: string) {
  * Embudo: cuántos leads llegaron a cada etapa (la más alta que alcanzaron según el historial, aunque
  * después se perdieran o se saltaran etapas), reuniones realizadas y agendadas por semana y atrasados.
  */
-export async function statsPipeline() {
-  const [principales, historial, atrasados] = await Promise.all([
-    queryAll<any>(`SELECT id, etapa FROM leads WHERE principal_id IS NULL`),
+export async function statsPipeline(responsableId: string | null = null) {
+  const deQuien = responsableId ? 'AND responsable_id = ?' : ''
+  const args = responsableId ? [responsableId] : []
+  const [principales, historial, atrasados, paraHoy] = await Promise.all([
+    queryAll<any>(`SELECT id, etapa FROM leads WHERE principal_id IS NULL ${deQuien}`, args),
     queryAll<any>(`SELECT lead_id, etapa_nueva, created_at FROM leads_etapas ORDER BY created_at`),
     queryOne<any>(`SELECT COUNT(*) as cnt FROM leads
               WHERE principal_id IS NULL AND etapa NOT IN ('ganado','perdido')
-                AND proxima_fecha IS NOT NULL AND proxima_fecha < ?`, [hoyBogota()]),
+                AND proxima_fecha IS NOT NULL AND proxima_fecha < ? ${deQuien}`, [hoyBogota(), ...args]),
+    queryOne<any>(`SELECT COUNT(*) as cnt FROM leads
+              WHERE principal_id IS NULL AND etapa NOT IN ('ganado','perdido')
+                AND proxima_fecha IS NOT NULL AND proxima_fecha <= ? ${deQuien}`, [hoyBogota(), ...args]),
   ])
   const idx = (e: string) => ETAPAS_ACTIVAS.indexOf(e as Etapa)   // perdido = -1: no es avance
   const maxIdx = new Map<number, number>()
@@ -316,5 +375,6 @@ export async function statsPipeline() {
     reunionesRealizadasPorSemana: porSemana(primeraRealizada),
     reunionesAgendadasPorSemana: porSemana(primeraAgendada),
     atrasados: Number(atrasados?.cnt ?? 0),
+    paraHoy: Number(paraHoy?.cnt ?? 0),
   }
 }

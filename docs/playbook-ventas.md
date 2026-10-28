@@ -97,6 +97,38 @@ Sigue el mismo patrón día 0 / 6 / 12 de la secuencia de Prospectos: apertura, 
 
 Usar los textos de la tabla de Prospectos. Solo para quienes **no** están en la base del webinar. La meta del primer mensaje es una respuesta, no la reunión.
 
+### Cadencia del webinar del 21 de octubre (433 registrados)
+
+Webinar "Que el MinTIC no sancione tu ISP", con Inerxia AI y Nicolás Almeyda. Se importó con
+`scripts/importar-webinar.mjs`, repartido en partes iguales entre el superadmin, Adriana Linares y David Osorio
+(parejo en asistentes e inscritos; los contactos de una misma empresa quedan con la misma persona).
+Los textos están en `lib/cadencias.ts`. WhatsApp en "tú" y llamadas en "usted", como en la invitación.
+
+**Asistieron (117)**, todos arrancan el primer día, de mayor a menor tiempo conectado:
+
+| Paso | Cuándo (días hábiles) | Canal | Qué busca |
+|---|---|---|---|
+| 1 | Día 0 | WhatsApp | Gracias y una pregunta: qué le preocupa de lo que vio. Quien estuvo menos de 30 min recibe otra apertura |
+| 2 | +1 | Llamada | Si no respondió: reportes y visitas del MinTIC, y propuesta de 20 minutos |
+| 3 | +2 | WhatsApp | Propuesta concreta de reunión de 20 minutos con dos horarios |
+| 4 | +3 | WhatsApp | Alternativa: autodiagnóstico gratuito de 5 minutos |
+| 5 | +4 | WhatsApp | Cierre amable: "¿lo dejamos para más adelante?" |
+
+**Inscritos que no asistieron (316)** arrancan de a 25 por persona por día desde el día hábil siguiente, para no
+mandar cientos de WhatsApp el mismo día desde un mismo número:
+
+| Paso | Cuándo | Canal | Qué busca |
+|---|---|---|---|
+| 1 | Día 0 | WhatsApp | No alcanzó a conectarse: le contamos lo más importante en 20 minutos, aplicado a su ISP |
+| 2 | +3 | WhatsApp | Autodiagnóstico gratuito |
+| 3 | +4 | WhatsApp | Cierre amable |
+
+Cómo se trabaja: cada uno abre **Leads → Para hoy**, abre el lead, oprime "Abrir en WhatsApp", envía y marca
+**"Ya lo envié"** (el sistema programa el siguiente paso). Si contesta, **"Respondió"**: la cadencia se detiene y
+toca agendar la reunión con los guiones de la etapa. Si termina sin respuesta, se marca Perdido ("no responde").
+Los leads marcados "⚠ Revisar si es un ISP" (estudiantes, independientes, cédulas en vez de empresa) se confirman
+en el primer contacto y, si no son operadores, se descartan.
+
 ## 6. Guion de la reunión (20–30 min)
 
 1. **Marco (2 min):** "Voy a hacerle preguntas sobre su operación; al final le digo con honestidad si OWL le sirve o no."

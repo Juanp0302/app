@@ -213,7 +213,7 @@ function TablaLeads({ leads }: { leads: any[] }) {
 
 // ── Principal ───────────────────────────────────────────────────────────────
 
-export default function LeadsClient({ vendedor = null }: { vendedor?: string | null }) {
+export default function LeadsClient({ vendedor = null, esSuperadmin = false }: { vendedor?: string | null; esSuperadmin?: boolean }) {
   const [data,    setData]    = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [vista,   setVista]   = useState<'pipeline' | 'analisis'>('pipeline')
@@ -262,8 +262,8 @@ export default function LeadsClient({ vendedor = null }: { vendedor?: string | n
 
         {!loading && data && (
           <>
-            {/* Tarjetas resumen */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {/* Tarjetas resumen (el análisis de fuentes y campañas es solo del superadmin) */}
+            {esSuperadmin && data.stats && <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Stat label="Total leads" value={data.stats.total} />
               <Stat label="Fuentes únicas"
                 value={data.stats.porSource.filter((s: any) => s.label !== '(sin fuente)').length} />
@@ -272,19 +272,20 @@ export default function LeadsClient({ vendedor = null }: { vendedor?: string | n
               <Stat label="Último mes"
                 value={data.stats.porDia.reduce((a: number, d: any) => a + Number(d.cnt), 0)}
                 sub="últimos 30 días" />
-            </div>
+            </div>}
 
-            <div style={{ display: 'flex', gap: 6 }}>
+            {esSuperadmin && <div style={{ display: 'flex', gap: 6 }}>
               {([['pipeline', 'Pipeline de ventas'], ['analisis', 'Análisis y tabla']] as const).map(([k, t]) => (
                 <button key={k} onClick={() => setVista(k)} style={{ fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 16,
                   cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${C.vino}`,
                   background: vista === k ? C.vino : 'transparent', color: vista === k ? '#fff' : C.vino }}>{t}</button>
               ))}
-            </div>
+            </div>}
 
-            {vista === 'pipeline' && <PipelineBoard envios={data.leads} pipeline={data.pipeline} vendedor={vendedor} onCambio={cargar} />}
+            {vista === 'pipeline' && <PipelineBoard envios={data.leads} pipeline={data.pipeline} vendedor={vendedor}
+              esSuperadmin={esSuperadmin} onCambio={cargar} />}
 
-            {vista === 'analisis' && (<>
+            {esSuperadmin && vista === 'analisis' && (<>
             {/* Tendencia diaria */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 12,
