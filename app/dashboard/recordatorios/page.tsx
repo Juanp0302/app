@@ -98,16 +98,13 @@ export default function RecordatoriosPage() {
             </div>
 
             <div style={{ marginBottom:'1.5rem' }}>
-              <div style={labelStyle}>Para activar el envío real</div>
+              <div style={labelStyle}>Cómo se envían</div>
               <div style={{ fontSize:'0.78rem', lineHeight:1.7, color:'rgba(231,223,202,0.7)' }}>
-                1. Crea cuenta gratuita en{' '}
-                <a href="https://resend.com" target="_blank" style={{ color:C.olivo }}>resend.com</a><br/>
-                2. Obtén tu API key<br/>
-                3. Agrégala en <code style={{ background:'rgba(0,0,0,0.3)', padding:'0.1rem 0.4rem', borderRadius:'4px', fontSize:'0.75rem' }}>.env.local</code> como:<br/>
+                Los correos salen por n8n (flujo «Enviar email») desde la cuenta de Gmail de Owl Compliance.
+                Variables en Render (servicio de la app):
                 <code style={{ background:'rgba(0,0,0,0.3)', padding:'0.3rem 0.6rem', borderRadius:'4px', fontSize:'0.72rem', display:'block', marginTop:'0.4rem' }}>
-                  RESEND_API_KEY=re_xxxxxx<br/>
-                  ADMIN_EMAIL=jposoriomarin@gmail.com<br/>
-                  EMAIL_FROM=recordatorios@owlcompliance.co
+                  N8N_EMAIL_WEBHOOK=&lt;URL del webhook de n8n&gt;<br/>
+                  ADMIN_EMAIL=&lt;correo que recibe copia&gt;
                 </code>
               </div>
             </div>
