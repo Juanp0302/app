@@ -23,6 +23,7 @@ export default function DashboardClient({
     { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes',                href: '/dashboard/clientes',    icono: '👥' },
     { titulo: 'Administradores',  desc: 'Gestionar perfiles de administrador',               href: '/dashboard/admins',      icono: '🛡️' },
     { titulo: 'Leads',            desc: 'Métricas de contactos web y atribución UTM',        href: '/dashboard/leads',       icono: '📊' },
+    { titulo: 'Preguntas',        desc: 'Preguntas del público en charlas (QR) — escoger cuáles responder en vivo', href: '/dashboard/preguntas', icono: '🙋' },
     { titulo: 'Habeas Data',      desc: 'Consultar y suprimir datos personales (Ley 1581)', href: '/dashboard/habeas-data', icono: '🔐' },
     { titulo: 'Repositorio PQR',  desc: 'Normativa, plantillas de respuesta y guías por tipología de PQR', href: '/dashboard/pqr', icono: '📨' },
     { titulo: 'Proyectos Regulatorios', desc: 'Seguimiento y participación en proyectos de la CRC, el MinTIC y la SIC', href: '/dashboard/proyectos-regulatorios', icono: '🏛️' },

@@ -81,8 +81,8 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
 
 // ── Tabla leads ─────────────────────────────────────────────────────────────
 
-const ORIGEN_LABEL: Record<string, string> = { contacto: 'Contacto', autodiagnostico: 'Autodiagnóstico', webinar: 'Webinar' }
-const ORIGEN_COLOR: Record<string, string> = { contacto: '#0ea5e9', autodiagnostico: '#16a34a', webinar: '#8b5cf6' }
+const ORIGEN_LABEL: Record<string, string> = { contacto: 'Contacto', autodiagnostico: 'Autodiagnóstico', webinar: 'Webinar', 'preguntas expoisp': 'Preguntas ExpoISP' }
+const ORIGEN_COLOR: Record<string, string> = { contacto: '#0ea5e9', autodiagnostico: '#16a34a', webinar: '#8b5cf6', 'preguntas expoisp': '#db2777' }
 const origenLabel = (o?: string | null) => ORIGEN_LABEL[o ?? 'contacto'] ?? (o ? o.charAt(0).toUpperCase() + o.slice(1) : 'Contacto')
 const origenColor = (o?: string | null) => ORIGEN_COLOR[o ?? 'contacto'] ?? '#d97706'
 
