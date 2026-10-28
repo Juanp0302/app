@@ -146,7 +146,7 @@ export default function LoginPage() {
           >
             Política de Privacidad
           </a>
-          . Consultas: contacto@owlcompliance.co
+          . Consultas: contacto@owlcompliance.com
         </div>
       </div>
     </div>

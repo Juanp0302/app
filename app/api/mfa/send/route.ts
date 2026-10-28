@@ -75,7 +75,7 @@ function templateMfa({ nombre, code }: { nombre: string; code: string }) {
       <p style="font-size:12px;color:rgba(231,223,202,0.4);margin:0;line-height:1.6;">Si no solicitaste este código, ignora este mensaje.</p>
     </div>
     <div style="padding:16px 32px;background:rgba(0,0,0,0.3);text-align:center;">
-      <div style="font-size:10px;color:rgba(231,223,202,0.3);">Owl Compliance · contacto@owlcompliance.co</div>
+      <div style="font-size:10px;color:rgba(231,223,202,0.3);">Owl Compliance · contacto@owlcompliance.com</div>
     </div>
   </div>
 </body>

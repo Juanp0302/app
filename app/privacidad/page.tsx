@@ -48,7 +48,7 @@ export default function PoliticaPrivacidadPage() {
             fontSize: '0.78rem',
             color: 'rgba(231,223,202,0.55)',
           }}>
-            Owl Compliance · Versión 1.0 · Vigente desde el 1 de julio de 2026
+            Owl Compliance · Versión 1.1 · Vigente desde el 28 de octubre de 2026
           </div>
         </div>
       </div>
@@ -66,8 +66,8 @@ export default function PoliticaPrivacidadPage() {
           </p>
           <p style={{ marginTop: '0.5rem' }}>
             Correo electrónico para asuntos de protección de datos:{' '}
-            <a href="mailto:contacto@owlcompliance.co" style={{ color: '#712529' }}>
-              contacto@owlcompliance.co
+            <a href="mailto:contacto@owlcompliance.com" style={{ color: '#712529' }}>
+              contacto@owlcompliance.com
             </a>
           </p>
         </Section>
@@ -85,8 +85,9 @@ export default function PoliticaPrivacidadPage() {
           <p>
             Esta política aplica a todos los datos personales de personas naturales que Owl Compliance recopile,
             almacene, use o transmita en el desarrollo de su plataforma de gestión de cumplimiento regulatorio para
-            proveedores de servicios de telecomunicaciones (ISPs), así como a los datos recopilados a través del
-            formulario de autodiagnóstico disponible en el sitio web.
+            proveedores de servicios de telecomunicaciones (ISPs), así como a los datos recopilados a través de los
+              formularios del sitio web owlcompliance.com: autodiagnóstico, contacto, inscripción a eventos y webinars,
+              y preguntas enviadas en charlas y eventos.
           </p>
           <p style={{ marginTop: '0.5rem' }}>
             <strong>No aplica</strong> a los datos de personas jurídicas como tales, ni a los datos de los clientes
@@ -98,9 +99,10 @@ export default function PoliticaPrivacidadPage() {
           <Table
             headers={['Categoría', 'Datos', 'Titulares']}
             rows={[
-              ['Identificación y contacto', 'Nombre, correo electrónico, teléfono', 'Administradores; representantes de clientes ISP; prospectos del autodiagnóstico'],
+              ['Identificación y contacto', 'Nombre, correo electrónico, teléfono o celular / WhatsApp', 'Administradores; representantes de clientes ISP; personas que diligencian los formularios del sitio web'],
               ['Acceso a la plataforma', 'Correo electrónico, contraseña (almacenada como hash), rol', 'Todos los usuarios registrados'],
-              ['Información de la empresa', 'Razón social, NIT, RUTIC, persona de contacto, cargo', 'Representantes de clientes ISP; prospectos del autodiagnóstico'],
+              ['Información de la empresa', 'Razón social, NIT, RUTIC, persona de contacto, cargo', 'Representantes de clientes ISP; personas que diligencian los formularios del sitio web'],
+              ['Preguntas en eventos', 'Texto de la pregunta, junto con nombre, empresa, celular / WhatsApp y correo', 'Personas que envían preguntas en charlas y eventos'],
               ['Comunicaciones', 'Contenido de mensajes en el chat interno', 'Usuarios de la plataforma'],
               ['Auditoría y seguridad', 'Registro de acciones (usuario, acción, IP, timestamp)', 'Usuarios de la plataforma'],
             ]}
@@ -121,7 +123,8 @@ export default function PoliticaPrivacidadPage() {
             <li><strong>Prestación del servicio:</strong> gestionar las obligaciones de cumplimiento regulatorio de su empresa ISP.</li>
             <li><strong>Comunicaciones del servicio:</strong> enviar recordatorios de vencimiento de obligaciones y notificaciones operativas.</li>
             <li><strong>Soporte y atención:</strong> gestionar sus consultas y solicitudes a través del chat y sistema de tickets.</li>
-            <li><strong>Seguimiento comercial:</strong> contactar a los prospectos que completen el autodiagnóstico gratuito para ofrecerles información sobre nuestros servicios.</li>
+            <li><strong>Seguimiento comercial:</strong> contactar a quienes completen el autodiagnóstico gratuito o los formularios de contacto y de eventos del sitio web para ofrecerles información sobre nuestros servicios.</li>
+            <li><strong>Preguntas en eventos:</strong> recibir y responder las preguntas enviadas en charlas y eventos, publicarlas de forma anónima (sin el nombre, la empresa ni los datos de contacto de quien la envió) y contactar a quien las envía para ofrecerle información sobre nuestros servicios.</li>
             <li><strong>Seguridad y auditoría:</strong> registrar acciones para detectar accesos no autorizados y garantizar la trazabilidad.</li>
             <li><strong>Cumplimiento legal:</strong> cumplir con obligaciones legales aplicables a Owl Compliance.</li>
           </ol>
@@ -129,7 +132,7 @@ export default function PoliticaPrivacidadPage() {
 
         <Section title="6. Base de licitud del tratamiento">
           <ul style={{ paddingLeft: '1.4rem', lineHeight: 1.8 }}>
-            <li><strong>Autorización previa, expresa e informada del titular</strong> (Art. 9 Ley 1581) — obtenida al momento del registro o del envío del formulario de autodiagnóstico.</li>
+            <li><strong>Autorización previa, expresa e informada del titular</strong> (Art. 9 Ley 1581) — obtenida al momento del registro o del envío de los formularios del sitio web (autodiagnóstico, contacto, eventos y preguntas).</li>
             <li><strong>Ejecución del contrato de servicios</strong> suscrito con la empresa cliente.</li>
             <li><strong>Obligación legal</strong> para el mantenimiento de registros de auditoría y seguridad (Art. 17 lit. i Ley 1581).</li>
           </ul>
@@ -149,8 +152,8 @@ export default function PoliticaPrivacidadPage() {
           />
           <p style={{ marginTop: '0.75rem' }}>
             Para ejercer estos derechos, envíe un correo a{' '}
-            <a href="mailto:contacto@owlcompliance.co" style={{ color: '#712529' }}>
-              contacto@owlcompliance.co
+            <a href="mailto:contacto@owlcompliance.com" style={{ color: '#712529' }}>
+              contacto@owlcompliance.com
             </a>{' '}
             con el asunto <strong>&ldquo;Solicitud Habeas Data&rdquo;</strong>.
           </p>
@@ -183,6 +186,7 @@ export default function PoliticaPrivacidadPage() {
             <li>Cifrado de tokens de acceso a terceros con AES-256-GCM.</li>
             <li>Control de acceso basado en roles (admin / cliente / superadmin).</li>
             <li>Registro de auditoría de todas las acciones relevantes.</li>
+            <li>Protección contra envíos automáticos (spam) en los formularios públicos mediante un identificador irreversible (hash) de la dirección IP, sin almacenar la IP en claro.</li>
             <li>Segregación de datos por cliente (multi-tenant).</li>
             <li>Comunicaciones cifradas mediante TLS/HTTPS.</li>
           </ul>
@@ -197,7 +201,7 @@ export default function PoliticaPrivacidadPage() {
             <li><strong>Datos de usuarios y clientes:</strong> durante la vigencia de la relación contractual y 5 años después de su terminación.</li>
             <li><strong>Registros de auditoría:</strong> 5 años desde la fecha del registro.</li>
             <li><strong>Mensajes y conversaciones:</strong> 2 años desde el cierre de la conversación.</li>
-            <li><strong>Leads del autodiagnóstico:</strong> 12 meses desde la captación, o hasta que el titular solicite su supresión.</li>
+            <li><strong>Leads de los formularios del sitio web</strong> (autodiagnóstico, contacto, eventos y preguntas): 12 meses desde la captación, o hasta que el titular solicite su supresión. Las preguntas publicadas de forma anónima pueden permanecer publicadas, porque no conservan datos de quien las envió.</li>
           </ul>
         </Section>
 
@@ -224,11 +228,11 @@ export default function PoliticaPrivacidadPage() {
           <strong style={{ color: '#270205' }}>Juan Pablo Osorio Marín</strong> · CC 1.053.824.988 ·
           Marca comercial: <strong style={{ color: '#270205' }}>Owl Compliance</strong> ·
           Bogotá, Colombia ·{' '}
-          <a href="mailto:contacto@owlcompliance.co" style={{ color: '#712529' }}>
-            contacto@owlcompliance.co
+          <a href="mailto:contacto@owlcompliance.com" style={{ color: '#712529' }}>
+            contacto@owlcompliance.com
           </a>
           <br />
-          <em>Versión 1.0 — 1 de julio de 2026. Este documento no constituye asesoría legal.</em>
+          <em>Versión 1.1 — 28 de octubre de 2026 (amplía el ámbito a todos los formularios del sitio web y agrega las preguntas en eventos). Versión 1.0 — 1 de julio de 2026. Este documento no constituye asesoría legal.</em>
         </div>
       </div>
     </div>
