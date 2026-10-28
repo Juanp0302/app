@@ -23,7 +23,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, existsSync } from 'fs'
-import { sinTildes, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, repartir, fechasDeInicio, sumarDiasHabiles } from './reparto-webinar.mjs'
+import { sinTildes, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, repartir, fechasDeInicio, sumarDiasHabiles } from '../lib/reparto.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)

@@ -6,6 +6,7 @@ import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe } from '@/lib/whats
 import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
 import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
 import { hoyBogota } from '@/lib/ventas'
+import CargarBase from './CargarBase'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -29,18 +30,22 @@ const ESTADO_COLOR: Record<string, string> = {
 
 const PRIORIDAD_LABEL: Record<string, string> = {
   A: 'A — Investigación en marcha', B: 'B — Multa impuesta',
-  C1: 'C1 — Sin investigación (top 50)', C2: 'C2 — Sin investigación', W: 'W — Webinar',
+  C1: 'C1 — Sin investigación (top 50)', C2: 'C2 — Sin investigación', W: 'W — Webinar', O: 'O — Otra base cargada',
 }
-const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280', W: '#6d28d9' }
+const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280', W: '#6d28d9', O: '#0f766e' }
 
-/** De qué campaña viene, en corto: "Cold mailing", "Webinar · asistió 112 min", "Cold mailing + webinar (inscrito)". */
+/** De qué campaña viene, en corto: "Cold mailing", "Webinar · asistió 112 min", "Expo ISP 2026", "Cold mailing + webinar (inscrito)". */
 function campanaTexto(p: any) {
   const web = p.webinar_asistio ? `asistió${p.webinar_minutos ? ` ${p.webinar_minutos} min` : ''}` : 'inscrito'
   if (p.campana === 'webinar') return `Webinar · ${web}`
-  return p.en_webinar ? `Cold mailing + webinar (${web})` : 'Cold mailing'
+  const base = !p.campana || p.campana === 'cold-mailing' ? 'Cold mailing' : p.campana   // bases cargadas desde Excel
+  return p.en_webinar ? `${base} + webinar (${web})` : base
 }
-const segmentoCampana = (p: any) =>
-  (p.campana === 'webinar' || p.en_webinar ? (p.webinar_asistio ? 'webinar-asistio' : 'webinar-inscrito') : 'cold')
+/** Valor del filtro de campaña: "cold", "webinar-asistio", "webinar-inscrito" o "base:<nombre>" para las cargadas desde Excel. */
+const segmentoCampana = (p: any) => {
+  if (p.campana === 'webinar' || p.en_webinar) return p.webinar_asistio ? 'webinar-asistio' : 'webinar-inscrito'
+  return !p.campana || p.campana === 'cold-mailing' ? 'cold' : `base:${p.campana}`
+}
 const tocaHoy = (p: any) => !!pasoActual(p) && !!p.proxima_fecha && p.proxima_fecha <= hoyBogota()
 
 function ChipTemperatura({ nivel }: { nivel: NivelTemperatura }) {
@@ -77,8 +82,9 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const [filtroPrioridad, setFiltroPrioridad] = useState('todas')
   const [filtroResponsable, setFiltroResponsable] = useState('todos')
   const [filtroTemp, setFiltroTemp]       = useState<'todas' | NivelTemperatura>('todas')
-  const [filtroCampana, setFiltroCampana] = useState<'todas' | 'cold' | 'webinar-asistio' | 'webinar-inscrito'>('todas')
+  const [filtroCampana, setFiltroCampana] = useState('todas')
   const [soloHoy, setSoloHoy]             = useState(false)
+  const [cargando, setCargando]           = useState(false)
 
   const [modoSeleccion, setModoSeleccion] = useState(false)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
@@ -281,11 +287,14 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 </button>
               ))}
             </div>
-            <select value={filtroCampana} onChange={e => setFiltroCampana(e.target.value as typeof filtroCampana)} style={{ ...inp, cursor: 'pointer' }}>
+            <select value={filtroCampana} onChange={e => setFiltroCampana(e.target.value)} style={{ ...inp, cursor: 'pointer' }}>
               <option value="todas">Todas las campañas</option>
               <option value="cold">Cold mailing</option>
               <option value="webinar-asistio">Webinar · asistieron</option>
               <option value="webinar-inscrito">Webinar · inscritos que no asistieron</option>
+              {[...new Set(prospectos.map(segmentoCampana).filter(s => s.startsWith('base:')))].sort().map(s => (
+                <option key={s} value={s}>{s.slice(5)}</option>
+              ))}
             </select>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <select value={filtroPrioridad} onChange={e => setFiltroPrioridad(e.target.value)} style={{ ...inp, flex: 1, cursor: 'pointer' }}>
@@ -305,6 +314,10 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
                     background: modoSeleccion ? C.olivo : '#eee', color: modoSeleccion ? '#fff' : '#555', border: 'none' }}>
                   {modoSeleccion ? '✓ Reasignación en lote activa' : 'Reasignar en lote'}
+                </button>
+                <button onClick={() => setCargando(true)} title="Subir un Excel o CSV con una base de contactos y repartirla"
+                  style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer', background: C.vino, color: '#fff', border: 'none' }}>
+                  ⬆ Cargar base
                 </button>
                 {modoSeleccion && <span style={{ fontSize: 11, color: '#888' }}>{seleccionados.size} seleccionados</span>}
               </div>
@@ -534,6 +547,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
           )}
         </div>
       </div>
+      {cargando && <CargarBase admins={admins} onCerrar={() => setCargando(false)} onCargado={() => { cargar() }} />}
     </div>
   )
 }

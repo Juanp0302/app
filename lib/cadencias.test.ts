@@ -1,7 +1,7 @@
 /** Cadencias del webinar, reparto de la base y días hábiles. */
 import { describe, it, expect } from 'vitest'
 import { CADENCIAS, pasoActual, textoDelPaso, sumarDiasHabiles, FESTIVOS as FESTIVOS_APP } from './cadencias'
-import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from '../scripts/reparto-webinar.mjs'
+import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from './reparto.mjs'
 
 describe('días hábiles', () => {
   it('salta fines de semana y festivos (2 de noviembre de 2026 es lunes festivo)', () => {

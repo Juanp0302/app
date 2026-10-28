@@ -204,6 +204,14 @@ llevan más de 10 días quietos, y qué mensaje obtuvo más respuestas.
 - **Ficha:** temperatura con su porqué, la cadencia con el mensaje del paso ya escrito ("Abrir en WhatsApp",
   "Ya lo envié", "Respondió"), datos de contacto (incluido quién se inscribió al webinar) y, en Mensajes, los
   textos del cold mailing.
+- **Cargar otra base de contactos (superadmin):** en Prospectos, botón **"⬆ Cargar base"**. Se sube un .xlsx o
+  .csv (primera hoja; primera fila con encabezados como empresa o ISP, nombre o contacto, correo, celular o teléfono,
+  NIT, municipio, departamento, notas, en cualquier orden), se le pone nombre a la campaña y se marcan los
+  responsables. **"Ver vista previa"** muestra, sin escribir nada, qué columnas reconoció, cuántos le tocan a cada
+  uno, cuáles ya están en Prospectos (no se duplican ni se reasignan) y cuáles parecen no ser ISP. **"Cargar"** los
+  crea en estado Pendiente, prioridad O, con la campaña como etiqueta y filtro, repartidos en partes iguales (los de
+  una misma empresa con la misma persona). Subir el mismo archivo otra vez no duplica nada. Máximo 5 MB / 5.000 filas.
+  Lógica en `lib/carga-prospectos.ts`.
 - **Cargar una base de webinar:** `scripts/importar-webinar.mjs` la carga en Leads (estadísticas), la reparte y
   programa la cadencia; después `scripts/webinar-a-prospectos.mjs` la pasa a Prospectos. Los dos tienen `--dry`
   para simular y `--prod` para producción, y se pueden repetir sin duplicar.

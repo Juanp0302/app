@@ -17,7 +17,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { readFileSync, existsSync } from 'fs'
-import { coincideConProspecto } from './reparto-webinar.mjs'
+import { coincideConProspecto } from '../lib/reparto.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dry = process.argv.includes('--dry')
