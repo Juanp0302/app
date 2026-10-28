@@ -1,6 +1,7 @@
 /**
  * GET   /api/prospectos          → lista los prospectos visibles (admin: los suyos; superadmin: los 200)
- * PATCH /api/prospectos          → actualiza estado/fecha de contacto/próximo paso/notas de un prospecto
+ * PATCH /api/prospectos          → actualiza estado/fecha de contacto/próximo paso/notas de un prospecto, o
+ *                                  avanza su cadencia (accion: paso_enviado | respondio)
  *
  * Ver docs/prospectos-isp.md — estrategia de contacto uno a uno para 200 ISPs.
  */
@@ -32,10 +33,10 @@ export async function PATCH(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
   const body = await req.json().catch(() => null)
-  const { id, estado, fecha_contacto, proximo_paso, notas } = body ?? {}
+  const { id, estado, fecha_contacto, proximo_paso, notas, accion } = body ?? {}
   if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 })
 
-  const resultado = await actualizarProspectoComoUsuario(user, id, { estado, fecha_contacto, proximo_paso, notas })
+  const resultado = await actualizarProspectoComoUsuario(user, id, { estado, fecha_contacto, proximo_paso, notas, accion })
   if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status })
 
   return NextResponse.json({ ok: true })

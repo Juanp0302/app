@@ -70,6 +70,24 @@ export async function migrateProspectos() {
   await execute(`CREATE INDEX IF NOT EXISTS idx_prospectos_historial_prospecto ON prospectos_isp_historial(prospecto_id)`)
   // 1 = la empresa también está en la base del webinar (lead más caliente): se trabaja por ese flujo, no por el cold mailing.
   try { await execute(`ALTER TABLE prospectos_isp ADD COLUMN en_webinar INTEGER NOT NULL DEFAULT 0`) } catch { /* ya existe */ }
+  for (const sql of [
+    // De qué campaña viene: los 200 del cold mailing o la base del webinar del 21 oct (scripts/webinar-a-prospectos.mjs).
+    `ALTER TABLE prospectos_isp ADD COLUMN campana TEXT NOT NULL DEFAULT 'cold-mailing'`,
+    `ALTER TABLE prospectos_isp ADD COLUMN webinar_asistio INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE prospectos_isp ADD COLUMN webinar_minutos INTEGER`,
+    `ALTER TABLE prospectos_isp ADD COLUMN revisar_icp INTEGER NOT NULL DEFAULT 0`,   // lo que escribió en "ISP" no parece un operador
+    // Cadencia de seguimiento (lib/cadencias.ts): cuál, qué paso toca (0 = el primero), si sigue activa y cuándo toca.
+    `ALTER TABLE prospectos_isp ADD COLUMN cadencia TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN paso_cadencia INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE prospectos_isp ADD COLUMN cadencia_estado TEXT`,                     // activa | respondio | terminada
+    `ALTER TABLE prospectos_isp ADD COLUMN proxima_fecha TEXT`,
+    // Quién se inscribió al webinar, si no es el representante legal (filas del cold mailing que también están en el webinar).
+    `ALTER TABLE prospectos_isp ADD COLUMN webinar_nombre TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN webinar_telefono TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN webinar_correo TEXT`,
+  ]) {
+    try { await execute(sql) } catch { /* ya existe */ }
+  }
 }
 
 export interface ProspectoRow {
@@ -106,11 +124,23 @@ export interface ProspectoRow {
   notas: string | null
   responsable_id: string | null
   en_webinar?: number
+  campana?: string
+  webinar_asistio?: number
+  webinar_minutos?: number | null
+  revisar_icp?: number
+  cadencia?: string | null
+  paso_cadencia?: number
+  cadencia_estado?: string | null
+  proxima_fecha?: string | null
+  webinar_nombre?: string | null
+  webinar_telefono?: string | null
+  webinar_correo?: string | null
   created_at: string
   updated_at: string
   // Se agregan con JOIN, no son columnas propias:
   responsable_nombre?: string | null
   responsable_email?: string | null
+  ultimo_cambio?: string | null   // último cambio de estado (historial), para la temperatura
 }
 
 export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at' | 'updated_at' | 'responsable_nombre' | 'responsable_email' | 'invitacion_whatsapp' | 'recordatorio_whatsapp' | 'aviso_dia_whatsapp' | 'llamada_servicio'>): Promise<string> {
@@ -139,7 +169,8 @@ export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at
 export async function listarProspectos(responsableId: string | null): Promise<ProspectoRow[]> {
   await migrateProspectos()
   const sql = `
-    SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email
+    SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
+      (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio
     FROM prospectos_isp p
     LEFT JOIN users u ON u.id = p.responsable_id
     ${responsableId ? 'WHERE p.responsable_id = ?' : ''}
@@ -150,7 +181,8 @@ export async function listarProspectos(responsableId: string | null): Promise<Pr
 export async function buscarProspecto(id: string): Promise<ProspectoRow | undefined> {
   await migrateProspectos()
   return queryOne<ProspectoRow>(
-    `SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email
+    `SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
+       (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio
      FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id
      WHERE p.id = ?`,
     [id]
@@ -163,6 +195,9 @@ export async function actualizarProspecto(id: string, campos: {
   proximo_paso?: string | null
   notas?: string | null
   responsable_id?: string | null
+  paso_cadencia?: number
+  cadencia_estado?: string | null
+  proxima_fecha?: string | null
 }): Promise<void> {
   await migrateProspectos()
   const sets: string[] = [`updated_at = datetime('now')`]
@@ -172,6 +207,9 @@ export async function actualizarProspecto(id: string, campos: {
   if (campos.proximo_paso !== undefined)   { sets.push('proximo_paso = ?');   vals.push(campos.proximo_paso) }
   if (campos.notas !== undefined)          { sets.push('notas = ?');          vals.push(campos.notas) }
   if (campos.responsable_id !== undefined) { sets.push('responsable_id = ?'); vals.push(campos.responsable_id) }
+  if (campos.paso_cadencia !== undefined)  { sets.push('paso_cadencia = ?');  vals.push(campos.paso_cadencia) }
+  if (campos.cadencia_estado !== undefined) { sets.push('cadencia_estado = ?'); vals.push(campos.cadencia_estado) }
+  if (campos.proxima_fecha !== undefined)  { sets.push('proxima_fecha = ?');  vals.push(campos.proxima_fecha) }
   await execute(`UPDATE prospectos_isp SET ${sets.join(', ')} WHERE id = ?`, [...vals, id])
 }
 

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
 import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe } from '@/lib/whatsapp'
+import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
+import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
+import { hoyBogota } from '@/lib/ventas'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -26,9 +29,28 @@ const ESTADO_COLOR: Record<string, string> = {
 
 const PRIORIDAD_LABEL: Record<string, string> = {
   A: 'A — Investigación en marcha', B: 'B — Multa impuesta',
-  C1: 'C1 — Sin investigación (top 50)', C2: 'C2 — Sin investigación',
+  C1: 'C1 — Sin investigación (top 50)', C2: 'C2 — Sin investigación', W: 'W — Webinar',
 }
-const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280' }
+const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280', W: '#6d28d9' }
+
+/** De qué campaña viene, en corto: "Cold mailing", "Webinar · asistió 112 min", "Cold mailing + webinar (inscrito)". */
+function campanaTexto(p: any) {
+  const web = p.webinar_asistio ? `asistió${p.webinar_minutos ? ` ${p.webinar_minutos} min` : ''}` : 'inscrito'
+  if (p.campana === 'webinar') return `Webinar · ${web}`
+  return p.en_webinar ? `Cold mailing + webinar (${web})` : 'Cold mailing'
+}
+const segmentoCampana = (p: any) =>
+  (p.campana === 'webinar' || p.en_webinar ? (p.webinar_asistio ? 'webinar-asistio' : 'webinar-inscrito') : 'cold')
+const tocaHoy = (p: any) => !!pasoActual(p) && !!p.proxima_fecha && p.proxima_fecha <= hoyBogota()
+
+function ChipTemperatura({ nivel }: { nivel: NivelTemperatura }) {
+  const t = TEMPERATURA[nivel]
+  return (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: `${t.color}18`, color: t.color, whiteSpace: 'nowrap' }}>
+      {t.emoji} {t.label}
+    </span>
+  )
+}
 
 function fmtMoney(n: number | null | undefined) {
   if (!n && n !== 0) return '—'
@@ -54,6 +76,9 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const [filtroEstado, setFiltroEstado]   = useState('todos')
   const [filtroPrioridad, setFiltroPrioridad] = useState('todas')
   const [filtroResponsable, setFiltroResponsable] = useState('todos')
+  const [filtroTemp, setFiltroTemp]       = useState<'todas' | NivelTemperatura>('todas')
+  const [filtroCampana, setFiltroCampana] = useState<'todas' | 'cold' | 'webinar-asistio' | 'webinar-inscrito'>('todas')
+  const [soloHoy, setSoloHoy]             = useState(false)
 
   const [modoSeleccion, setModoSeleccion] = useState(false)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
@@ -67,12 +92,14 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
 
   const [form, setForm] = useState({ estado: '', fecha_contacto: '', proximo_paso: '', notas: '' })
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (): Promise<any[]> => {
     try {
       const r = await fetch('/api/prospectos')
       const d = await r.json()
-      setProspectos(Array.isArray(d.prospectos) ? d.prospectos : [])
+      const lista = Array.isArray(d.prospectos) ? d.prospectos : []
+      setProspectos(lista)
       setResumen(d.resumen ?? {})
+      return lista
     } finally {
       setLoading(false)
     }
@@ -108,6 +135,24 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
       const actualizado = { ...activo, ...form }
       setActivo(actualizado)
       fetch(`/api/prospectos/historial?id=${activo.id}`).then(r => r.json()).then(d => setHistorial(d.historial ?? []))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  /** Paso de la cadencia enviado, o "respondió": el servidor programa el siguiente y ajusta el estado. */
+  async function accionCadencia(accion: 'paso_enviado' | 'respondio') {
+    if (!activo) return
+    setGuardando(true)
+    try {
+      const r = await fetch('/api/prospectos', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activo.id, accion }),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error ?? 'Error guardando'); return }
+      const lista = await cargar()
+      const actualizado = lista.find(x => x.id === activo.id)
+      if (actualizado) abrir(actualizado)
     } finally {
       setGuardando(false)
     }
@@ -151,8 +196,16 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
     }
   }
 
+  const hoy = hoyBogota()
+  const temperaturas = useMemo(() => new Map(prospectos.map(p => [p.id, temperaturaProspecto(p, hoy)])), [prospectos, hoy])
+  const nivelDe = useCallback((p: any): NivelTemperatura => temperaturas.get(p.id)?.nivel ?? 'frio', [temperaturas])
+  const cuantosHoy = useMemo(() => prospectos.filter(tocaHoy).length, [prospectos])
+
   const filtrados = useMemo(() => {
-    return prospectos.filter(p => {
+    const lista = prospectos.filter(p => {
+      if (soloHoy && !tocaHoy(p)) return false
+      if (filtroTemp !== 'todas' && nivelDe(p) !== filtroTemp) return false
+      if (filtroCampana !== 'todas' && segmentoCampana(p) !== filtroCampana) return false
       if (filtroEstado !== 'todos' && p.estado !== filtroEstado) return false
       if (filtroPrioridad !== 'todas' && p.prioridad !== filtroPrioridad) return false
       if (isSuperadmin && filtroResponsable !== 'todos' && p.responsable_id !== filtroResponsable) return false
@@ -162,7 +215,11 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
       }
       return true
     })
-  }, [prospectos, filtroEstado, filtroPrioridad, filtroResponsable, busqueda, isSuperadmin])
+    // En "Para hoy": primero lo atrasado, luego lo más caliente y, entre asistentes, quien más tiempo estuvo.
+    if (soloHoy) lista.sort((a, b) => (a.proxima_fecha ?? '').localeCompare(b.proxima_fecha ?? '') ||
+      TEMPERATURA[nivelDe(a)].orden - TEMPERATURA[nivelDe(b)].orden || Number(b.webinar_minutos ?? 0) - Number(a.webinar_minutos ?? 0))
+    return lista
+  }, [prospectos, filtroEstado, filtroPrioridad, filtroResponsable, busqueda, isSuperadmin, soloHoy, filtroTemp, filtroCampana, nivelDe])
 
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box' }
   const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#888', marginBottom: 4, display: 'block' }
@@ -182,7 +239,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
         <NavLogo />
         <span style={{ color: 'rgba(231,223,202,0.3)' }}>›</span>
         <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: C.olivo }}>
-          Prospectos ISP {isSuperadmin ? '— Vista global (200)' : `— Mis prospectos (${prospectos.length})`}
+          Prospectos ISP {isSuperadmin ? `— Vista global (${prospectos.length})` : `— Mis prospectos (${prospectos.length})`}
         </span>
         <a href="/dashboard" style={{ marginLeft: 'auto', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(231,223,202,0.5)', textDecoration: 'none' }}>
           ← Volver
@@ -210,6 +267,26 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
         <div style={{ background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '0.85rem', borderBottom: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <input placeholder="Buscar empresa, NIT o representante…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={inp} />
+            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+              <button onClick={() => setSoloHoy(v => !v)} title="Mensajes de la cadencia que tocan hoy o están atrasados"
+                style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${C.vino}`,
+                  background: soloHoy ? C.vino : '#fff', color: soloHoy ? '#fff' : C.vino }}>
+                Para hoy ({cuantosHoy})
+              </button>
+              {(['caliente', 'tibio', 'frio'] as const).map(n => (
+                <button key={n} onClick={() => setFiltroTemp(f => (f === n ? 'todas' : n))}
+                  style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${TEMPERATURA[n].color}`,
+                    background: filtroTemp === n ? TEMPERATURA[n].color : '#fff', color: filtroTemp === n ? '#fff' : TEMPERATURA[n].color }}>
+                  {TEMPERATURA[n].emoji} {TEMPERATURA[n].label} ({prospectos.filter(p => nivelDe(p) === n).length})
+                </button>
+              ))}
+            </div>
+            <select value={filtroCampana} onChange={e => setFiltroCampana(e.target.value as typeof filtroCampana)} style={{ ...inp, cursor: 'pointer' }}>
+              <option value="todas">Todas las campañas</option>
+              <option value="cold">Cold mailing</option>
+              <option value="webinar-asistio">Webinar · asistieron</option>
+              <option value="webinar-inscrito">Webinar · inscritos que no asistieron</option>
+            </select>
             <div style={{ display: 'flex', gap: '0.4rem' }}>
               <select value={filtroPrioridad} onChange={e => setFiltroPrioridad(e.target.value)} style={{ ...inp, flex: 1, cursor: 'pointer' }}>
                 <option value="todas">Toda prioridad</option>
@@ -262,11 +339,19 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: 3 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: PRIORIDAD_COLOR[p.prioridad] }}>#{p.puesto}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: C.vino, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.empresa}</span>
-                    {p.en_webinar ? <span title="También está en la base del webinar: trabajar por el flujo del webinar, no por cold mailing" style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#8b5cf622', color: '#6d28d9', flexShrink: 0 }}>Webinar</span> : null}
                   </div>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>NIT {p.nit} · {p.municipio}</div>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+                    {[p.nit && `NIT ${p.nit}`, p.municipio, p.campana === 'webinar' && p.representante, campanaTexto(p)].filter(Boolean).join(' · ')}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <ChipTemperatura nivel={nivelDe(p)} />
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: `${ESTADO_COLOR[p.estado] ?? '#888'}20`, color: ESTADO_COLOR[p.estado] ?? '#888' }}>{p.estado}</span>
+                    {tocaHoy(p) && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: p.proxima_fecha < hoy ? '#dc2626' : '#15803d' }}>
+                        {p.proxima_fecha < hoy ? '⚠ Atrasado' : '● Hoy'}: {pasoActual(p)?.paso.titulo}
+                      </span>
+                    )}
+                    {!!p.revisar_icp && <span title="Lo que escribió en ISP no parece un operador" style={{ fontSize: 10, color: '#b45309' }}>⚠ ¿ISP?</span>}
                     {isSuperadmin && <span style={{ fontSize: 10, color: '#aaa' }}>{p.responsable_nombre ?? 'Sin asignar'}</span>}
                   </div>
                 </div>
@@ -305,6 +390,9 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 )}
               </div>
 
+              <FichaTemperatura p={activo} t={temperaturas.get(activo.id) ?? temperaturaProspecto(activo, hoy)} />
+              <CajaCadencia p={activo} vendedor={miNombre} ocupado={guardando} accion={accionCadencia} />
+
               {/* Datos de contacto */}
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '1rem 1.2rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem 1.5rem' }}>
                 <Campo k="Representante legal" v={activo.representante} />
@@ -314,6 +402,10 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 <Campo k="Expediente BDI" v={activo.expediente_bdi} />
                 <Campo k="Canal sugerido" v={activo.canal_sugerido} />
                 <Campo k="Tema detectado" v={activo.tema_detectado} full />
+                {activo.webinar_nombre && (
+                  <Campo k="Quién se inscribió al webinar" full
+                    v={[activo.webinar_nombre, activo.webinar_telefono, activo.webinar_correo].filter(Boolean).join(' · ')} />
+                )}
                 {!!activo.revisar_a_mano && (
                   <div style={{ gridColumn: '1 / -1', fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '4px 8px', borderRadius: 6, width: 'fit-content' }}>
                     ⚠ Revisar a mano antes de contactar — el expediente puede tener ruido de formato
@@ -361,6 +453,11 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
 
               {tabDetalle === 'mensajes' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  {activo.cadencia && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '0.6rem 0.9rem' }}>
+                      Esta empresa sigue la cadencia del webinar (arriba). Los mensajes del cold mailing de abajo quedan solo como referencia: no los envíe.
+                    </div>
+                  )}
                   {/* Estrategia actual: invitación al webinar + Comunidad ISPs Colombia */}
                   <div style={{ fontSize: 12, color: '#555', background: '#f8f6f1', border: '1px solid #e7dfca', borderRadius: 8, padding: '0.7rem 0.9rem', lineHeight: 1.6 }}>
                     <strong style={{ color: C.vino }}>Estrategia: invitar, no vender.</strong> Webinar “Que el MinTIC no sancione tu ISP” (con Inerxia) · miércoles 21 de octubre, 6:00 p. m. · y la Comunidad ISPs Colombia. Quien recibe cada mensaje ya vio el anterior: no repita la presentación.
@@ -437,6 +534,76 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function FichaTemperatura({ p, t }: { p: any; t: { nivel: NivelTemperatura; puntos: number; razones: string[] } }) {
+  const info = TEMPERATURA[t.nivel]
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', background: `${info.color}10`, border: `1px solid ${info.color}40`,
+      borderRadius: 10, padding: '0.7rem 1rem', marginBottom: '1rem' }}>
+      <div style={{ fontSize: 22 }}>{info.emoji}</div>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: info.color }}>
+          {info.label}{t.nivel !== 'cliente' && t.nivel !== 'descartado' ? ` · ${t.puntos} pts` : ''}
+        </div>
+        <div style={{ fontSize: 12, color: '#555' }}>{campanaTexto(p)} · {t.razones.join(' · ')}</div>
+      </div>
+    </div>
+  )
+}
+
+/** Paso actual de la cadencia del webinar con sus botones: "Ya lo envié" programa el siguiente; "Respondió" la detiene. */
+function CajaCadencia({ p, vendedor, ocupado, accion }: {
+  p: any; vendedor: string | null; ocupado: boolean; accion: (a: 'paso_enviado' | 'respondio') => void
+}) {
+  const [copiado, setCopiado] = useState<string | null>(null)
+  const c = p.cadencia ? CADENCIAS[p.cadencia as CadenciaId] : null
+  if (!c) return null
+  const actual = pasoActual(p)
+  // Los mensajes van a quien se inscribió; en filas del cold mailing puede no ser el representante legal.
+  const contacto = { nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos }
+  const telefono = p.webinar_telefono || p.telefono
+  return (
+    <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.9rem 1.1rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.vino }}>Cadencia: {c.nombre}</span>
+        <span style={{ fontSize: 11, color: '#888' }}>{p.proxima_fecha && actual ? `Toca el ${p.proxima_fecha}` : ''}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, margin: '6px 0 8px' }}>
+        {c.pasos.map((s, i) => (
+          <div key={i} title={s.titulo} style={{ flex: 1, height: 6, borderRadius: 3,
+            background: i < Number(p.paso_cadencia ?? 0) ? '#16a34a' : actual && i === actual.indice ? '#86efac' : '#e5e7eb' }} />
+        ))}
+      </div>
+      {p.cadencia_estado === 'respondio' && <div style={{ fontSize: 12.5, color: '#15803d', fontWeight: 600 }}>✓ Respondió: la cadencia se detuvo. Ahora toca agendar la reunión.</div>}
+      {p.cadencia_estado === 'terminada' && <div style={{ fontSize: 12.5, color: '#b45309' }}>Se enviaron todos los pasos sin respuesta. Márquelo &quot;No interesado&quot; o déjelo para más adelante.</div>}
+      {actual && (() => {
+        const texto = textoDelPaso(actual.paso, contacto, vendedor)
+        const wa = actual.paso.canal === 'whatsapp' ? enlaceWhatsApp(telefono, texto) : null
+        return (
+          <>
+            <MensajeBox titulo={`Paso ${actual.indice + 1} de ${actual.total} · ${actual.paso.titulo}`} texto={texto} waLink={wa}
+              copiado={copiado} setCopiado={setCopiado} pre={actual.paso.canal === 'llamada'} />
+            {actual.paso.canal === 'whatsapp' && !celularParaWhatsApp(telefono) && (
+              <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 4 }}>
+                Sin celular reconocible ({telefono || 'sin teléfono'}): copie el mensaje y envíelo por correo ({p.webinar_correo || p.correo || 'sin correo'}).
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button disabled={ocupado} onClick={() => accion('paso_enviado')}
+                style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, borderRadius: 6, border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer' }}>
+                {actual.paso.canal === 'llamada' ? '✓ Ya llamé (no contestó o no hubo cita)' : '✓ Ya lo envié'}
+              </button>
+              <button disabled={ocupado} onClick={() => accion('respondio')}
+                style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, borderRadius: 6, border: `1px solid ${C.vino}`, background: '#fff', color: C.vino, cursor: 'pointer' }}>
+                Respondió
+              </button>
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

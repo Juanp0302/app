@@ -28,16 +28,16 @@ beforeAll(async () => {
 })
 
 describe('unificar duplicados existentes', () => {
-  it('deja un lead por contacto en el pipeline y conserva todos los envíos', async () => {
+  it('enlaza al más antiguo los envíos del mismo contacto y conserva todos', async () => {
     const route = await import('@/app/api/leads/route')
     const j: any = await (await route.GET(new NextRequest('http://localhost/api/leads'))).json()
     expect(j.leads).toHaveLength(3)
-    expect(j.pipeline.leads).toHaveLength(2)
-    const ana = j.pipeline.leads.find((l: any) => l.nombre === 'Ana')
-    expect(ana.id).toBe(1)
-    expect(Number(ana.formularios)).toBe(2)
+    const por = (id: number) => j.leads.find((l: any) => l.id === id)
+    expect(por(1).principal_id).toBeNull()
+    expect(por(2).principal_id).toBe(1)
+    expect(por(3).principal_id).toBeNull()
     // Repetir la migración no cambia nada.
     const j2: any = await (await route.GET(new NextRequest('http://localhost/api/leads'))).json()
-    expect(j2.pipeline.leads).toHaveLength(2)
+    expect(j2.leads.filter((l: any) => l.principal_id == null)).toHaveLength(2)
   })
 })

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
-import PipelineBoard from './PipelineBoard'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -213,10 +212,9 @@ function TablaLeads({ leads }: { leads: any[] }) {
 
 // ── Principal ───────────────────────────────────────────────────────────────
 
-export default function LeadsClient({ vendedor = null, esSuperadmin = false }: { vendedor?: string | null; esSuperadmin?: boolean }) {
+export default function LeadsClient() {
   const [data,    setData]    = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [vista,   setVista]   = useState<'pipeline' | 'analisis'>('pipeline')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -262,8 +260,8 @@ export default function LeadsClient({ vendedor = null, esSuperadmin = false }: {
 
         {!loading && data && (
           <>
-            {/* Tarjetas resumen (el análisis de fuentes y campañas es solo del superadmin) */}
-            {esSuperadmin && data.stats && <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {/* Tarjetas resumen */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Stat label="Total leads" value={data.stats.total} />
               <Stat label="Fuentes únicas"
                 value={data.stats.porSource.filter((s: any) => s.label !== '(sin fuente)').length} />
@@ -272,20 +270,8 @@ export default function LeadsClient({ vendedor = null, esSuperadmin = false }: {
               <Stat label="Último mes"
                 value={data.stats.porDia.reduce((a: number, d: any) => a + Number(d.cnt), 0)}
                 sub="últimos 30 días" />
-            </div>}
+            </div>
 
-            {esSuperadmin && <div style={{ display: 'flex', gap: 6 }}>
-              {([['pipeline', 'Pipeline de ventas'], ['analisis', 'Análisis y tabla']] as const).map(([k, t]) => (
-                <button key={k} onClick={() => setVista(k)} style={{ fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 16,
-                  cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${C.vino}`,
-                  background: vista === k ? C.vino : 'transparent', color: vista === k ? '#fff' : C.vino }}>{t}</button>
-              ))}
-            </div>}
-
-            {vista === 'pipeline' && <PipelineBoard envios={data.leads} pipeline={data.pipeline} vendedor={vendedor}
-              esSuperadmin={esSuperadmin} onCambio={cargar} />}
-
-            {esSuperadmin && vista === 'analisis' && (<>
             {/* Tendencia diaria */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 12,
@@ -327,7 +313,6 @@ export default function LeadsClient({ vendedor = null, esSuperadmin = false }: {
               </div>
               <TablaLeads leads={data.leads} />
             </div>
-            </>)}
           </>
         )}
 

@@ -8,7 +8,7 @@
  * Convención de Owl (ver scripts/aplicar-estrategia-comunidad.mjs): WhatsApp en "tú", llamadas en "usted",
  * quien llama se presenta como abogado(a) de Owl Compliance.
  */
-import { ENLACES } from './pipeline'
+import { ENLACES } from './ventas'
 
 export const WEBINAR = {
   titulo: '“Que el MinTIC no sancione tu ISP”',

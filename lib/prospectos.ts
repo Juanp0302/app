@@ -8,6 +8,8 @@ import {
   listarHistorial, contarPorEstado, type ProspectoRow,
 } from './prospectos-db'
 import { execute } from './db'
+import { hoyBogota } from './ventas'
+import { CADENCIAS, pasoActual, sumarDiasHabiles, type CadenciaId } from './cadencias'
 
 // Los 10 estados exactos de la hoja "Tablero" del Excel — en este orden.
 export const ESTADOS_PROSPECTO = [
@@ -30,6 +32,7 @@ export const PRIORIDAD_LABEL: Record<string, string> = {
   B:  'B — Multa impuesta',
   C1: 'C1 — Sin investigación (top 50 ingresos)',
   C2: 'C2 — Sin investigación',
+  W:  'W — Webinar (sin revisión regulatoria)',
 }
 
 export const PRIORIDAD_COLOR: Record<string, string> = {
@@ -37,6 +40,7 @@ export const PRIORIDAD_COLOR: Record<string, string> = {
   B:  '#f59e0b', // amarillo
   C1: '#16a34a', // verde
   C2: '#6b7280', // gris
+  W:  '#6d28d9', // morado
 }
 
 /** Lista los prospectos visibles para este usuario: admin ve solo los suyos, superadmin ve los 200. */
@@ -56,13 +60,42 @@ export async function resumenPorEstado(user: { id: string; is_superadmin?: boole
 export async function actualizarProspectoComoUsuario(
   user: { id: string; is_superadmin?: boolean },
   prospectoId: string,
-  campos: { estado?: string; fecha_contacto?: string | null; proximo_paso?: string | null; notas?: string | null }
+  camposIn: {
+    estado?: string; fecha_contacto?: string | null; proximo_paso?: string | null; notas?: string | null
+    /** paso_enviado: marca el paso actual de la cadencia y programa el siguiente. respondio: la detiene. */
+    accion?: 'paso_enviado' | 'respondio'
+  }
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const prospecto = await buscarProspecto(prospectoId)
   if (!prospecto) return { ok: false, error: 'Prospecto no encontrado', status: 404 }
 
   if (!user.is_superadmin && prospecto.responsable_id !== user.id) {
     return { ok: false, error: 'No tienes acceso a este prospecto', status: 403 }
+  }
+
+  const { accion, ...campos } = camposIn as typeof camposIn & Parameters<typeof actualizarProspecto>[1]
+  const hoy = hoyBogota()
+  if (accion === 'paso_enviado') {
+    const actual = pasoActual(prospecto)
+    if (!actual) return { ok: false, error: 'Este prospecto no tiene un paso de cadencia pendiente', status: 400 }
+    const siguiente = CADENCIAS[prospecto.cadencia as CadenciaId].pasos[actual.indice + 1]
+    campos.paso_cadencia = actual.indice + 1
+    campos.proxima_fecha = siguiente ? sumarDiasHabiles(hoy, siguiente.esperaDias) : null
+    if (!siguiente) campos.cadencia_estado = 'terminada'
+    campos.fecha_contacto ??= hoy
+    // El estado acompaña lo que se hizo, sin pisar uno más avanzado.
+    if (campos.estado === undefined) {
+      if (actual.paso.canal === 'llamada' && ['Pendiente', 'WA1 enviado'].includes(prospecto.estado)) campos.estado = 'Llamada sin contacto'
+      else if (prospecto.estado === 'Pendiente') campos.estado = 'WA1 enviado'
+    }
+  } else if (accion === 'respondio') {
+    if (prospecto.cadencia) campos.cadencia_estado = 'respondio'
+    campos.proxima_fecha = hoy
+    campos.fecha_contacto ??= hoy
+    if (campos.estado === undefined && ['Pendiente', 'WA1 enviado', 'Llamada sin contacto'].includes(prospecto.estado)) campos.estado = 'Respondió'
+    if (!campos.proximo_paso && !prospecto.proximo_paso) campos.proximo_paso = 'Agendar la reunión'
+  } else if (accion !== undefined) {
+    return { ok: false, error: 'Acción inválida', status: 400 }
   }
 
   if (campos.estado !== undefined && !ESTADOS_PROSPECTO.includes(campos.estado as EstadoProspecto)) {

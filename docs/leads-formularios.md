@@ -32,6 +32,8 @@ formulario: NIT, cargo, % de cumplimiento, etc.; se ve al abrir la fila del lead
   coincide, el nodo recibe 401 y, como tiene `neverError`, falla en silencio.
 - Revisar en n8n → Executions el nodo "Guardar lead en app".
 
-## Pipeline de ventas
+## Seguimiento comercial
 
-Cada lead entra en etapa **Nuevo** y se gestiona en el tablero de `/dashboard/leads`. Etapas, calificación (Dolor/Presupuesto/Decisión) y guiones: ver [playbook-ventas.md](./playbook-ventas.md). Para cargar la base del webinar: `scripts/importar-webinar.mjs`.
+El menú Leads es solo para estadísticas. El trabajo con cada contacto (temperatura, cadencia, estados) se hace en
+**Prospectos**: ver [playbook-ventas.md](./playbook-ventas.md). Para cargar una base de webinar:
+`scripts/importar-webinar.mjs` y luego `scripts/webinar-a-prospectos.mjs`.
