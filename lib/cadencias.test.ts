@@ -1,7 +1,7 @@
 /** Cadencias del webinar, reparto de la base y días hábiles. */
 import { describe, it, expect } from 'vitest'
 import { CADENCIAS, pasoActual, textoDelPaso, sumarDiasHabiles, FESTIVOS as FESTIVOS_APP } from './cadencias'
-import { repartir, revisarIcp, corregirNitEnEmpresa, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from '../scripts/reparto-webinar.mjs'
+import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from '../scripts/reparto-webinar.mjs'
 
 describe('días hábiles', () => {
   it('salta fines de semana y festivos (2 de noviembre de 2026 es lunes festivo)', () => {
@@ -88,6 +88,14 @@ describe('reparto de la base del webinar', () => {
     for (const e of ['REDES CABLE VISION', 'R&H Telecomunicaciones SAS', 'REDMA', 'TELFLY S.A.S'])
       expect(revisarIcp(e, e)).toBe(false)
     expect(revisarIcp('Wilson Bermudez', 'Wilson Bermudez')).toBe(true)
+  })
+
+  it('cruza con el cold mailing por nombre de empresa, correo o NIT', () => {
+    const r = { empresa: 'Telecomunicaciones del sur sas', correo: 'x@y.co', nit: '' }
+    expect(coincideConProspecto(r, { empresa: 'TELECOMUNICACIONES DEL SUR S.A.S' })).toBe(true)
+    expect(coincideConProspecto(r, { empresa: 'Otra', correo: ' X@y.co ' })).toBe(true)
+    expect(coincideConProspecto({ empresa: 'A', nit: '900123456' }, { empresa: 'B', nit: '900.123.456' })).toBe(true)
+    expect(coincideConProspecto({ empresa: 'Red' }, { empresa: 'RED S.A.S' })).toBe(false)   // demasiado corto para cruzar
   })
 
   it('un NIT escrito en el campo de la empresa se guarda como NIT', () => {

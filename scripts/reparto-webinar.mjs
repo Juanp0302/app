@@ -39,6 +39,18 @@ export function corregirNitEnEmpresa(empresa, nombre) {
   return { empresa, nit: '' }
 }
 
+/**
+ * ¿Este registro del webinar es la misma empresa que un prospecto del cold mailing?
+ * Por NIT, por correo o por nombre de empresa (si el nombre no es demasiado corto).
+ */
+export function coincideConProspecto(r, p) {
+  const d = s => (s ?? '').toString().replace(/\D/g, '')
+  if (d(p.nit) && r.nit && d(p.nit) === d(r.nit)) return true
+  if (p.correo && r.correo && String(p.correo).trim().toLowerCase() === r.correo) return true
+  const ep = normEmpresa(p.empresa)
+  return ep.length >= 5 && ep === normEmpresa(r.empresa)
+}
+
 /** Nombres tan genéricos que no sirven para saber si dos personas son de la misma empresa. */
 const GENERICOS = new Set(['fibra', 'internet', 'redes', 'global', 'ftth', 'isp', 'teleco', 'intercom', 'innova', 'conectar', 'w', 'vi', 'bala', 'ccc', 'ixp', 'sw', 'fibramas'])
 

@@ -16,13 +16,14 @@
  *   ya tienen responsable no se tocan.
  * - Cadencia: asistentes → "webinar-asistente", el día --inicio. Inscritos → "webinar-inscrito", de a
  *   --por-dia por responsable desde el día hábil siguiente. Solo para leads en etapa Nuevo sin cadencia.
- * - Prospectos del cold mailing que coincidan (NIT, correo o nombre de empresa) quedan con en_webinar = 1.
+ * - Prospectos del cold mailing que coincidan (NIT, correo o nombre de empresa) quedan con en_webinar = 1, y ese
+ *   lead del webinar queda con quien ya tenía la empresa en el cold mailing.
  * Es seguro repetirlo.
  */
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { readFileSync, existsSync } from 'fs'
-import { sinTildes, normEmpresa, revisarIcp, corregirNitEnEmpresa, repartir, fechasDeInicio, sumarDiasHabiles } from './reparto-webinar.mjs'
+import { sinTildes, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, repartir, fechasDeInicio, sumarDiasHabiles } from './reparto-webinar.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const args = process.argv.slice(2)
@@ -154,17 +155,27 @@ for (const [n, f] of filas.slice(1).entries()) {
   registros.push(r)
 }
 
-// Reparto: solo los que no tienen responsable (nuevos, o existentes sin asignar).
-const porAsignar = registros.filter(r => !r.principal?.responsable_id)
+// Cruce con el cold mailing: si la empresa ya estaba en prospectos_isp, el lead del webinar queda con
+// quien ya la venía contactando, para que no le escriban dos personas distintas de Owl.
+let prospectos = []
+try {
+  prospectos = await q(`SELECT p.id, p.empresa, p.nit, p.correo, p.estado, p.responsable_id, u.nombre AS responsable
+                        FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id`)
+} catch (e) { console.warn('Sin tabla prospectos_isp, no se cruzó:', e.message) }
+for (const r of registros) r.prospecto = prospectos.find(p => coincideConProspecto(r, p)) ?? null
+const duenoPrevio = r => r.principal?.responsable_id ?? r.prospecto?.responsable_id ?? null
+
+// Reparto parejo solo para los que no tienen dueño (ni en leads ni en el cold mailing); los que sí, cuentan en el total.
+const porAsignar = registros.filter(r => !duenoPrevio(r))
 const previos = {}
 for (const r of registros) {
-  const resp = r.principal?.responsable_id
+  const resp = duenoPrevio(r)
   if (!resp) continue
   previos[resp] ??= { asistio: 0, inscrito: 0 }
   previos[resp][r.asistio ? 'asistio' : 'inscrito']++
 }
 const reparto = repartir(porAsignar, responsables.map(u => u.id), previos)
-for (const r of registros) r.responsable = r.principal?.responsable_id ?? reparto.get(r.clave)
+for (const r of registros) r.responsable = duenoPrevio(r) ?? reparto.get(r.clave)
 
 // Cadencia: solo leads en Nuevo sin cadencia. Orden de prioridad: asistentes por minutos, luego inscritos.
 const conCadencia = registros
@@ -207,20 +218,9 @@ for (const r of registros) {
   }
 }
 
-// ── Cruce con el cold mailing: gana la base del webinar ──────────────────────
-let cruzados = []
-try {
-  const pros = await q(`SELECT p.id, p.empresa, p.nit, p.correo, p.estado, u.nombre AS responsable FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id`)
-  const porNit = new Set(registros.map(l => l.nit).filter(Boolean))
-  const porCorreo = new Set(registros.map(l => l.correo).filter(Boolean))
-  const porEmpresa = new Set(registros.map(l => normEmpresa(l.empresa)).filter(e => e.length >= 5))
-  for (const p of pros) {
-    const coincide = (digitos(p.nit) && porNit.has(digitos(p.nit))) ||
-      (p.correo && porCorreo.has(String(p.correo).toLowerCase())) ||
-      (normEmpresa(p.empresa).length >= 5 && porEmpresa.has(normEmpresa(p.empresa)))
-    if (coincide) { cruzados.push(p); await run(`UPDATE prospectos_isp SET en_webinar = 1 WHERE id = ?`, [p.id]) }
-  }
-} catch (e) { console.warn('Sin tabla prospectos_isp, no se cruzó:', e.message) }
+// ── Marcar en el cold mailing: gana la base del webinar ──────────────────────
+const cruzados = [...new Map(registros.filter(r => r.prospecto).map(r => [r.prospecto.id, r])).values()]
+for (const r of cruzados) await run(`UPDATE prospectos_isp SET en_webinar = 1 WHERE id = ?`, [r.prospecto.id])
 
 // ── Resumen ────────────────────────────────────────────────────────────────────
 const nombreDe = id => responsables.find(u => u.id === id)?.nombre ?? `(otro: ${id})`
@@ -236,4 +236,5 @@ for (const r of conCadencia) { const k = `${inicioDe.get(r.clave)}`; porFecha[k]
 console.log(`\nPrimer mensaje de la cadencia (${conCadencia.length} leads), por día (todos los responsables):`)
 for (const [d, n] of Object.entries(porFecha).sort()) console.log(`  ${d}: ${n}`)
 console.log(`\nProspectos del cold mailing que también están en el webinar: ${cruzados.length}`)
-for (const p of cruzados) console.log(`  ${p.empresa} · estado "${p.estado}" · cold mailing a cargo de ${p.responsable ?? 'sin asignar'}`)
+for (const r of cruzados) console.log(`  ${r.prospecto.empresa} · estado "${r.prospecto.estado}" · cold mailing a cargo de ${r.prospecto.responsable ?? 'sin asignar'}` +
+  ` → webinar (${r.asistio ? 'asistió' : 'inscrito'}: ${r.nombre}) a cargo de ${nombreDe(r.responsable)}`)
