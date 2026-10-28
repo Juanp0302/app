@@ -76,4 +76,81 @@ describe('/api/leads', () => {
     expect((await enviar({ nombre: 'Intruso' })).status).toBe(401)
     delete process.env.LEADS_WEBHOOK_SECRET
   })
+
+  describe('pipeline de ventas', () => {
+    const patch = (body: any) =>
+      route.PATCH(new NextRequest('http://localhost/api/leads', { method: 'PATCH', body: JSON.stringify(body) }))
+    const leads = async () => (await (await route.GET(new NextRequest('http://localhost/api/leads'))).json()) as any
+
+    it('solo el superadmin mueve etapas', async () => {
+      auth.mockResolvedValue({ user: { id: 'a', is_superadmin: false } })
+      expect((await patch({ id: 1, etapa: 'contactado' })).status).toBe(403)
+    })
+
+    it('exige fecha para agendar y respeta los requisitos de propuesta', async () => {
+      auth.mockResolvedValue({ user: { id: 's', is_superadmin: true } })
+      const id = (await leads()).leads.find((l: any) => l.nombre === 'Ana').id
+      expect((await patch({ id, etapa: 'reunion_agendada' })).status).toBe(400)
+      expect((await patch({ id, etapa: 'reunion_agendada', proxima_fecha: '2030-01-10' })).status).toBe(200)
+      expect((await patch({ id, etapa: 'propuesta', q_dolor: 2, q_presupuesto: 1 })).status).toBe(400) // falta decisión
+      expect((await patch({ id, etapa: 'propuesta', q_dolor: 2, q_presupuesto: 1, q_decision: 2 })).status).toBe(400) // falta plan
+      expect((await patch({ id, etapa: 'propuesta', plan_objetivo: 'pro', q_dolor: 2, q_presupuesto: 1, q_decision: 2 })).status).toBe(200)
+      const j = await leads()
+      expect(j.leads.find((l: any) => l.id === id).etapa).toBe('propuesta')
+      expect(j.pipeline.porEtapa.propuesta).toBe(1)
+      expect(j.pipeline.embudo.find((e: any) => e.etapa === 'reunion_agendada').cnt).toBe(1) // propuesta cuenta como "pasó por reunión"
+    })
+
+    it('para marcar perdido hay que anotar el motivo', async () => {
+      const id = (await leads()).leads.find((l: any) => l.nombre === 'Eva').id
+      expect((await patch({ id, etapa: 'perdido' })).status).toBe(400)
+      expect((await patch({ id, etapa: 'perdido', motivo_descarte: 'Sin dolor' })).status).toBe(200)
+    })
+
+    it('un lead perdido después de la reunión sigue contando en el embudo', async () => {
+      const id = (await leads()).leads.find((l: any) => l.nombre === 'Luis').id
+      await patch({ id, etapa: 'reunion_realizada', q_dolor: 1 })
+      await patch({ id, etapa: 'perdido', motivo_descarte: 'Sin presupuesto' })
+      const { pipeline } = await leads()
+      const emb = Object.fromEntries(pipeline.embudo.map((e: any) => [e.etapa, e.cnt]))
+      expect(emb.reunion_realizada).toBe(2)   // Ana (llegó a propuesta) + Luis (perdido tras la reunión)
+      expect(emb.reunion_agendada).toBe(2)    // Luis saltó "agendada" y aun así cuenta
+      expect(pipeline.reunionesRealizadasPorSemana.reduce((a: number, r: any) => a + r.cnt, 0)).toBe(2)
+    })
+
+    it('el mismo contacto en otro formulario no crea otra tarjeta: suma al lead y hereda la temperatura', async () => {
+      await enviar({ origen: 'webinar', nombre: 'Ana', correo: ' ANA@isp.co ', asunto: 'Webinar: visitas' })
+      await enviar({ origen: 'contacto', nombre: 'Pedro', correo: 'pedro@isp.co', datos: { nit: '900.123' } }) // mismo NIT que Ana
+      const j = await leads()
+      const ana = j.leads.find((l: any) => l.nombre === 'Ana' && !l.principal_id)
+      const tarjetas = j.pipeline.leads.filter((l: any) => l.id === ana.id || l.principal_id === ana.id)
+      expect(tarjetas).toHaveLength(1)
+      expect(Number(tarjetas[0].formularios)).toBe(3)
+      expect(tarjetas[0].origenes.split(',').sort()).toEqual(['autodiagnostico', 'contacto', 'webinar'])
+      expect(tarjetas[0].etapa).toBe('propuesta')   // el avance queda en el principal
+      expect(j.pipeline.leads.some((l: any) => l.nombre === 'Pedro')).toBe(false)
+      expect(j.leads.filter((l: any) => l.principal_id === ana.id)).toHaveLength(2) // los envíos siguen en análisis
+    })
+
+    it('editar un envío secundario actúa sobre el lead principal', async () => {
+      const j = await leads()
+      const pedro = j.leads.find((l: any) => l.nombre === 'Pedro')
+      expect((await patch({ id: pedro.id, proxima_accion: 'Llamar a Pedro' })).status).toBe(200)
+      const ana = (await leads()).pipeline.leads.find((l: any) => l.id === pedro.principal_id)
+      expect(ana.proxima_accion).toBe('Llamar a Pedro')
+    })
+
+    it('rechaza fechas mal escritas', async () => {
+      const id = (await leads()).pipeline.leads[0].id
+      expect((await patch({ id, proxima_fecha: 'mañana' })).status).toBe(400)
+    })
+  })
+
+  describe('hoyBogota', () => {
+    it('a las 8 p.m. de Bogotá sigue siendo el mismo día aunque en UTC ya sea mañana', async () => {
+      const { hoyBogota } = await import('@/lib/pipeline')
+      expect(hoyBogota(new Date('2026-10-28T01:00:00Z'))).toBe('2026-10-27')
+      expect(hoyBogota(new Date('2026-10-28T06:00:00Z'))).toBe('2026-10-28')
+    })
+  })
 })

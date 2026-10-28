@@ -68,6 +68,8 @@ export async function migrateProspectos() {
     )
   `)
   await execute(`CREATE INDEX IF NOT EXISTS idx_prospectos_historial_prospecto ON prospectos_isp_historial(prospecto_id)`)
+  // 1 = la empresa también está en la base del webinar (lead más caliente): se trabaja por ese flujo, no por el cold mailing.
+  try { await execute(`ALTER TABLE prospectos_isp ADD COLUMN en_webinar INTEGER NOT NULL DEFAULT 0`) } catch { /* ya existe */ }
 }
 
 export interface ProspectoRow {
@@ -103,6 +105,7 @@ export interface ProspectoRow {
   proximo_paso: string | null
   notas: string | null
   responsable_id: string | null
+  en_webinar?: number
   created_at: string
   updated_at: string
   // Se agregan con JOIN, no son columnas propias:

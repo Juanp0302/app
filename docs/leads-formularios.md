@@ -31,3 +31,7 @@ formulario: NIT, cargo, % de cumplimiento, etc.; se ve al abrir la fila del lead
 - Comparar `LEADS_WEBHOOK_SECRET`: debe existir **igual** en Render (app) y en las variables de n8n. Si no
   coincide, el nodo recibe 401 y, como tiene `neverError`, falla en silencio.
 - Revisar en n8n → Executions el nodo "Guardar lead en app".
+
+## Pipeline de ventas
+
+Cada lead entra en etapa **Nuevo** y se gestiona en el tablero de `/dashboard/leads`. Etapas, calificación (Dolor/Presupuesto/Decisión) y guiones: ver [playbook-ventas.md](./playbook-ventas.md). Para cargar la base del webinar: `scripts/importar-webinar.mjs`.

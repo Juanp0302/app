@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
+import PipelineBoard from './PipelineBoard'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -212,9 +213,10 @@ function TablaLeads({ leads }: { leads: any[] }) {
 
 // ── Principal ───────────────────────────────────────────────────────────────
 
-export default function LeadsClient() {
+export default function LeadsClient({ vendedor = null }: { vendedor?: string | null }) {
   const [data,    setData]    = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [vista,   setVista]   = useState<'pipeline' | 'analisis'>('pipeline')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -272,6 +274,17 @@ export default function LeadsClient() {
                 sub="últimos 30 días" />
             </div>
 
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([['pipeline', 'Pipeline de ventas'], ['analisis', 'Análisis y tabla']] as const).map(([k, t]) => (
+                <button key={k} onClick={() => setVista(k)} style={{ fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 16,
+                  cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${C.vino}`,
+                  background: vista === k ? C.vino : 'transparent', color: vista === k ? '#fff' : C.vino }}>{t}</button>
+              ))}
+            </div>
+
+            {vista === 'pipeline' && <PipelineBoard envios={data.leads} pipeline={data.pipeline} vendedor={vendedor} onCambio={cargar} />}
+
+            {vista === 'analisis' && (<>
             {/* Tendencia diaria */}
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.vino, marginBottom: 12,
@@ -313,6 +326,7 @@ export default function LeadsClient() {
               </div>
               <TablaLeads leads={data.leads} />
             </div>
+            </>)}
           </>
         )}
 

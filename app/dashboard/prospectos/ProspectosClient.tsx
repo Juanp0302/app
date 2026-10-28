@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
+import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe } from '@/lib/whatsapp'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -38,29 +39,6 @@ async function copiar(texto: string, onDone: () => void) {
   try { await navigator.clipboard.writeText(texto); onDone() } catch { /* noop */ }
 }
 
-/** Busca un celular colombiano (10 dígitos que empiezan por 3) dentro del texto del teléfono.
- *  Acepta separadores (espacios, guiones, puntos), el prefijo 57 / +57 y casos con dos números
- *  juntos ("097-7485602 320-4291514"). Devuelve el número listo para WhatsApp (57 + 10 dígitos),
- *  o null si no hay un celular reconocible (fijos, "Sin dato", números incompletos). */
-function celularParaWhatsApp(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  const m = String(raw).match(/(?<!\d)(?:\+?57[\s\-.]*)?(3\d{2})[\s\-.]*(\d{3})[\s\-.]*(\d{4})(?!\d)/)
-  return m ? `57${m[1]}${m[2]}${m[3]}` : null
-}
-
-/** Enlace que abre el chat de WhatsApp con ese número y el mensaje ya escrito (no lo envía). */
-function enlaceWhatsApp(telefono: string | null | undefined, mensaje: string): string | null {
-  const num = celularParaWhatsApp(telefono)
-  return num ? `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}` : null
-}
-
-/** Primer nombre de quien está conectado, para reemplazar [NOMBRE] en los mensajes.
- *  Si el nombre de la cuenta es genérico ("Super Administrador"), devuelve null y se deja [NOMBRE]. */
-function primerNombreDe(userName: string): string | null {
-  const t = (userName || '').trim().split(/\s+/)[0]
-  if (!t || /^(super|admin|administrador|owl)$/i.test(t)) return null
-  return t
-}
 
 export default function ProspectosClient({ userId, userName, isSuperadmin }: { userId: string; userName: string; isSuperadmin: boolean }) {
   const miNombre = primerNombreDe(userName)
@@ -284,6 +262,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: 3 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: PRIORIDAD_COLOR[p.prioridad] }}>#{p.puesto}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: C.vino, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.empresa}</span>
+                    {p.en_webinar ? <span title="También está en la base del webinar: trabajar por el flujo del webinar, no por cold mailing" style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#8b5cf622', color: '#6d28d9', flexShrink: 0 }}>Webinar</span> : null}
                   </div>
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>NIT {p.nit} · {p.municipio}</div>
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>

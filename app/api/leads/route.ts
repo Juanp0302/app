@@ -1,6 +1,8 @@
 /**
  * POST /api/leads  — recibe un lead desde N8N (webhook)
- * GET  /api/leads  — devuelve lista + estadísticas (solo superadmin)
+ * GET  /api/leads  — devuelve lista + estadísticas + embudo (solo superadmin)
+ * PATCH /api/leads — { id, etapa?, q_dolor?, q_presupuesto?, q_decision?, plan_objetivo?, proxima_accion?,
+ *                      proxima_fecha?, dolor_nota?, motivo_descarte? } (solo superadmin; valida requisitos de etapa)
  *
  * Seguridad POST: N8N debe enviar el header Authorization: Bearer <LEADS_WEBHOOK_SECRET>
  * Si LEADS_WEBHOOK_SECRET no está configurado, se acepta cualquier petición
@@ -9,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { migrateLeads, insertarLead, obtenerLeads, statsLeads } from '@/lib/leads-db'
+import { migrateLeads, insertarLead, obtenerLeads, statsLeads, actualizarPipeline, statsPipeline, obtenerPipeline } from '@/lib/leads-db'
 
 async function requireSuperadmin() {
   const session = await auth()
@@ -84,6 +86,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(stats)
   }
 
-  const [stats, leads] = await Promise.all([statsLeads(), obtenerLeads()])
-  return NextResponse.json({ stats, leads })
+  // `leads` = cada envío de formulario (análisis, últimos 500); `pipeline.leads` = un lead por contacto, todos.
+  const [stats, leads, resumen, principales] = await Promise.all([statsLeads(), obtenerLeads(), statsPipeline(), obtenerPipeline()])
+  return NextResponse.json({ stats, leads, pipeline: { ...resumen, leads: principales } })
+}
+
+// ── PATCH: mover etapa / calificar (Dolor, Presupuesto, Decisión) ────────────
+
+export async function PATCH(req: NextRequest) {
+  const user = await requireSuperadmin()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+  let body: any
+  try { body = await req.json() } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+  }
+  const id = Number(body.id)
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
+
+  await migrateLeads()
+  const { id: _omit, ...cambios } = body
+  const r = await actualizarPipeline(id, cambios, user.id)
+  if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status })
+  return NextResponse.json({ ok: true })
 }
