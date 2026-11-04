@@ -59,9 +59,26 @@ describe('emparejar archivos con prospectos', () => {
     const nombre = 'INGENIERIA_ESPECIALIZADA_EN_COMUNICACIONES_Y_SERVICIOS_DE_TELECOMUNICACIONES_S_A_S'.slice(0, 50)
     expect(una(`Radiografia_${nombre}.pdf`).ids).toEqual(['p5'])
   })
-  it('sin pareja cuando no hay empresa parecida o el nombre es demasiado corto', () => {
+  it('sin pareja cuando no hay empresa parecida', () => {
     expect(una('Radiografia_EMPRESA_QUE_NO_EXISTE.pdf')).toMatchObject({ ids: [], por: null })
-    expect(una('Radiografia_RED.pdf').ids).toEqual([])
+    expect(una('Radiografia_X.pdf').ids).toEqual([])   // una sola letra no identifica a nadie
+  })
+  it('nombres cortos que son la empresa completa (Red, Ixp, VCC) sí se emparejan, pero un nombre recortado necesita 4 letras', () => {
+    expect(una('Radiografia_RED.pdf').ids).toEqual(['p6'])
+    expect(emparejar(['Radiografia_Ixp.pdf', 'Radiografia_900111222_VCC.pdf'], [{ id: 'a', empresa: 'Ixp', nit: null }, { id: 'b', empresa: 'VCC', nit: null }]).map(p => p.ids))
+      .toEqual([['a'], ['b']])
+    const largo = 'AB' + 'X'.repeat(48)
+    expect(emparejar([`Radiografia_${largo}.pdf`], [{ id: 'c', empresa: 'AB', nit: null }])[0].ids).toEqual([])
+  })
+  it('la misma empresa con una fila con NIT y otra sin NIT: las dos reciben la radiografía; una con otro NIT no', () => {
+    const filas = [
+      { id: 't1', empresa: 'TELFLY S.A.S', nit: '901586432' },
+      { id: 't2', empresa: 'TELFLY', nit: null },
+      { id: 't3', empresa: 'Telfly', nit: '900932336' },   // otra empresa con el mismo nombre
+    ]
+    expect(emparejar(['Radiografia_901586432_TELFLY_S_A_S.pdf'], filas)[0]).toMatchObject({ por: 'nit', ids: ['t1', 't2'] })
+    // Sin fila con ese NIT, el nombre decide, pero no se le da a una fila de otro NIT.
+    expect(emparejar(['Radiografia_555555555_TELFLY.pdf'], filas)[0].ids).toEqual(['t2'])
   })
 })
 

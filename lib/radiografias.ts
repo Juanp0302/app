@@ -42,12 +42,22 @@ export function emparejar(archivos: string[], prospectos: Candidato[]): Pareja[]
   const claves = prospectos.map(p => ({ p, a: normEmpresa(p.empresa), b: comoLoEscribeElGenerador(p.empresa), nit: digitos(p.nit) }))
   return archivos.map(archivo => {
     const f = leerNombreArchivo(archivo)
+    // Un nombre igual sirve aunque sea corto (Ixp, VCC, ERT son empresas reales); un nombre recortado por el generador
+    // solo se compara por el principio y exige 4 letras para no confundir empresas.
+    const mismo = (k: string) => (f.recortado ? f.clave.length >= 4 && k.startsWith(f.clave) : k === f.clave)
+    const porNombre = f.clave.length >= 2
+      // Si el archivo trae NIT, una fila con otro NIT es otra empresa aunque se llame parecido.
+      ? claves.filter(c => (mismo(c.a) || mismo(c.b)) && (!f.nit || !c.nit || c.nit === f.nit))
+      : []
     if (f.nit) {
-      const ids = claves.filter(c => c.nit && c.nit === f.nit).map(c => c.p.id)
-      if (ids.length) return { archivo, ids, por: 'nit' as const, nit: f.nit }
+      const porNit = claves.filter(c => c.nit && c.nit === f.nit)
+      if (porNit.length) {
+        // La misma empresa puede tener otra fila todavía sin NIT (otro contacto): esa también recibe su radiografía.
+        const ids = [...new Set([...porNit, ...porNombre.filter(c => !c.nit)].map(c => c.p.id))]
+        return { archivo, ids, por: 'nit' as const, nit: f.nit }
+      }
     }
-    const mismo = (k: string) => (f.recortado ? k.startsWith(f.clave) : k === f.clave)
-    const ids = f.clave.length >= 4 ? claves.filter(c => mismo(c.a) || mismo(c.b)).map(c => c.p.id) : []
+    const ids = porNombre.map(c => c.p.id)
     return { archivo, ids, por: ids.length ? 'nombre' as const : null, nit: f.nit }
   })
 }

@@ -137,9 +137,16 @@ se abre el WhatsApp con el mensaje ya escrito y se adjunta el PDF en el mismo ch
 de los prospectos, en la caja de la radiografía. Si la radiografía tiene más de 7 días, la ficha avisa que sus vencimientos pueden haber cambiado.
 
 **Cómo se cargan (superadmin):**
-1. Generar los PDF con `generar.py` (con `--todas` o `--manual` para empresas fuera del Excel). Los archivos ahora llevan el NIT en el nombre
-   (`Radiografia_900860597_WINETS_S_A_S_.pdf`). Para quien no está en el Excel, hace falta su NIT y saber si tiene sanciones: si no, el generador
-   asume "ninguna identificada" y felicita por una buena posición que podría no serlo.
+1. Generar los PDF (desde `radiografia_generador`, con la fecha de hoy por defecto; ver la cabecera de `generar.py`):
+   - **Los 200 del cold mailing:** `python generar.py --todas --salida "<carpeta>"`. Traen su situación real ante el MinTIC (investigación abierta,
+     sanción registrada o ninguna), que sale del Excel `Prospectos_ISP_Abordaje_v2.xlsx`.
+   - **Los demás (webinar y bases cargadas):** primero `node scripts/exportar-prospectos-radiografia.mjs --prod --salida <archivo.json>` (solo lee la
+     base: deja una vez cada empresa y aparta las que no parecen un ISP) y luego `python generar.py --json <archivo.json> --salida "<carpeta>"`.
+   - **Sin NIT no pasa nada:** la cabecera omite el NIT y el archivo se llama solo con el nombre; la app lo empareja por nombre. Con NIT, el archivo lo lleva
+     (`Radiografia_900860597_WINETS_S_A_S_.pdf`) y el emparejamiento es exacto.
+   - **Sin información de sanciones no se afirma nada:** de las empresas que no están en el Excel no tenemos esa base, así que su tarjeta dice
+     **"Por confirmar"** en vez de "Ninguna identificada". Si alguna se verifica a mano, se genera con `--manual`.
+   - La invitación del PDF dice **15 minutos**, igual que los mensajes.
 2. En Prospectos, botón **"📄 Cargar radiografías"**: elegir todos los PDF a la vez. Muestra a qué empresa irá cada uno y cuáles no tienen
    prospecto (no se cargan). Se emparejan por el NIT del archivo o, si no lo trae, por el nombre de la empresa. Si una empresa tiene varias
    filas (un contacto por fila), todas reciben su radiografía. Cargar de nuevo reemplaza la anterior.
