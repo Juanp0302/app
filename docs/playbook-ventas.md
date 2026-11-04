@@ -257,5 +257,12 @@ llevan más de 10 días quietos, y qué mensaje obtuvo más respuestas.
 - **Cargar una base de webinar:** `scripts/importar-webinar.mjs` la carga en Leads (estadísticas), la reparte y
   programa la cadencia; después `scripts/webinar-a-prospectos.mjs` la pasa a Prospectos. Los dos tienen `--dry`
   para simular y `--prod` para producción, y se pueden repetir sin duplicar.
+- **Completar el NIT de los prospectos:** `scripts/nit-desde-rutic.mjs "<ISP RUTIC - fecha.xlsx>"` (el listado del MinTIC, columnas
+  "No. Identificación" y "Razón Social"). **Regla: si no estamos seguros, no se escribe nada**, porque un NIT equivocado haría que la
+  radiografía muestre las sanciones de otra empresa. Solo toca los que tienen el NIT vacío y solo escribe el NIT, cuando el **nombre**
+  coincide con una sola razón social del RUTIC (o con una sola vigente). Lo que coincide únicamente por **correo**, lo dudoso (varias
+  empresas, nombre y correo que no coinciden) y lo que no aparece se lista aparte y se revisa a mano. También avisa si una misma
+  empresa quedó en dos filas con distinto responsable. Con `--dry --prod` solo simula. El 4 de noviembre de 2026, con el RUTIC del 21 de
+  agosto, se completaron 137 por nombre; se probaron 36 por correo y se quitaron (quedan 284 sin NIT).
 - **Leads** sigue recibiendo los formularios de la web por n8n (ver `leads-formularios.md`), solo para estadísticas.
 - Pendiente fuera de la app (n8n): alerta diaria por correo de lo que toca hoy y lo atrasado.
