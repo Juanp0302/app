@@ -23,7 +23,7 @@ const uno = async (id: string) => (await lista()).find(p => p.id === id)
 beforeAll(async () => {
   const { execute } = await import('@/lib/db')
   await execute(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, nombre TEXT, email TEXT, is_superadmin INTEGER, created_at TEXT)`)
-  await execute(`INSERT INTO users (id, nombre, email) VALUES ('adri', 'Adriana Linares', 'a@owl.co'), ('david', 'David Osorio', 'd@owl.co')`)
+  await execute(`INSERT INTO users (id, nombre, email, is_superadmin) VALUES ('adri', 'Adriana Linares', 'a@owl.co', 0), ('david', 'David Osorio', 'd@owl.co', 0)`)
   const { migrateProspectos } = await import('@/lib/prospectos-db')
   await migrateProspectos()
   await execute(`INSERT INTO prospectos_isp (id, puesto, prioridad, empresa, estado, responsable_id, campana, en_webinar, webinar_asistio,
@@ -41,6 +41,7 @@ describe('/api/prospectos · cadencia', () => {
     const ps = await lista()
     expect(ps.map(p => p.id).sort()).toEqual(['asis', 'insc'])
     expect(ps.find(p => p.id === 'asis')).toMatchObject({ campana: 'webinar', webinar_minutos: 208, cadencia: 'webinar-asistente' })
+    expect(ps.find(p => p.id === 'asis')).toMatchObject({ responsable_nombre: 'Adriana Linares', responsable_superadmin: 0 })   // para firmar los mensajes
   })
 
   it('"Ya lo envié" avanza el paso, pasa a WA1 enviado y programa el siguiente en días hábiles', async () => {

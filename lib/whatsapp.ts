@@ -26,6 +26,19 @@ export function nombreRemitente(userName: string, esSuperadmin: boolean): string
   return esSuperadmin ? 'Juan Pablo' : primerNombreDe(userName)
 }
 
+/**
+ * Con qué nombre firma el mensaje de un prospecto: el de su responsable (quien lo contacta), así el mensaje es el mismo lo
+ * abra quien lo abra. Si no tiene responsable, o el superadmin pide firmar como él mismo (porque lo contacta él), firma `miNombre`.
+ */
+export function firmaDelProspecto(
+  p: { responsable_nombre?: string | null; responsable_superadmin?: number | boolean | null },
+  miNombre: string | null,
+  firmarComoYo = false,
+): string | null {
+  if (firmarComoYo || !p.responsable_nombre) return miNombre
+  return p.responsable_superadmin ? 'Juan Pablo' : primerNombreDe(p.responsable_nombre) ?? miNombre
+}
+
 /** Primer nombre de quien está conectado, para firmar los mensajes.
  *  Si el nombre de la cuenta es genérico ("Super Administrador"), devuelve null. */
 export function primerNombreDe(userName: string): string | null {

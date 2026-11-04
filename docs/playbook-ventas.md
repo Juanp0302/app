@@ -127,7 +127,7 @@ La app llena sola todo lo que está entre llaves:
 | Dato | De dónde sale |
 |---|---|
 | Nombre | El primer nombre de quien se inscribió al webinar o, si no hay, del representante legal. Si no sirve ("Sin dato", un punto, una cédula), saluda "Hola." sin nombre |
-| Quién firma | Quien tenga la sesión abierta: Adriana, David o, si es el superadmin, **Juan Pablo** |
+| Quién firma | El **responsable del prospecto**: Adriana, David o, si es del superadmin, **Juan Pablo**. Así el mensaje es el mismo lo abra quien lo abra. Si el superadmin contacta un prospecto de otra persona, en su ficha pulsa "firmar como yo" |
 | Frase del webinar | Asistió: "Gracias por acompañarnos en el webinar del 21 de octubre con Nicolás Almeyda." · Inscrito que no asistió: "Vi que se inscribió al webinar… y no alcanzó a conectarse." · Cold mailing sin webinar: sin frase, y "Después del webinar preparamos" pasa a "Preparamos" |
 | ISP | El nombre de la empresa; si lo escrito no es un nombre ("Na", una cédula), dice "su ISP" |
 | Punto concreto | Prioridad A: "el punto 1, donde figura la investigación abierta en el MinTIC" · Prioridad B: "el punto 1, donde figura la sanción registrada (año)" · Sin sanciones: "el punto 2: el reporte {código y nombre}, que vence el {fecha}", tomado del calendario (`lib/calendario-isp.json`, el mismo que usa el generador; se actualiza en los dos) |

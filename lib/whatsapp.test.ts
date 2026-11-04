@@ -1,6 +1,6 @@
 /** Enlaces de WhatsApp con el mensaje escrito. */
 import { describe, it, expect } from 'vitest'
-import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe } from './whatsapp'
+import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe, firmaDelProspecto } from './whatsapp'
 
 describe('whatsapp', () => {
   it('reconoce celulares colombianos y descarta fijos', () => {
@@ -18,5 +18,22 @@ describe('whatsapp', () => {
   it('no firma con nombres genéricos de cuenta', () => {
     expect(primerNombreDe('Juan Pablo Osorio')).toBe('Juan')
     expect(primerNombreDe('Super Administrador')).toBeNull()
+  })
+})
+
+describe('firmaDelProspecto', () => {
+  const adriana = { responsable_nombre: 'Adriana Linares', responsable_superadmin: 0 }
+  it('firma el responsable del prospecto aunque lo abra el superadmin (Juan Pablo)', () => {
+    expect(firmaDelProspecto(adriana, 'Juan Pablo')).toBe('Adriana')
+    expect(firmaDelProspecto({ responsable_nombre: 'David Osorio', responsable_superadmin: 0 }, 'Juan Pablo')).toBe('David')
+    expect(firmaDelProspecto(adriana, 'Adriana')).toBe('Adriana')
+  })
+  it('si el responsable es el superadmin, firma Juan Pablo (su cuenta se llama "Super Administrador")', () => {
+    expect(firmaDelProspecto({ responsable_nombre: 'Super Administrador', responsable_superadmin: 1 }, 'Adriana')).toBe('Juan Pablo')
+  })
+  it('el superadmin puede firmar como él mismo, y sin responsable firma quien lo abre', () => {
+    expect(firmaDelProspecto(adriana, 'Juan Pablo', true)).toBe('Juan Pablo')
+    expect(firmaDelProspecto({ responsable_nombre: null }, 'Juan Pablo')).toBe('Juan Pablo')
+    expect(firmaDelProspecto({}, null)).toBeNull()
   })
 })

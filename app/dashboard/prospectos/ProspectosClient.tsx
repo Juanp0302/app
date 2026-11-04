@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
-import { celularParaWhatsApp, enlaceWhatsApp, nombreRemitente } from '@/lib/whatsapp'
+import { celularParaWhatsApp, enlaceWhatsApp, nombreRemitente, firmaDelProspecto } from '@/lib/whatsapp'
 import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
 import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
 import { hoyBogota } from '@/lib/ventas'
@@ -70,15 +70,18 @@ async function copiar(texto: string, onDone: () => void) {
 
 
 export default function ProspectosClient({ userId, userName, isSuperadmin }: { userId: string; userName: string; isSuperadmin: boolean }) {
-  // Quien contacta firma con su nombre: el superadmin como "Juan Pablo", los demás con el primer nombre de su cuenta.
+  // Mi nombre: el superadmin es "Juan Pablo"; los demás, el primer nombre de su cuenta.
   const miNombre = nombreRemitente(userName, isSuperadmin)
-  /** Reemplaza [NOMBRE] por el nombre de quien envía, para que el mensaje salga listo para pegar. */
-  const llenar = (t: string | null | undefined) => (t ? (miNombre ? t.split('[NOMBRE]').join(miNombre) : t) : '')
   const [prospectos, setProspectos] = useState<any[]>([])
   const [resumen, setResumen]       = useState<Record<string, number>>({})
   const [admins, setAdmins]         = useState<any[]>([])
   const [loading, setLoading]       = useState(true)
   const [activo, setActivo]         = useState<any | null>(null)
+  // Los mensajes de un prospecto salen firmados por su responsable; el superadmin puede firmar como él mismo si lo contacta él.
+  const [firmarComoYo, setFirmarComoYo] = useState(false)
+  const firma = activo ? firmaDelProspecto(activo, miNombre, firmarComoYo) : miNombre
+  /** Reemplaza [NOMBRE] por quien firma, para que el mensaje salga listo para pegar. */
+  const llenar = (t: string | null | undefined) => (t ? (firma ? t.split('[NOMBRE]').join(firma) : t) : '')
 
   const [busqueda, setBusqueda]           = useState('')
   const [filtroEstado, setFiltroEstado]   = useState('todos')
@@ -123,6 +126,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
 
   function abrir(p: any) {
     setActivo(p)
+    setFirmarComoYo(false)
     setForm({
       estado: p.estado ?? 'Pendiente',
       fecha_contacto: p.fecha_contacto ?? '',
@@ -406,7 +410,9 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                     #{activo.puesto} · {PRIORIDAD_LABEL[activo.prioridad] ?? activo.prioridad}
                   </div>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.vino }}>{activo.empresa}</div>
-                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>NIT {activo.nit} · {activo.municipio}, {activo.departamento}</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                    {[activo.nit && `NIT ${activo.nit}`, [activo.municipio, activo.departamento].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
+                  </div>
                 </div>
                 {isSuperadmin && (
                   <div>
@@ -415,13 +421,24 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                       <option value="">Sin asignar</option>
                       {admins.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
                     </select>
+                    <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+                      Los mensajes salen firmados por <b>{firma ?? '[SU NOMBRE]'}</b>
+                      {activo.responsable_nombre && (
+                        <>
+                          {' · '}
+                          <button onClick={() => setFirmarComoYo(v => !v)} style={{ background: 'none', border: 'none', padding: 0, color: C.bordo, fontWeight: 700, fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>
+                            {firmarComoYo ? `firmar como ${firmaDelProspecto(activo, miNombre)}` : `firmar como yo (${miNombre})`}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
 
               <FichaTemperatura p={activo} t={temperaturas.get(activo.id) ?? temperaturaProspecto(activo, hoy)} />
-              <CajaRadiografia p={activo} vendedor={miNombre} hoy={hoy} copiado={copiado} setCopiado={setCopiado} />
-              <CajaCadencia p={activo} vendedor={miNombre} ocupado={guardando} accion={accionCadencia} />
+              <CajaRadiografia p={activo} vendedor={firma} hoy={hoy} copiado={copiado} setCopiado={setCopiado} />
+              <CajaCadencia p={activo} vendedor={firma} ocupado={guardando} accion={accionCadencia} />
 
               {/* Datos de contacto */}
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '1rem 1.2rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem 1.5rem' }}>
@@ -491,7 +508,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   {/* Estrategia actual: invitación al webinar + Comunidad ISPs Colombia */}
                   <div style={{ fontSize: 12, color: '#555', background: '#f8f6f1', border: '1px solid #e7dfca', borderRadius: 8, padding: '0.7rem 0.9rem', lineHeight: 1.6 }}>
                     <strong style={{ color: C.vino }}>Estrategia: invitar, no vender.</strong> Webinar “Que el MinTIC no sancione tu ISP” (con Inerxia) · miércoles 21 de octubre, 6:00 p. m. · y la Comunidad ISPs Colombia. Quien recibe cada mensaje ya vio el anterior: no repita la presentación.
-                    {miNombre === null && <div style={{ marginTop: 4, color: '#b45309' }}>Los mensajes llevan <b>[NOMBRE]</b>: reemplácelo por su nombre antes de enviar.</div>}
+                    {firma === null && <div style={{ marginTop: 4, color: '#b45309' }}>Los mensajes llevan <b>[NOMBRE]</b>: reemplácelo por su nombre antes de enviar.</div>}
                   </div>
 
                   {/\bno aplica\b/i.test(activo.canal_sugerido ?? '') && (

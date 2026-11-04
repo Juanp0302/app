@@ -157,6 +157,7 @@ export interface ProspectoRow {
   // Se agregan con JOIN, no son columnas propias:
   responsable_nombre?: string | null
   responsable_email?: string | null
+  responsable_superadmin?: number | null   // 1 si el responsable es el superadmin (firma "Juan Pablo")
   ultimo_cambio?: string | null   // último cambio de estado (historial), para la temperatura
   radiografia_en?: string | null  // cuándo se cargó su radiografía en PDF (null = no tiene)
 }
@@ -188,7 +189,7 @@ export async function listarProspectos(responsableId: string | null): Promise<Pr
   await migrateProspectos()
   await migrateRadiografiasTabla()
   const sql = `
-    SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
+    SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email, u.is_superadmin AS responsable_superadmin,
       (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio,
       (SELECT r.subido_en FROM radiografias r WHERE r.prospecto_id = p.id) AS radiografia_en
     FROM prospectos_isp p
@@ -202,7 +203,7 @@ export async function buscarProspecto(id: string): Promise<ProspectoRow | undefi
   await migrateProspectos()
   await migrateRadiografiasTabla()
   return queryOne<ProspectoRow>(
-    `SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
+    `SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email, u.is_superadmin AS responsable_superadmin,
        (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio,
       (SELECT r.subido_en FROM radiografias r WHERE r.prospecto_id = p.id) AS radiografia_en
      FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id
