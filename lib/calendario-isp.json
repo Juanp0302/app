@@ -1,0 +1,22 @@
+{
+  "_fuente": "https://owlcompliance.com/calendario (filtro ISP). Actualizar cuando cambie el calendario del sitio.",
+  "obligaciones": [
+    {"fecha":"2026-10-15","codigo":"T.2.4","nombre":"Indicadores de calidad de datos fijos","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-10-30","codigo":"T.2.5","nombre":"Indicadores de disponibilidad","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-10-30","codigo":"T.4.2","nombre":"Monitoreo de quejas","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-10-30","codigo":"T.4.3","nombre":"Indicadores de quejas","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-10-31","codigo":"F.3","nombre":"Parámetros técnicos","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-10-31","codigo":"","nombre":"Contraprestación periódica única","periodo":"3T-2026","frecuencia":"Trimestral","financiero":true},
+    {"fecha":"2026-11-14","codigo":"T.1.3","nombre":"Líneas o accesos","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2026-11-29","codigo":"T.1.1","nombre":"Ingresos","periodo":"3T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-15","codigo":"T.2.4","nombre":"Indicadores de calidad de datos fijos","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-30","codigo":"T.1.2","nombre":"Planes tarifarios","periodo":"2S-2026","frecuencia":"Semestral"},
+    {"fecha":"2027-01-30","codigo":"T.2.5","nombre":"Indicadores de disponibilidad","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-30","codigo":"T.4.2","nombre":"Monitoreo de quejas","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-30","codigo":"T.4.3","nombre":"Indicadores de quejas","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-31","codigo":"F.3","nombre":"Parámetros técnicos","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-01-31","codigo":"","nombre":"Contraprestación periódica única","periodo":"4T-2026","frecuencia":"Trimestral","financiero":true},
+    {"fecha":"2027-02-14","codigo":"T.1.3","nombre":"Líneas o accesos","periodo":"4T-2026","frecuencia":"Trimestral"},
+    {"fecha":"2027-02-28","codigo":"T.1.1","nombre":"Ingresos","periodo":"4T-2026","frecuencia":"Trimestral"}
+  ]
+}

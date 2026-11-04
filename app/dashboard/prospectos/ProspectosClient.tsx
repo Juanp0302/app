@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
-import { celularParaWhatsApp, enlaceWhatsApp, primerNombreDe } from '@/lib/whatsapp'
+import { celularParaWhatsApp, enlaceWhatsApp, nombreRemitente } from '@/lib/whatsapp'
 import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
 import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
 import { hoyBogota } from '@/lib/ventas'
+import { puntoConcreto, mensajeRadiografia, estadoWebinar } from '@/lib/radiografia'
 import CargarBase from './CargarBase'
+import CargarRadiografias from './CargarRadiografias'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -68,7 +70,8 @@ async function copiar(texto: string, onDone: () => void) {
 
 
 export default function ProspectosClient({ userId, userName, isSuperadmin }: { userId: string; userName: string; isSuperadmin: boolean }) {
-  const miNombre = primerNombreDe(userName)
+  // Quien contacta firma con su nombre: el superadmin como "Juan Pablo", los demás con el primer nombre de su cuenta.
+  const miNombre = nombreRemitente(userName, isSuperadmin)
   /** Reemplaza [NOMBRE] por el nombre de quien envía, para que el mensaje salga listo para pegar. */
   const llenar = (t: string | null | undefined) => (t ? (miNombre ? t.split('[NOMBRE]').join(miNombre) : t) : '')
   const [prospectos, setProspectos] = useState<any[]>([])
@@ -85,6 +88,8 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const [filtroCampana, setFiltroCampana] = useState('todas')
   const [soloHoy, setSoloHoy]             = useState(false)
   const [cargando, setCargando]           = useState(false)
+  const [cargandoPdf, setCargandoPdf]     = useState(false)
+  const [soloRad, setSoloRad]             = useState(false)
 
   const [modoSeleccion, setModoSeleccion] = useState(false)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
@@ -210,6 +215,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const filtrados = useMemo(() => {
     const lista = prospectos.filter(p => {
       if (soloHoy && !tocaHoy(p)) return false
+      if (soloRad && !p.radiografia_en) return false
       if (filtroTemp !== 'todas' && nivelDe(p) !== filtroTemp) return false
       if (filtroCampana !== 'todas' && segmentoCampana(p) !== filtroCampana) return false
       if (filtroEstado !== 'todos' && p.estado !== filtroEstado) return false
@@ -225,7 +231,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
     if (soloHoy) lista.sort((a, b) => (a.proxima_fecha ?? '').localeCompare(b.proxima_fecha ?? '') ||
       TEMPERATURA[nivelDe(a)].orden - TEMPERATURA[nivelDe(b)].orden || Number(b.webinar_minutos ?? 0) - Number(a.webinar_minutos ?? 0))
     return lista
-  }, [prospectos, filtroEstado, filtroPrioridad, filtroResponsable, busqueda, isSuperadmin, soloHoy, filtroTemp, filtroCampana, nivelDe])
+  }, [prospectos, filtroEstado, filtroPrioridad, filtroResponsable, busqueda, isSuperadmin, soloHoy, soloRad, filtroTemp, filtroCampana, nivelDe])
 
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ddd', fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box' }
   const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#888', marginBottom: 4, display: 'block' }
@@ -279,6 +285,11 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   background: soloHoy ? C.vino : '#fff', color: soloHoy ? '#fff' : C.vino }}>
                 Para hoy ({cuantosHoy})
               </button>
+              <button onClick={() => setSoloRad(v => !v)} title="Prospectos que ya tienen su radiografía en PDF cargada"
+                style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: '1px solid #0f766e',
+                  background: soloRad ? '#0f766e' : '#fff', color: soloRad ? '#fff' : '#0f766e' }}>
+                📄 Con radiografía ({prospectos.filter(p => p.radiografia_en).length})
+              </button>
               {(['caliente', 'tibio', 'frio'] as const).map(n => (
                 <button key={n} onClick={() => setFiltroTemp(f => (f === n ? 'todas' : n))}
                   style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${TEMPERATURA[n].color}`,
@@ -318,6 +329,10 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 <button onClick={() => setCargando(true)} title="Subir un Excel o CSV con una base de contactos y repartirla"
                   style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer', background: C.vino, color: '#fff', border: 'none' }}>
                   ⬆ Cargar base
+                </button>
+                <button onClick={() => setCargandoPdf(true)} title="Subir las radiografías (PDF) y asociarlas a sus prospectos"
+                  style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer', background: '#0f766e', color: '#fff', border: 'none' }}>
+                  📄 Cargar radiografías
                 </button>
                 {modoSeleccion && <span style={{ fontSize: 11, color: '#888' }}>{seleccionados.size} seleccionados</span>}
               </div>
@@ -364,6 +379,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                         {p.proxima_fecha < hoy ? '⚠ Atrasado' : '● Hoy'}: {pasoActual(p)?.paso.titulo}
                       </span>
                     )}
+                    {p.radiografia_en && <span title="Tiene radiografía en PDF" style={{ fontSize: 10, color: '#0f766e', fontWeight: 700 }}>📄 Radiografía</span>}
                     {!!p.revisar_icp && <span title="Lo que escribió en ISP no parece un operador" style={{ fontSize: 10, color: '#b45309' }}>⚠ ¿ISP?</span>}
                     {isSuperadmin && <span style={{ fontSize: 10, color: '#aaa' }}>{p.responsable_nombre ?? 'Sin asignar'}</span>}
                   </div>
@@ -404,6 +420,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
               </div>
 
               <FichaTemperatura p={activo} t={temperaturas.get(activo.id) ?? temperaturaProspecto(activo, hoy)} />
+              <CajaRadiografia p={activo} vendedor={miNombre} hoy={hoy} copiado={copiado} setCopiado={setCopiado} />
               <CajaCadencia p={activo} vendedor={miNombre} ocupado={guardando} accion={accionCadencia} />
 
               {/* Datos de contacto */}
@@ -547,7 +564,52 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
           )}
         </div>
       </div>
+      {cargandoPdf && <CargarRadiografias onCerrar={() => setCargandoPdf(false)} onCargado={() => { cargar() }} />}
       {cargando && <CargarBase admins={admins} onCerrar={() => setCargando(false)} onCargado={() => { cargar() }} />}
+    </div>
+  )
+}
+
+/** Días desde una fecha de la BD (UTC, "AAAA-MM-DD HH:MM:SS"). */
+const diasDesde = (fecha: string) => Math.floor((Date.now() - Date.parse(fecha.replace(' ', 'T') + 'Z')) / 86400_000)
+
+/**
+ * Radiografía regulatoria del prospecto: botón para descargar el PDF (se adjunta a mano en WhatsApp) y, para quien no
+ * sigue una cadencia, el mensaje que la presenta. Si sigue una cadencia, ese mensaje ya es su paso 1.
+ */
+function CajaRadiografia({ p, vendedor, hoy, copiado, setCopiado }: {
+  p: any; vendedor: string | null; hoy: string; copiado: string | null; setCopiado: (v: string | null) => void
+}) {
+  if (!p.radiografia_en) {
+    return <div style={{ fontSize: 12, color: '#888', marginBottom: '1rem' }}>📄 Sin radiografía cargada todavía.</div>
+  }
+  const dias = diasDesde(p.radiografia_en)
+  const texto = mensajeRadiografia({
+    nombre: p.webinar_nombre || p.representante, empresa: p.empresa, remitente: vendedor,
+    webinar: estadoWebinar(p), punto: puntoConcreto(p, hoy),
+  })
+  const telefono = p.webinar_telefono || p.telefono
+  return (
+    <div style={{ background: '#fff', border: '1px solid #99f6e4', borderRadius: 10, padding: '0.9rem 1.1rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.vino }}>📄 Radiografía regulatoria · cargada el {new Date(p.radiografia_en.replace(' ', 'T') + 'Z').toLocaleDateString('es-CO')}</span>
+        <a href={`/api/prospectos/radiografia?id=${p.id}`}
+          style={{ fontSize: 11, fontWeight: 700, background: '#0f766e', color: '#fff', borderRadius: 6, padding: '4px 12px', textDecoration: 'none' }}>
+          ⬇ Descargar PDF
+        </a>
+      </div>
+      {dias > 7 && (
+        <div style={{ fontSize: 11.5, color: '#92400e', background: '#fef3c7', borderRadius: 6, padding: '4px 8px' }}>
+          Tiene {dias} días: sus próximos vencimientos pueden haber cambiado. Conviene generarla de nuevo antes de enviarla.
+        </div>
+      )}
+      {!p.cadencia && (
+        <>
+          <MensajeBox titulo="Mensaje con la radiografía" texto={texto} waLink={enlaceWhatsApp(telefono, texto)} copiado={copiado} setCopiado={setCopiado} />
+          <div style={{ fontSize: 11.5, color: '#666' }}>Descargue el PDF y adjúntelo en el mismo chat de WhatsApp.</div>
+        </>
+      )}
+      {p.cadencia && <div style={{ fontSize: 11.5, color: '#666' }}>El mensaje que la presenta es el paso 1 de la cadencia, abajo. Descargue el PDF y adjúntelo en el mismo chat.</div>}
     </div>
   )
 }
@@ -577,7 +639,11 @@ function CajaCadencia({ p, vendedor, ocupado, accion }: {
   if (!c) return null
   const actual = pasoActual(p)
   // Los mensajes van a quien se inscribió; en filas del cold mailing puede no ser el representante legal.
-  const contacto = { nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos }
+  const contacto = {
+    nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos,
+    // Si ya tiene radiografía, el primer mensaje es el que la presenta (lib/radiografia.ts) y el resto va en "usted".
+    punto: p.radiografia_en ? puntoConcreto(p, hoyBogota()) : null,
+  }
   const telefono = p.webinar_telefono || p.telefono
   return (
     <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.9rem 1.1rem', marginBottom: '1rem' }}>
@@ -594,7 +660,7 @@ function CajaCadencia({ p, vendedor, ocupado, accion }: {
       {p.cadencia_estado === 'respondio' && <div style={{ fontSize: 12.5, color: '#15803d', fontWeight: 600 }}>✓ Respondió: la cadencia se detuvo. Ahora toca agendar la reunión.</div>}
       {p.cadencia_estado === 'terminada' && <div style={{ fontSize: 12.5, color: '#b45309' }}>Se enviaron todos los pasos sin respuesta. Márquelo &quot;No interesado&quot; o déjelo para más adelante.</div>}
       {actual && (() => {
-        const texto = textoDelPaso(actual.paso, contacto, vendedor)
+        const texto = textoDelPaso(actual.paso, contacto, vendedor, p.cadencia as CadenciaId)
         const wa = actual.paso.canal === 'whatsapp' ? enlaceWhatsApp(telefono, texto) : null
         return (
           <>

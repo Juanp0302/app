@@ -90,6 +90,23 @@ export async function migrateProspectos() {
   }
 }
 
+/** Tabla de radiografías (PDF por prospecto); la usan las consultas de abajo, así que se crea junto con ellas. */
+let _radiografias = false
+export async function migrateRadiografiasTabla() {
+  if (_radiografias) return
+  _radiografias = true
+  await execute(`
+    CREATE TABLE IF NOT EXISTS radiografias (
+      prospecto_id TEXT PRIMARY KEY,
+      archivo      TEXT NOT NULL,
+      contenido    BLOB NOT NULL,
+      bytes        INTEGER NOT NULL,
+      subido_en    TEXT NOT NULL DEFAULT (datetime('now')),
+      subido_por   TEXT
+    )
+  `)
+}
+
 export interface ProspectoRow {
   id: string
   puesto: number | null
@@ -141,6 +158,7 @@ export interface ProspectoRow {
   responsable_nombre?: string | null
   responsable_email?: string | null
   ultimo_cambio?: string | null   // último cambio de estado (historial), para la temperatura
+  radiografia_en?: string | null  // cuándo se cargó su radiografía en PDF (null = no tiene)
 }
 
 export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at' | 'updated_at' | 'responsable_nombre' | 'responsable_email' | 'invitacion_whatsapp' | 'recordatorio_whatsapp' | 'aviso_dia_whatsapp' | 'llamada_servicio'>): Promise<string> {
@@ -168,9 +186,11 @@ export async function insertProspecto(row: Omit<ProspectoRow, 'id' | 'created_at
 
 export async function listarProspectos(responsableId: string | null): Promise<ProspectoRow[]> {
   await migrateProspectos()
+  await migrateRadiografiasTabla()
   const sql = `
     SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
-      (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio
+      (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio,
+      (SELECT r.subido_en FROM radiografias r WHERE r.prospecto_id = p.id) AS radiografia_en
     FROM prospectos_isp p
     LEFT JOIN users u ON u.id = p.responsable_id
     ${responsableId ? 'WHERE p.responsable_id = ?' : ''}
@@ -180,9 +200,11 @@ export async function listarProspectos(responsableId: string | null): Promise<Pr
 
 export async function buscarProspecto(id: string): Promise<ProspectoRow | undefined> {
   await migrateProspectos()
+  await migrateRadiografiasTabla()
   return queryOne<ProspectoRow>(
     `SELECT p.*, u.nombre AS responsable_nombre, u.email AS responsable_email,
-       (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio
+       (SELECT MAX(h.created_at) FROM prospectos_isp_historial h WHERE h.prospecto_id = p.id AND h.estado_anterior IS NOT h.estado_nuevo) AS ultimo_cambio,
+      (SELECT r.subido_en FROM radiografias r WHERE r.prospecto_id = p.id) AS radiografia_en
      FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id
      WHERE p.id = ?`,
     [id]

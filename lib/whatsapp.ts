@@ -21,6 +21,11 @@ export function enlaceWhatsApp(telefono: string | null | undefined, mensaje: str
   return num ? `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}` : null
 }
 
+/** Nombre con el que firma quien contacta: el superadmin firma "Juan Pablo"; los demás, el primer nombre de su cuenta. */
+export function nombreRemitente(userName: string, esSuperadmin: boolean): string | null {
+  return esSuperadmin ? 'Juan Pablo' : primerNombreDe(userName)
+}
+
 /** Primer nombre de quien está conectado, para firmar los mensajes.
  *  Si el nombre de la cuenta es genérico ("Super Administrador"), devuelve null. */
 export function primerNombreDe(userName: string): string | null {

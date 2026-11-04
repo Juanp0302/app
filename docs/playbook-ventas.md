@@ -89,8 +89,8 @@ Antes de enviar una propuesta tienen que estar claras las tres. Se anotan en las
 
 ## 5. Cómo conseguir la reunión (el cuello de botella)
 
-Principio: **no se vende el plan, se vende una reunión de 20 minutos** con un resultado concreto para ellos.
-Gancho: *"Le muestro en 20 minutos qué obligaciones le aplican y cuáles tiene en riesgo, con su porcentaje de cumplimiento."*
+Principio: **no se vende el plan, se vende una reunión de 15 minutos** con un resultado concreto para ellos.
+Gancho: *"Le muestro en 15 minutos qué obligaciones le aplican y cuáles tiene en riesgo, con su porcentaje de cumplimiento."*
 El Autodiagnóstico gratuito (5 min) y el Mapa de Madurez son la prueba tangible.
 
 ### Guion de llamada, ~2 minutos
@@ -98,7 +98,7 @@ El Autodiagnóstico gratuito (5 min) y el Mapa de Madurez son la prueba tangible
 1. **Apertura:** "Buenos días, [Nombre]. Habla [Tu nombre], abogado(a) de Owl Compliance. ¿Tiene dos minutos?"
 2. **Razón de la llamada:** el webinar al que asistió o el mensaje que le escribimos.
 3. **Dolor (una pregunta):** "¿Qué tan tranquilo está con los reportes y las fechas de este año?"
-4. **Cierre de la cita:** "Para no quitarle tiempo, le propongo 20 minutos: revisamos su caso y le digo con claridad qué le aplica. ¿Le sirve el [martes 10:00] o el [miércoles 15:00]?" (siempre dos opciones concretas).
+4. **Cierre de la cita:** "Para no quitarle tiempo, le propongo 15 minutos: revisamos su caso y le digo con claridad qué le aplica. Le envío el enlace para que elija el horario." (el calendario público de Owl: https://calendar.app.google/3rizAH6m6afFaFkJ8).
 5. Si dice "envíeme información": "Con gusto. Para enviarle lo que le sirve y no un PDF genérico, ¿puedo hacerle dos preguntas?" y volver al paso 3. Si insiste: enviar el enlace del autodiagnóstico y **dejar el próximo paso anotado**.
 
 ### Cold mailing
@@ -106,20 +106,62 @@ El Autodiagnóstico gratuito (5 min) y el Mapa de Madurez son la prueba tangible
 Usar los mensajes de la pestaña "Mensajes" de cada prospecto. Solo para quienes **no** están en la base del
 webinar. La meta del primer mensaje es una respuesta, no la reunión.
 
+### La radiografía regulatoria y su mensaje
+
+La radiografía es un PDF de una página que Owl prepara para cada ISP: lo que ve el MinTIC de su empresa (investigaciones y
+sanciones), sus pagos regulatorios y sus próximos cinco vencimientos. Se genera con
+`Marketing/Cold Mailing/Tercera campaña/radiografia_generador/generar.py` (ver su cabecera). Cuando un prospecto tiene su
+radiografía cargada en la app, **su primer mensaje es este** (aprobado el 4 de noviembre de 2026; usted):
+
+> Hola, **{nombre}**. Soy **{Adriana / David / Juan Pablo}** de Owl Compliance, firma especializada en cumplimiento regulatorio
+> para operadores de internet en Colombia. **{frase del webinar}**
+>
+> Después del webinar preparamos para **{ISP}** una radiografía regulatoria de una página: en dos minutos verá lo que hoy ve
+> el MinTIC de su empresa, sus pagos regulatorios y sus próximos vencimientos. Le recomiendo mirar **{punto concreto}**.
+>
+> Si le parece, la revisamos en una videollamada de 15 minutos y hacemos juntos el autodiagnóstico de cumplimiento, para que
+> sepa exactamente en qué está bien y qué le falta. Puede elegir el horario que le quede mejor aquí: https://calendar.app.google/3rizAH6m6afFaFkJ8
+
+La app llena sola todo lo que está entre llaves:
+
+| Dato | De dónde sale |
+|---|---|
+| Nombre | El primer nombre de quien se inscribió al webinar o, si no hay, del representante legal. Si no sirve ("Sin dato", un punto, una cédula), saluda "Hola." sin nombre |
+| Quién firma | Quien tenga la sesión abierta: Adriana, David o, si es el superadmin, **Juan Pablo** |
+| Frase del webinar | Asistió: "Gracias por acompañarnos en el webinar del 21 de octubre con Nicolás Almeyda." · Inscrito que no asistió: "Vi que se inscribió al webinar… y no alcanzó a conectarse." · Cold mailing sin webinar: sin frase, y "Después del webinar preparamos" pasa a "Preparamos" |
+| ISP | El nombre de la empresa; si lo escrito no es un nombre ("Na", una cédula), dice "su ISP" |
+| Punto concreto | Prioridad A: "el punto 1, donde figura la investigación abierta en el MinTIC" · Prioridad B: "el punto 1, donde figura la sanción registrada (año)" · Sin sanciones: "el punto 2: el reporte {código y nombre}, que vence el {fecha}", tomado del calendario (`lib/calendario-isp.json`, el mismo que usa el generador; se actualiza en los dos) |
+
+**Cómo se usa:** en la ficha del prospecto aparece "📄 Radiografía regulatoria" con el botón **"⬇ Descargar PDF"**. Se descarga el PDF,
+se abre el WhatsApp con el mensaje ya escrito y se adjunta el PDF en el mismo chat. Quien sigue una cadencia lo ve como el paso 1; el resto
+de los prospectos, en la caja de la radiografía. Si la radiografía tiene más de 7 días, la ficha avisa que sus vencimientos pueden haber cambiado.
+
+**Cómo se cargan (superadmin):**
+1. Generar los PDF con `generar.py` (con `--todas` o `--manual` para empresas fuera del Excel). Los archivos ahora llevan el NIT en el nombre
+   (`Radiografia_900860597_WINETS_S_A_S_.pdf`). Para quien no está en el Excel, hace falta su NIT y saber si tiene sanciones: si no, el generador
+   asume "ninguna identificada" y felicita por una buena posición que podría no serlo.
+2. En Prospectos, botón **"📄 Cargar radiografías"**: elegir todos los PDF a la vez. Muestra a qué empresa irá cada uno y cuáles no tienen
+   prospecto (no se cargan). Se emparejan por el NIT del archivo o, si no lo trae, por el nombre de la empresa. Si una empresa tiene varias
+   filas (un contacto por fila), todas reciben su radiografía. Cargar de nuevo reemplaza la anterior.
+3. Antes de enviar, regenerar con la fecha de hoy: las radiografías de octubre traen vencimientos que ya pasaron.
+
+Sin radiografía cargada, el prospecto sigue con los mensajes sin radiografía.
+
 ### Cadencia del webinar del 21 de octubre (433 registrados)
 
 Webinar "Que el MinTIC no sancione tu ISP", con Inerxia AI y Nicolás Almeyda. Repartido en partes iguales entre el
 superadmin, Adriana Linares y David Osorio (parejo en asistentes e inscritos; los contactos de una misma empresa
 quedan con la misma persona, y las empresas que ya estaban en el cold mailing, con quien las tenía).
-Los textos están en `lib/cadencias.ts`. WhatsApp en "tú" y llamadas en "usted", como en la invitación.
+Los textos están en `lib/cadencias.ts`. Hay dos versiones: **con radiografía** (todo en "usted") y **sin radiografía** (WhatsApp en "tú" y llamadas
+en "usted", como en la invitación). Todos hablan de 15 minutos y mandan al calendario público.
 
 **Asistieron (117)**, todos arrancan el primer día, de mayor a menor tiempo conectado:
 
 | Paso | Cuándo (días hábiles) | Canal | Qué busca |
 |---|---|---|---|
-| 1 | Día 0 | WhatsApp | Gracias y una pregunta: qué le preocupa de lo que vio. Quien estuvo menos de 30 min recibe otra apertura |
-| 2 | +1 | Llamada | Si no respondió: reportes y visitas del MinTIC, y propuesta de 20 minutos |
-| 3 | +2 | WhatsApp | Propuesta concreta de reunión de 20 minutos con dos horarios |
+| 1 | Día 0 | WhatsApp | Con radiografía: el mensaje de arriba. Sin ella: gracias y una pregunta sobre qué le preocupa de lo que vio (quien estuvo menos de 30 min recibe otra apertura) |
+| 2 | +1 | Llamada | Si no respondió: reportes y visitas del MinTIC, y propuesta de 15 minutos |
+| 3 | +2 | WhatsApp | Propuesta de reunión de 15 minutos con el enlace al calendario |
 | 4 | +3 | WhatsApp | Alternativa: autodiagnóstico gratuito de 5 minutos |
 | 5 | +4 | WhatsApp | Cierre amable: "¿lo dejamos para más adelante?" |
 
@@ -128,7 +170,7 @@ mandar cientos de WhatsApp el mismo día desde un mismo número:
 
 | Paso | Cuándo | Canal | Qué busca |
 |---|---|---|---|
-| 1 | Día 0 | WhatsApp | No alcanzó a conectarse: le contamos lo más importante en 20 minutos, aplicado a su ISP |
+| 1 | Día 0 | WhatsApp | No alcanzó a conectarse: le contamos lo más importante en 15 minutos, aplicado a su ISP |
 | 2 | +3 | WhatsApp | Autodiagnóstico gratuito |
 | 3 | +4 | WhatsApp | Cierre amable |
 
@@ -138,7 +180,7 @@ cadencia se detiene y toca agendar la reunión. Si termina sin respuesta, se mar
 Los marcados "⚠ ¿ISP?" (estudiantes, independientes, cédulas en vez de empresa) se confirman en el primer
 contacto y, si no son operadores, se descartan.
 
-## 6. Guion de la reunión (20–30 min)
+## 6. Guion de la reunión (hasta 30 min; en los mensajes siempre se dice 15)
 
 1. **Marco (2 min):** "Voy a hacerle preguntas sobre su operación; al final le digo con honestidad si OWL le sirve o no."
 2. **Dolor (10 min):** preguntas de la sección 4. Anotar sus palabras textuales.

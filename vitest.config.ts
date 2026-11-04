@@ -8,5 +8,8 @@ export default defineConfig({
   },
   test: {
     exclude: ['**/node_modules/**', '**/.next/**'],
+    // Con todos los archivos en paralelo, preparar la BD temporal de cada uno puede pasar de los 10 s por defecto.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
   },
 })

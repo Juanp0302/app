@@ -1,5 +1,6 @@
 /** Cadencias del webinar, reparto de la base y días hábiles. */
 import { describe, it, expect } from 'vitest'
+import { ENLACES } from './ventas'
 import { CADENCIAS, pasoActual, textoDelPaso, sumarDiasHabiles, FESTIVOS as FESTIVOS_APP } from './cadencias'
 import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from './reparto.mjs'
 
@@ -17,27 +18,49 @@ describe('días hábiles', () => {
 })
 
 describe('cadencias', () => {
-  it('asistente: tú en WhatsApp, usted en la llamada, con el título real del webinar y sin grabación', () => {
-    const pasos = CADENCIAS['webinar-asistente'].pasos
-    const l = { nombre: 'RODRIGO Vargas', empresa: 'Meganetwork SAS', minutos_webinar: 208 }
-    const wa1 = textoDelPaso(pasos[0], l, 'Juan')
-    expect(wa1).toContain('¡Hola, Rodrigo!')
-    expect(wa1).toContain('Soy Juan, de Owl Compliance')
-    expect(wa1).toContain('“Que el MinTIC no sancione tu ISP”')
-    expect(wa1).toContain('Meganetwork SAS')
-    const llamada = textoDelPaso(pasos[1], l, 'Juan')
-    expect(llamada).toContain('abogado(a) de Owl Compliance')
-    expect(llamada).toMatch(/¿Le sirve/)
-    expect(pasos.map(p => textoDelPaso(p, l, 'Juan')).join(' ')).not.toMatch(/grabaci/i)
+  const CON_RAD = { punto: 'el punto 2: el reporte T.1.3 Líneas o accesos, que vence el 14 de noviembre' }
+  const todos = (rad: boolean) => (['webinar-asistente', 'webinar-inscrito'] as const).flatMap(id =>
+    CADENCIAS[id].pasos.map(p => ({ id, titulo: p.titulo, texto: textoDelPaso(p, { nombre: 'RODRIGO Vargas', empresa: 'Meganetwork SAS', minutos_webinar: 112, ...(rad ? CON_RAD : {}) }, 'Adriana', id) })))
+
+  it('con radiografía, el paso 1 es el mensaje aprobado, con quien firma y según asistió o no', () => {
+    const asis = textoDelPaso(CADENCIAS['webinar-asistente'].pasos[0], { nombre: 'RODRIGO Vargas', empresa: 'Meganetwork SAS', ...CON_RAD }, 'Adriana', 'webinar-asistente')
+    expect(asis).toContain('Hola, Rodrigo. Soy Adriana de Owl Compliance')
+    expect(asis).toContain('Gracias por acompañarnos en el webinar del 21 de octubre')
+    const insc = textoDelPaso(CADENCIAS['webinar-inscrito'].pasos[0], { nombre: 'Luis', empresa: 'Novacom', ...CON_RAD }, 'David', 'webinar-inscrito')
+    expect(insc).toContain('Soy David de Owl Compliance')
+    expect(insc).toContain('no alcanzó a conectarse')
+    expect(insc).toContain('el punto 2: el reporte T.1.3')
   })
 
-  it('quien estuvo poco tiempo recibe otra apertura', () => {
+  it('sin radiografía quedan los textos de siempre, sin mencionarla', () => {
+    const t = todos(false)
+    expect(t.map(x => x.texto).join(' ')).not.toMatch(/radiograf/i)
+    expect(t[0].texto).toContain('¡Hola, Rodrigo! 👋 Soy Adriana, de Owl Compliance')
+  })
+
+  it('todos los textos hablan de 15 minutos, mandan al calendario y no dejan marcadores ni datos vacíos', () => {
+    for (const rad of [false, true]) for (const { id, titulo, texto } of todos(rad)) {
+      const donde = `${id} · ${titulo} · radiografía=${rad}`
+      expect(texto, donde).not.toMatch(/\[DÍA|undefined|null|20 minutos|30 minutos/)
+      for (const m of texto.matchAll(/(\d+) minutos/g)) expect([5, 15], donde).toContain(Number(m[1]))   // 5 = lo que dura el autodiagnóstico
+      // Todo WhatsApp que propone una reunión o un horario lleva el enlace al calendario (las llamadas lo envían después por WhatsApp).
+      if (titulo.startsWith('WhatsApp') && /videollamada|reunión|horario/.test(texto)) expect(texto, donde).toContain(ENLACES.calendario)
+    }
+    const pasos = todos(true).filter(x => x.id === 'webinar-asistente').map(x => x.texto)
+    for (const i of [0, 2, 3, 4]) expect(pasos[i]).toContain(ENLACES.calendario)
+  })
+
+  it('con radiografía todo va en "usted", igual que el mensaje aprobado', () => {
+    for (const { id, titulo, texto } of todos(true)) expect(texto, `${id} · ${titulo}`).not.toMatch(/(te|tienes|puedes|prefieres|quieres|tu|ti)/i)
+  })
+
+  it('quien estuvo poco tiempo recibe otra apertura (sin radiografía)', () => {
     const wa1 = textoDelPaso(CADENCIAS['webinar-asistente'].pasos[0], { nombre: 'Uriel', empresa: 'Basilisco', minutos_webinar: 1 }, 'Juan')
     expect(wa1).toContain('no siempre se puede quedar hasta el final')
   })
 
   it('sin nombre usable ni empresa real, el saludo y la empresa quedan neutros', () => {
-    const wa1 = textoDelPaso(CADENCIAS['webinar-inscrito'].pasos[0], { nombre: '.', empresa: 'Na' }, null)
+    const wa1 = textoDelPaso(CADENCIAS['webinar-inscrito'].pasos[0], { nombre: '.', empresa: 'Na' }, null, 'webinar-inscrito')
     expect(wa1).toMatch(/^¡Hola! 👋 Soy \[SU NOMBRE\]/)
     expect(wa1).toContain('aplicado a tu ISP')
   })
