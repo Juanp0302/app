@@ -1,6 +1,6 @@
 /**
  * lib/radiografia.ts
- * Mensaje con la radiografía regulatoria (PDF de una página que Owl prepara para cada ISP) y sus variables:
+ * Mensaje con la radiografía regulatoria (PDF de una página que Owl prepara para cada ISP), en "tú", y sus variables:
  * a quién saludar, quién firma, qué dice del webinar y "el punto concreto" que se le recomienda mirar.
  * Sin acceso a BD. El calendario es el mismo que usa el generador de las radiografías
  * (Marketing/Cold Mailing/Tercera campaña/radiografia_generador/calendario_isp.json): actualizar los dos juntos.
@@ -58,11 +58,14 @@ export function nombreParaSaludar(nombre?: string | null): string | null {
   return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()
 }
 
-/** Nombre del ISP para el mensaje; "su ISP" cuando lo escrito no es un nombre ("Na", ".", una cédula). */
+/** Nombre del ISP para el mensaje; "tu ISP" cuando lo escrito no es un nombre ("Na", ".", una cédula). */
 export function isPara(empresa?: string | null): string {
   const e = (empresa ?? '').trim()
-  return e.length < 3 || /^(na|n\/a|x|nn|\.|[\d\s.\-]+)$/i.test(e) ? 'su ISP' : e
+  return e.length < 3 || /^(na|n\/a|x|nn|\.|[\d\s.\-]+)$/i.test(e) ? 'tu ISP' : e
 }
+
+/** Un nombre de empresa que termina en punto ("S.A.S.") seguido del punto de la frase daría "S.A.S..": se deja uno solo. */
+export const sinDobles = (texto: string) => texto.replace(/(?<!\.)\.\.(?!\.)/g, '.')
 
 export interface DatosMensaje {
   /** Quien se inscribió al webinar o, si no hay, el representante legal. */
@@ -77,18 +80,22 @@ export interface DatosMensaje {
 
 const FRASE_WEBINAR: Record<'asistio' | 'inscrito', string> = {
   asistio: 'Gracias por acompañarnos en el webinar del 21 de octubre con Nicolás Almeyda.',
-  inscrito: 'Vi que se inscribió al webinar del 21 de octubre con Nicolás Almeyda y no alcanzó a conectarse.',
+  inscrito: 'Vi que te inscribiste al webinar del 21 de octubre con Nicolás Almeyda y no alcanzaste a conectarte.',
 }
 
-/** El mensaje aprobado el 4 de noviembre de 2026: se copia y se pega tal cual. */
+/**
+ * El primer mensaje con la radiografía, se copia y se pega tal cual. Aprobado el 4 de noviembre de 2026 en "usted";
+ * el 6 de noviembre se pasó a "tú" y se le agregó la página de servicios.
+ */
 export function mensajeRadiografia(d: DatosMensaje): string {
   const n = nombreParaSaludar(d.nombre)
   const yo = d.remitente || '[SU NOMBRE]'
   const presentacion = `Hola${n ? `, ${n}` : ''}. Soy ${yo} de Owl Compliance, firma especializada en cumplimiento regulatorio para operadores de internet en Colombia.` +
     (d.webinar ? ` ${FRASE_WEBINAR[d.webinar]}` : '')
   const radiografia = `${d.webinar ? 'Después del webinar preparamos' : 'Preparamos'} para ${isPara(d.empresa)} una radiografía regulatoria de una página: ` +
-    `en dos minutos verá lo que hoy ve el MinTIC de su empresa, sus pagos regulatorios y sus próximos vencimientos. Le recomiendo mirar ${d.punto}.`
-  const reunion = `Si le parece, la revisamos en una videollamada de ${MINUTOS_REUNION} minutos y hacemos juntos el autodiagnóstico de cumplimiento, ` +
-    `para que sepa exactamente en qué está bien y qué le falta. Puede elegir el horario que le quede mejor aquí: ${ENLACES.calendario}`
-  return [presentacion, radiografia, reunion].join('\n\n')
+    `en dos minutos verás lo que hoy ve el MinTIC de tu empresa, tus pagos regulatorios y tus próximos vencimientos. Te recomiendo mirar ${d.punto}.`
+  const servicios = `Aquí puedes conocer nuestros servicios: ${ENLACES.servicios}`
+  const reunion = `Si te parece, la revisamos en una videollamada de ${MINUTOS_REUNION} minutos y hacemos juntos el autodiagnóstico de cumplimiento, ` +
+    `para que sepas exactamente en qué estás bien y qué te falta. Puedes elegir el horario que te quede mejor aquí: ${ENLACES.calendario}`
+  return sinDobles([presentacion, radiografia, servicios, reunion].join('\n\n'))
 }

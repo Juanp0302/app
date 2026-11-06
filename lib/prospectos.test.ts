@@ -30,7 +30,8 @@ beforeAll(async () => {
                    webinar_minutos, cadencia, paso_cadencia, cadencia_estado, proxima_fecha)
                  VALUES ('asis', 201, 'W', 'Meganetwork SAS', 'Pendiente', 'adri', 'webinar', 1, 1, 208, 'webinar-asistente', 0, 'activa', '2026-10-28'),
                         ('insc', 202, 'W', 'Novacom', 'Pendiente', 'adri', 'webinar', 1, 0, NULL, 'webinar-inscrito', 2, 'activa', '2026-10-28'),
-                        ('cold', 1, 'A', 'Starnet', 'Pendiente', 'david', 'cold-mailing', 0, 0, NULL, NULL, 0, NULL, NULL)`)
+                        ('cold', 1, 'A', 'Starnet', 'Pendiente', 'david', 'cold-mailing', 0, 0, NULL, NULL, 0, NULL, NULL),
+                        ('fria', 203, 'C2', 'Redes SAS', 'WA1 enviado', 'adri', 'cold-mailing', 0, 0, NULL, 'cold-mailing', 0, 'activa', '2026-11-09')`)
   route = await import('@/app/api/prospectos/route')
   ;({ auth } = await import('@/lib/auth') as any)
   auth.mockResolvedValue({ user: ADRI })
@@ -39,7 +40,7 @@ beforeAll(async () => {
 describe('/api/prospectos · cadencia', () => {
   it('un admin ve solo los suyos, con los datos de campaña y cadencia', async () => {
     const ps = await lista()
-    expect(ps.map(p => p.id).sort()).toEqual(['asis', 'insc'])
+    expect(ps.map(p => p.id).sort()).toEqual(['asis', 'fria', 'insc'])
     expect(ps.find(p => p.id === 'asis')).toMatchObject({ campana: 'webinar', webinar_minutos: 208, cadencia: 'webinar-asistente' })
     expect(ps.find(p => p.id === 'asis')).toMatchObject({ responsable_nombre: 'Adriana Linares', responsable_superadmin: 0 })   // para firmar los mensajes
   })
@@ -68,6 +69,13 @@ describe('/api/prospectos · cadencia', () => {
   it('al último paso sin respuesta la cadencia queda terminada', async () => {
     await patch({ id: 'insc', accion: 'paso_enviado' })
     expect(await uno('insc')).toMatchObject({ cadencia_estado: 'terminada', proxima_fecha: null, paso_cadencia: 3 })
+  })
+
+  it('el cold mailing sigue su cadencia igual: "Ya lo envié" avanza al paso 2 (la llamada) y la programa en días hábiles', async () => {
+    expect((await patch({ id: 'fria', accion: 'paso_enviado' })).status).toBe(200)
+    const { sumarDiasHabiles } = await import('@/lib/cadencias')
+    const { hoyBogota } = await import('@/lib/ventas')
+    expect(await uno('fria')).toMatchObject({ paso_cadencia: 1, cadencia: 'cold-mailing', estado: 'WA1 enviado', proxima_fecha: sumarDiasHabiles(hoyBogota(), 1) })
   })
 
   it('no se puede tocar la cadencia de un prospecto ajeno', async () => {

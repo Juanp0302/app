@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
 import { celularParaWhatsApp, enlaceWhatsApp, nombreRemitente, firmaDelProspecto } from '@/lib/whatsapp'
 import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
-import { CADENCIAS, pasoActual, textoDelPaso, type CadenciaId } from '@/lib/cadencias'
+import { CADENCIAS, pasoActual, textoDelPaso, secuenciaDelProspecto, mensajesCuandoResponde, type CadenciaId } from '@/lib/cadencias'
 import { hoyBogota } from '@/lib/ventas'
 import { puntoConcreto, mensajeRadiografia, estadoWebinar } from '@/lib/radiografia'
 import CargarBase from './CargarBase'
@@ -80,8 +80,6 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   // Los mensajes de un prospecto salen firmados por su responsable; el superadmin puede firmar como él mismo si lo contacta él.
   const [firmarComoYo, setFirmarComoYo] = useState(false)
   const firma = activo ? firmaDelProspecto(activo, miNombre, firmarComoYo) : miNombre
-  /** Reemplaza [NOMBRE] por quien firma, para que el mensaje salga listo para pegar. */
-  const llenar = (t: string | null | undefined) => (t ? (firma ? t.split('[NOMBRE]').join(firma) : t) : '')
 
   const [busqueda, setBusqueda]           = useState('')
   const [filtroEstado, setFiltroEstado]   = useState('todos')
@@ -498,68 +496,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 </div>
               )}
 
-              {tabDetalle === 'mensajes' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                  {activo.cadencia && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '0.6rem 0.9rem' }}>
-                      Esta empresa sigue la cadencia del webinar (arriba). Los mensajes del cold mailing de abajo quedan solo como referencia: no los envíe.
-                    </div>
-                  )}
-                  {/* Estrategia actual: invitación al webinar + Comunidad ISPs Colombia */}
-                  <div style={{ fontSize: 12, color: '#555', background: '#f8f6f1', border: '1px solid #e7dfca', borderRadius: 8, padding: '0.7rem 0.9rem', lineHeight: 1.6 }}>
-                    <strong style={{ color: C.vino }}>Estrategia: invitar, no vender.</strong> Webinar “Que el MinTIC no sancione tu ISP” (con Inerxia) · miércoles 21 de octubre, 6:00 p. m. · y la Comunidad ISPs Colombia. Quien recibe cada mensaje ya vio el anterior: no repita la presentación.
-                    {firma === null && <div style={{ marginTop: 4, color: '#b45309' }}>Los mensajes llevan <b>[NOMBRE]</b>: reemplácelo por su nombre antes de enviar.</div>}
-                  </div>
-
-                  {/\bno aplica\b/i.test(activo.canal_sugerido ?? '') && (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '0.5rem 0.8rem', borderRadius: 8 }}>
-                      📞 Este prospecto tiene teléfono fijo: la invitación va por llamada (use la apertura de abajo). Si consigue su celular, ahí sí use el WhatsApp.
-                    </div>
-                  )}
-
-                  {celularParaWhatsApp(activo.telefono) ? (
-                    <div style={{ fontSize: 12, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
-                      💬 Celular para WhatsApp: <b>+{celularParaWhatsApp(activo.telefono)}</b>. El botón verde abre el chat con el mensaje ya escrito; usted solo debe oprimir enviar y después cambiar el estado a mano.
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#7c2d12', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
-                      Sin celular reconocible (teléfono registrado: <b>{activo.telefono || '—'}</b>). No hay botón de WhatsApp: llame y pida el celular.
-                    </div>
-                  )}
-
-                  <MensajeBox titulo="1 · Invitación por WhatsApp — enviar 15-16 oct" texto={llenar(activo.invitacion_whatsapp)} copiado={copiado} setCopiado={setCopiado}
-                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.invitacion_whatsapp))} />
-                  <MensajeBox titulo="2 · Apertura de llamada — 1-2 días después del WhatsApp (en “usted”)" texto={llenar(activo.llamada_apertura)} copiado={copiado} setCopiado={setCopiado} />
-                  <MensajeBox titulo="3 · Recordatorio por WhatsApp — lunes 19 oct" texto={llenar(activo.recordatorio_whatsapp)} copiado={copiado} setCopiado={setCopiado}
-                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.recordatorio_whatsapp))} />
-                  <MensajeBox titulo="4 · Aviso del día — miércoles 21 oct, mediodía" texto={llenar(activo.aviso_dia_whatsapp)} copiado={copiado} setCopiado={setCopiado}
-                    waLink={enlaceWhatsApp(activo.telefono, llenar(activo.aviso_dia_whatsapp))} />
-
-                  {/* Guías anteriores, que se mantienen para después del webinar */}
-                  <details style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '0.8rem 1.1rem' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.bordo, letterSpacing: '0.04em' }}>
-                      Guías para después del webinar (enfoque de servicio) — {`${(activo.whatsapp_1 || activo.guion_llamada) ? 'disponibles' : 'sin datos'}`}
-                    </summary>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginTop: '0.9rem' }}>
-                      <div style={{ fontSize: 12, color: '#777', lineHeight: 1.6 }}>
-                        Estos textos se escribieron antes del cambio de estrategia. Úselos solo después del webinar, y recuerde que ya hubo un primer contacto con la invitación: adapte el saludo (“como le comenté…”).
-                      </div>
-                      <MensajeBox titulo="Apertura de servicio (anterior)" texto={llenar(activo.whatsapp_1)} copiado={copiado} setCopiado={setCopiado} />
-                      <MensajeBox titulo="Dato de valor (anterior)" texto={llenar(activo.whatsapp_2)} copiado={copiado} setCopiado={setCopiado} />
-                      <MensajeBox titulo="Cierre amable (anterior)" texto={llenar(activo.whatsapp_3)} copiado={copiado} setCopiado={setCopiado} />
-                      {activo.llamada_servicio && <MensajeBox titulo="Apertura de llamada de servicio (anterior)" texto={llenar(activo.llamada_servicio)} copiado={copiado} setCopiado={setCopiado} />}
-                      {activo.guion_llamada && <MensajeBox titulo="Guion de llamada completo" texto={llenar(activo.guion_llamada)} copiado={copiado} setCopiado={setCopiado} pre />}
-                      {activo.investigacion_1 && <MensajeBox titulo="Investigación 1" texto={activo.investigacion_1} copiado={copiado} setCopiado={setCopiado} />}
-                      {activo.investigacion_2 && <MensajeBox titulo="Investigación 2" texto={activo.investigacion_2} copiado={copiado} setCopiado={setCopiado} />}
-                      {activo.investigacion_3 && <MensajeBox titulo="Investigación 3" texto={activo.investigacion_3} copiado={copiado} setCopiado={setCopiado} />}
-                    </div>
-                  </details>
-
-                  {!activo.invitacion_whatsapp && !activo.whatsapp_1 && !activo.guion_llamada && (
-                    <div style={{ color: '#aaa', fontSize: 13 }}>No hay mensajes personalizados cargados para este prospecto.</div>
-                  )}
-                </div>
-              )}
+              {tabDetalle === 'mensajes' && <TabMensajes p={activo} firma={firma} hoy={hoy} copiado={copiado} setCopiado={setCopiado} />}
 
               {tabDetalle === 'historial' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -627,6 +564,72 @@ function CajaRadiografia({ p, vendedor, hoy, copiado, setCopiado }: {
         </>
       )}
       {p.cadencia && <div style={{ fontSize: 11.5, color: '#666' }}>El mensaje que la presenta es el paso 1 de la cadencia, abajo. Descargue el PDF y adjúntelo en el mismo chat.</div>}
+    </div>
+  )
+}
+
+/**
+ * Pestaña Mensajes: todos los textos de la campaña para este prospecto, completos y en "tú", sin depender de lo que haya guardado en
+ * la base: la secuencia de contacto (cada paso con su momento y si ya se hizo) y lo que se envía cuando responde. Los textos
+ * salen firmados por quien firma (el responsable del prospecto) y llevan el nombre y la radiografía de este prospecto.
+ */
+function TabMensajes({ p, firma, hoy, copiado, setCopiado }: {
+  p: any; firma: string | null; hoy: string; copiado: string | null; setCopiado: (v: string | null) => void
+}) {
+  const sec = secuenciaDelProspecto(p, firma, hoy)
+  const telefono = p.webinar_telefono || p.telefono
+  const respuestas = mensajesCuandoResponde(p.webinar_nombre || p.representante)
+  const ESTADO: Record<string, { texto: string; color: string }> = {
+    hecho: { texto: '✓ Hecho', color: '#15803d' }, toca: { texto: '● Le toca', color: '#b45309' }, pendiente: { texto: 'Pendiente', color: '#999' },
+  }
+  const cel = celularParaWhatsApp(telefono)
+  const investigaciones = [p.investigacion_1, p.investigacion_2, p.investigacion_3].filter(Boolean)
+  const titulo: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.vino }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+      <div style={{ fontSize: 12, color: '#555', background: '#f8f6f1', border: '1px solid #e7dfca', borderRadius: 8, padding: '0.7rem 0.9rem', lineHeight: 1.6 }}>
+        <strong style={{ color: C.vino }}>{sec.nombre}.</strong> Los mensajes ya llevan el nombre del contacto, el de la empresa y {p.radiografia_en ? 'el punto de su radiografía' : 'no mencionan la radiografía (todavía no tiene)'}.
+        Firmados por <b>{firma ?? '[SU NOMBRE]'}</b>. Se copian y se pegan tal cual; lo que está entre [CORCHETES] se completa a mano.
+        {!firma && <div style={{ marginTop: 4, color: '#b45309' }}>Falta el nombre de quien firma: complételo donde dice [SU NOMBRE].</div>}
+      </div>
+
+      {/\bno aplica\b/i.test(p.canal_sugerido ?? '') && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '0.5rem 0.8rem', borderRadius: 8 }}>
+          📞 Este prospecto tiene teléfono fijo: el primer contacto va por llamada. Si consigues su celular, ahí sí usa el WhatsApp.
+        </div>
+      )}
+      {cel ? (
+        <div style={{ fontSize: 12, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
+          💬 Celular para WhatsApp: <b>+{cel}</b>. El botón verde abre el chat con el mensaje ya escrito; solo debes oprimir enviar.
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: '#7c2d12', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '0.5rem 0.8rem' }}>
+          Sin celular reconocible (teléfono registrado: <b>{telefono || '—'}</b>). No hay botón de WhatsApp: llama y pide el celular.
+        </div>
+      )}
+
+      <div style={titulo}>Secuencia de contacto</div>
+      {sec.pasos.map(paso => (
+        <MensajeBox key={paso.indice} titulo={`Paso ${paso.indice + 1} de ${sec.pasos.length} · ${paso.titulo}`}
+          subtitulo={`${paso.cuando} · ${ESTADO[paso.estado].texto}`} texto={paso.texto}
+          waLink={paso.canal === 'whatsapp' ? enlaceWhatsApp(telefono, paso.texto) : null} copiado={copiado} setCopiado={setCopiado} />
+      ))}
+
+      <div style={{ ...titulo, marginTop: '0.4rem' }}>Cuando responde</div>
+      {respuestas.map(r => (
+        <MensajeBox key={r.id} titulo={r.titulo} subtitulo={r.cuando} texto={r.texto}
+          waLink={enlaceWhatsApp(telefono, r.texto)} copiado={copiado} setCopiado={setCopiado} />
+      ))}
+
+      {(p.tema_detectado || investigaciones.length > 0) && (
+        <details style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '0.8rem 1.1rem' }}>
+          <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.bordo }}>Contexto para la llamada (investigaciones de la empresa)</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', marginTop: '0.8rem' }}>
+            {p.tema_detectado && <div style={{ fontSize: 12.5, color: '#444' }}><b>Tema detectado:</b> {p.tema_detectado}</div>}
+            {investigaciones.map((t: string, i: number) => <MensajeBox key={i} titulo={`Investigación ${i + 1}`} texto={t} copiado={copiado} setCopiado={setCopiado} />)}
+          </div>
+        </details>
+      )}
     </div>
   )
 }
@@ -714,7 +717,7 @@ function Campo({ k, v, full }: { k: string; v: any; full?: boolean }) {
   )
 }
 
-function MensajeBox({ titulo, texto, copiado, setCopiado, pre, waLink }: { titulo: string; texto: string; copiado: string | null; setCopiado: (v: string | null) => void; pre?: boolean; waLink?: string | null }) {
+function MensajeBox({ titulo, texto, copiado, setCopiado, pre, waLink, subtitulo }: { titulo: string; texto: string; copiado: string | null; setCopiado: (v: string | null) => void; pre?: boolean; waLink?: string | null; subtitulo?: string }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '1rem 1.2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -732,6 +735,7 @@ function MensajeBox({ titulo, texto, copiado, setCopiado, pre, waLink }: { titul
           </button>
         </div>
       </div>
+      {subtitulo && <div style={{ fontSize: 11, color: '#999', marginBottom: '0.5rem' }}>{subtitulo}</div>}
       <div style={{ fontSize: pre ? 11 : 13, color: '#333', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: pre ? 'monospace' : 'inherit' }}>{texto}</div>
     </div>
   )

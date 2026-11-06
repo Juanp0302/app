@@ -1,34 +1,49 @@
 /** Mensaje con la radiografía (aprobado el 4 de noviembre de 2026) y sus variables. */
 import { describe, it, expect } from 'vitest'
-import { mensajeRadiografia, puntoConcreto, proximoVencimiento, nombreParaSaludar, isPara, estadoWebinar, situacionRegulatoria } from './radiografia'
+import { sinDobles, mensajeRadiografia, puntoConcreto, proximoVencimiento, nombreParaSaludar, isPara, estadoWebinar, situacionRegulatoria } from './radiografia'
 import { nombreRemitente } from './whatsapp'
 import { ENLACES } from './ventas'
 
 const HOY = '2026-11-04'
 
 describe('mensajeRadiografia', () => {
-  it('es exactamente el texto aprobado (asistió, con investigación abierta, firma Adriana)', () => {
+  it('es exactamente el texto aprobado en tú, con la página de servicios (asistió, investigación abierta, firma Adriana)', () => {
     expect(mensajeRadiografia({ nombre: 'RODRIGO Vargas', empresa: 'Meganetwork SAS', remitente: 'Adriana', webinar: 'asistio',
       punto: 'el punto 1, donde figura la investigación abierta en el MinTIC' })).toBe(
       'Hola, Rodrigo. Soy Adriana de Owl Compliance, firma especializada en cumplimiento regulatorio para operadores de internet en Colombia. ' +
       'Gracias por acompañarnos en el webinar del 21 de octubre con Nicolás Almeyda.\n\n' +
-      'Después del webinar preparamos para Meganetwork SAS una radiografía regulatoria de una página: en dos minutos verá lo que hoy ve el MinTIC ' +
-      'de su empresa, sus pagos regulatorios y sus próximos vencimientos. Le recomiendo mirar el punto 1, donde figura la investigación abierta en el MinTIC.\n\n' +
-      'Si le parece, la revisamos en una videollamada de 15 minutos y hacemos juntos el autodiagnóstico de cumplimiento, para que sepa exactamente en qué está bien ' +
-      'y qué le falta. Puede elegir el horario que le quede mejor aquí: https://calendar.app.google/3rizAH6m6afFaFkJ8')
+      'Después del webinar preparamos para Meganetwork SAS una radiografía regulatoria de una página: en dos minutos verás lo que hoy ve el MinTIC ' +
+      'de tu empresa, tus pagos regulatorios y tus próximos vencimientos. Te recomiendo mirar el punto 1, donde figura la investigación abierta en el MinTIC.\n\n' +
+      'Aquí puedes conocer nuestros servicios: https://www.owlcompliance.com/servicios\n\n' +
+      'Si te parece, la revisamos en una videollamada de 15 minutos y hacemos juntos el autodiagnóstico de cumplimiento, para que sepas exactamente en qué estás bien ' +
+      'y qué te falta. Puedes elegir el horario que te quede mejor aquí: https://calendar.app.google/3rizAH6m6afFaFkJ8')
   })
 
-  it('el enlace es el del calendario público y no quedan marcadores de día y hora', () => {
+  it('lleva la página de servicios y el calendario público, el calendario de último, y no deja marcadores de día y hora', () => {
     const m = mensajeRadiografia({ nombre: 'Ana', empresa: 'Redes', remitente: 'David', webinar: null, punto: 'el punto 2' })
-    expect(m).toContain(ENLACES.calendario)
+    expect(m).toContain(ENLACES.servicios)
+    expect(m.endsWith(ENLACES.calendario)).toBe(true)
     expect(m).not.toMatch(/xxx|\[DÍA/)
     expect(m).not.toContain('20 minutos')
+  })
+
+  it('el nombre de una empresa que termina en punto no deja doble punto', () => {
+    expect(mensajeRadiografia({ nombre: 'Ana', empresa: 'STARNET.NET S.A.S.', remitente: 'David', webinar: null, punto: 'el punto 2' })).not.toContain('..')
+    expect(sinDobles('a S.A.S.. b ... c')).toBe('a S.A.S. b ... c')
+  })
+
+  it('todo en tú: ni "usted" ni sus formas', () => {
+    for (const webinar of ['asistio', 'inscrito', null] as const) {
+      const m = mensajeRadiografia({ nombre: 'Ana', empresa: 'Redes', remitente: 'David', webinar, punto: 'el punto 2: el reporte T.1.3' })
+      // \b no entiende las tildes ("verás" parecería "verá"): se usan lookarounds con letras unicode.
+      expect(m, String(webinar)).not.toMatch(/(?<![\p{L}])(usted|su empresa|sus pagos|sus próximos|verá|le recomiendo|si le parece|sepa|puede elegir|le falta|le quede|alcanzó|inscribió)(?![\p{L}])/iu)
+    }
   })
 
   it('inscrito que no asistió: no le da las gracias; quien no se inscribió: sin frase del webinar', () => {
     const base = { nombre: 'Luis', empresa: 'Fibra Norte', remitente: 'Juan Pablo', punto: 'el punto 2' }
     const b = mensajeRadiografia({ ...base, webinar: 'inscrito' })
-    expect(b).toContain('Vi que se inscribió al webinar del 21 de octubre con Nicolás Almeyda y no alcanzó a conectarse.')
+    expect(b).toContain('Vi que te inscribiste al webinar del 21 de octubre con Nicolás Almeyda y no alcanzaste a conectarte.')
     expect(b).not.toContain('Gracias por acompañarnos')
     expect(b).toContain('Después del webinar preparamos')
     const c = mensajeRadiografia({ ...base, webinar: null })
@@ -36,13 +51,13 @@ describe('mensajeRadiografia', () => {
     expect(c).toContain('\n\nPreparamos para Fibra Norte una radiografía')
   })
 
-  it('sin nombre usable saluda sin nombre; sin remitente deja el marcador; la empresa mal escrita pasa a "su ISP"', () => {
+  it('sin nombre usable saluda sin nombre; sin remitente deja el marcador; la empresa mal escrita pasa a "tu ISP"', () => {
     const m = mensajeRadiografia({ nombre: 'Sin dato', empresa: 'Na', remitente: null, webinar: null, punto: 'el punto 2' })
     expect(m).toMatch(/^Hola\. Soy \[SU NOMBRE\] de Owl Compliance/)
-    expect(m).toContain('para su ISP una radiografía')
+    expect(m).toContain('para tu ISP una radiografía')
     expect(nombreParaSaludar('Sisaa')).toBe('Sisaa')
     for (const malo of ['.', 'Sin', 'No', '71392877', 'jm@x.co', null, '']) expect(nombreParaSaludar(malo)).toBeNull()
-    expect(isPara('71392877')).toBe('su ISP')
+    expect(isPara('71392877')).toBe('tu ISP')
     expect(isPara('Winets SAS')).toBe('Winets SAS')
   })
 })
