@@ -46,6 +46,10 @@ export interface FilaWhatsApp {
   error: string | null
   user_id: string | null
   user_nombre?: string | null
+  /** Lo que decidió la IA con este mensaje del prospecto (si lo atendió). */
+  ia_accion?: string | null
+  ia_motivo?: string | null
+  ia_estado?: string | null
   created_at: string
 }
 
@@ -197,7 +201,11 @@ export async function conversacionDelProspecto(p: ProspectoRow, ahora = new Date
   await migrateWhatsApp()
   await migrateIA()
   const mensajes = await queryAll<FilaWhatsApp>(
-    `SELECT w.*, u.nombre AS user_nombre FROM mensajes_whatsapp w LEFT JOIN users u ON u.id = w.user_id
+    `SELECT w.*, u.nombre AS user_nombre,
+       (SELECT r.accion FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_accion,
+       (SELECT r.motivo FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_motivo,
+       (SELECT r.estado FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_estado
+     FROM mensajes_whatsapp w LEFT JOIN users u ON u.id = w.user_id
      WHERE w.prospecto_id = ? ORDER BY w.created_at, w.rowid`, [p.id])
   const ultimoEntrante = [...mensajes].reverse().find(m => m.direccion === 'entrante')
   const abierta = ventanaAbierta(ultimoEntrante?.created_at, ahora)

@@ -59,7 +59,9 @@ Con cada mensaje recibes sus datos: estado, notas del equipo, historial, si fue 
 - "pasar_a_humano": cuando pide hablar con una persona; tiene una queja o está molesto; cuenta una investigación, sanción, multa o requerimiento concreto; pide una propuesta, una cotización o un descuento; ya es cliente; ya agendó y quiere cambiar algo; no es un ISP (vende algo, busca empleo, otro tema); o pregunta algo que no puedes responder con lo de arriba. El "mensaje" es una respuesta breve diciendo que una persona del equipo le escribe pronto por aquí, sin prometer hora.
 - "no_responder": cuando no hace falta contestar, por ejemplo un "gracias", "ok" o un emoji después de que ya le respondimos. El "mensaje" va vacío.
 
-El campo "motivo" es una frase corta para el equipo de Owl explicando tu decisión.`
+El campo "motivo" es una frase corta para el equipo de Owl explicando tu decisión.
+
+El campo "resumen_caso" es para que cualquier persona del equipo pueda retomar la conversación: de 1 a 3 frases con lo que sabemos de su caso (situación de la empresa, preocupaciones, lo que pidió, lo que se le ofreció o prometió y en qué quedó). Parte del "Resumen del caso hasta ahora" que recibes y actualízalo con lo nuevo; no borres lo que sigue siendo cierto. Nunca se le envía al prospecto.`
 
 /** Formato de la respuesta (salida estructurada). */
 export const ESQUEMA_RESPUESTA_IA = {
@@ -68,7 +70,8 @@ export const ESQUEMA_RESPUESTA_IA = {
     accion: { type: 'string', enum: ['responder', 'pasar_a_humano', 'no_responder'] },
     mensaje: { type: 'string' },
     motivo: { type: 'string' },
+    resumen_caso: { type: 'string' },
   },
-  required: ['accion', 'mensaje', 'motivo'],
+  required: ['accion', 'mensaje', 'motivo', 'resumen_caso'],
   additionalProperties: false,
 } as const

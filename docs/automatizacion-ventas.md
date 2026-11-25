@@ -110,3 +110,15 @@ Archivos: `lib/ia-conocimiento.ts` (reglas y lo que sabe), `lib/ia-ventas.ts` (l
 **Después de la reunión.** Al pasar un prospecto a "Propuesta enviada" arranca la cadencia `post-reunion` (`lib/cadencias.ts`): a los 2 días hábiles "¿pudiste revisar la propuesta?", 3 días después un recordatorio y 4 días después el cierre amable. Con `VENTAS_AUTOMATICAS=activo` sale sola, por WhatsApp si aceptó (si no, por correo); en simulación queda en "Para hoy" para hacerla a mano. En la pestaña WhatsApp, "📝 Resumen de la reunión con IA" redacta el resumen a partir de las notas de la ficha; una persona lo revisa y lo envía (como texto si está abierta la ventana de 24 h, si no como la plantilla "Resumen de la reunión").
 
 **La IA ve el perfil completo** (`armarPedido` en `lib/ia-ventas.ts`): estado, próximo paso, notas, últimas 12 entradas del historial, lo que se le envió en la cadencia, webinar, radiografía y ubicación. Las notas son internas: las usa para entender el caso, no las cita. Según el estado: sin reunión busca la reunión; con reunión agendada no vuelve a mandar el calendario y pasa a una persona si quiere cambiarla; con propuesta enviada resuelve dudas generales y propone 15 minutos para revisarla, y pasa a una persona ante condiciones, pagos o negociación. A un cliente, a quien dijo que no le interesaba o pidió no ser contactado y vuelve a escribir, lo atiende siempre una persona (sin pasar por la IA). Las secciones nuevas de las reglas se aprobaron el 2026-11-26.
+
+## Para retomar la conversación
+
+Cualquier persona del equipo debe poder asumir un prospecto en cualquier momento. En la ficha, arriba de las pestañas, el recuadro **"📌 Para retomar"** (`lib/retomar.ts`, `/api/prospectos/retomar`) muestra:
+- **Contactos:** cuántos mensajes se le han enviado, por canal y origen (correos, WhatsApp automáticos, de la IA y del equipo), y cuándo fue el último.
+- **Respuestas:** cuántas y la última, con el texto.
+- **Sin responder:** días desde nuestro último mensaje sin que haya respondido (en rojo desde 7).
+- **Cadencia:** cuál, en qué paso va, si es automática o a mano, y cuándo es el próximo.
+- **WhatsApp:** si aceptó mensajes de Owl y si la IA lo atiende.
+- **Resumen del caso:** 1 a 3 frases que la IA actualiza con cada mensaje (situación, preocupaciones, lo que pidió y lo que se le prometió). Es interno; nunca se le envía.
+
+En la pestaña WhatsApp, debajo de cada mensaje del prospecto aparece lo que decidió la IA y por qué (respondió, dejó un borrador, no respondió, lo pasó al equipo). El historial sigue registrando cada envío, respuesta, baja y cambio de modo. Los contactos manuales desde celulares personales no quedan registrados salvo que se marquen en la app ("paso enviado").

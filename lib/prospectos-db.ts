@@ -97,6 +97,9 @@ export async function migrateProspectos() {
     `ALTER TABLE prospectos_isp ADD COLUMN canal_auto TEXT NOT NULL DEFAULT 'correo'`,
     `ALTER TABLE prospectos_isp ADD COLUMN whatsapp_ok INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE prospectos_isp ADD COLUMN ia_pausada INTEGER NOT NULL DEFAULT 0`,
+    // Resumen del caso que la IA mantiene al día para que el equipo pueda retomar la conversación (lib/ia-ventas.ts).
+    `ALTER TABLE prospectos_isp ADD COLUMN resumen_ia TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN resumen_ia_en TEXT`,
   ]) {
     try { await execute(sql) } catch { /* ya existe */ }
   }
@@ -173,6 +176,8 @@ export interface ProspectoRow {
   canal_auto?: 'correo' | 'whatsapp' | null
   whatsapp_ok?: number
   ia_pausada?: number
+  resumen_ia?: string | null
+  resumen_ia_en?: string | null
   created_at: string
   updated_at: string
   // Se agregan con JOIN, no son columnas propias:

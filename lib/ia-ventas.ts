@@ -69,6 +69,8 @@ export interface DecisionIA {
   accion: 'responder' | 'pasar_a_humano' | 'no_responder'
   mensaje: string
   motivo: string
+  /** Resumen del caso para el equipo (lo actualiza en cada llamada). */
+  resumen?: string
   uso?: { entrada: number; salida: number; cache: number }
 }
 
@@ -106,6 +108,7 @@ export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[], ctx?: Con
     p.campana === 'web' ? `Llegó por un formulario de la web de Owl${p.origen_lead ? ` (${p.origen_lead})` : ''}.` : null,
     x.radiografia_en && ctx ? `Ya recibió su radiografía regulatoria; lo más relevante es ${puntoConcreto(p as any, ctx.hoy)}.` : x.radiografia_en ? 'Ya recibió su radiografía regulatoria.' : null,
     p.notas ? `Notas internas del equipo:\n${String(p.notas).slice(0, 2000)}` : null,
+    `Resumen del caso hasta ahora: ${p.resumen_ia?.trim() || '(todavía no hay)'}`,
     ctx?.enviados.length ? `Mensajes de la cadencia que ya se le enviaron:\n${ctx.enviados.map(e => `- ${fecha(e.created_at)}: ${e.asunto} (a ${e.para})`).join('\n')}` : null,
     ctx?.historial.length ? `Historial reciente (lo más nuevo al final):\n${ctx.historial.map(h => `- ${fecha(h.created_at)}: ${h.nota ?? `pasó a ${h.estado_nuevo}`}`).join('\n')}` : null,
   ].filter(Boolean).join('\n')
@@ -137,7 +140,7 @@ export async function pedirRespuestaIA(p: ProspectoRow, mensajes: FilaWhatsApp[]
     if (!['responder', 'pasar_a_humano', 'no_responder'].includes(d?.accion)) return { ...humano('Decisión desconocida del modelo'), uso }
     const mensaje = String(d.mensaje ?? '').trim()
     if (d.accion === 'responder' && !mensaje) return { ...humano('El modelo decidió responder pero no escribió nada'), uso }
-    return { accion: d.accion, mensaje, motivo: String(d.motivo ?? '').trim(), uso }
+    return { accion: d.accion, mensaje, motivo: String(d.motivo ?? '').trim(), resumen: String(d.resumen_caso ?? '').trim().slice(0, 1500), uso }
   } catch (e: any) {
     return humano(`Error al llamar a la IA: ${e?.message ?? e}`)
   }
@@ -246,6 +249,7 @@ export async function atenderConIA(wamid: string, opciones: { esperar?: number; 
 }
 
 async function guardarRespuesta(prospectoId: string, wamid: string, modo: ModoIA, d: DecisionIA, estado: string) {
+  if (d.resumen) await execute(`UPDATE prospectos_isp SET resumen_ia = ?, resumen_ia_en = datetime('now') WHERE id = ?`, [d.resumen, prospectoId])
   await execute(
     `INSERT INTO ia_respuestas (id, prospecto_id, responde_a, modo, accion, texto, motivo, estado, modelo, tokens_entrada, tokens_salida, tokens_cache)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,

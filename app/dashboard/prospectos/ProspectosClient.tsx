@@ -470,6 +470,8 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                 )}
               </div>
 
+              <PanelRetomar key={`retomar-${activo.id}-${activo.updated_at ?? ''}`} p={activo} />
+
               {/* Tabs */}
               <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb' }}>
                 {(['seguimiento', 'mensajes', 'whatsapp', 'historial'] as const).map(t => (
@@ -588,6 +590,34 @@ function CajaRadiografia({ p, vendedor, hoy, copiado, setCopiado }: {
  * la base: la secuencia de contacto (cada paso con su momento y si ya se hizo) y lo que se envía cuando responde. Los textos
  * salen firmados por quien firma (el responsable del prospecto) y llevan el nombre y la radiografía de este prospecto.
  */
+/** Lo necesario para que cualquiera del equipo retome la conversación: contactos, respuestas, días sin responder, cadencia,
+ *  IA y el resumen del caso que la IA mantiene al día (lib/retomar.ts). */
+function PanelRetomar({ p }: { p: any }) {
+  const [d, setD] = useState<any>(null)
+  useEffect(() => { fetch(`/api/prospectos/retomar?id=${p.id}`).then(r => r.json()).then(setD).catch(() => setD(null)) }, [p.id])
+  if (!d || d.error) return null
+  const f = (s: string) => new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+  const c = d.contactos
+  const partes = [c.correos && `${c.correos} correo${c.correos > 1 ? 's' : ''}`, c.whatsappAutomaticos && `${c.whatsappAutomaticos} WhatsApp automático${c.whatsappAutomaticos > 1 ? 's' : ''}`,
+    c.whatsappIA && `${c.whatsappIA} de la IA`, c.whatsappEquipo && `${c.whatsappEquipo} del equipo`].filter(Boolean).join(' · ')
+  const fila = (t: string, v: any) => <div style={{ display: 'flex', gap: 6 }}><span style={{ color: '#888', minWidth: 118 }}>{t}</span><span style={{ flex: 1 }}>{v}</span></div>
+  return (
+    <div style={{ background: '#fffdf5', border: '1px solid #eadfc0', borderRadius: 10, padding: '0.7rem 0.9rem', marginBottom: '1rem', fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontWeight: 700, color: '#712529', fontSize: 12 }}>📌 Para retomar</div>
+      {fila('Contactos', c.total ? `${c.total} (${partes})${d.ultimoContacto ? ` · el último el ${f(d.ultimoContacto.fecha)} por ${d.ultimoContacto.canal}` : ''}` : 'Ninguno registrado en la app')}
+      {fila('Respuestas', d.ultimaRespuesta
+        ? <>{d.respuestas.whatsapp + d.respuestas.correo} · la última el {f(d.ultimaRespuesta.fecha)} por {d.ultimaRespuesta.canal}: <em>«{d.ultimaRespuesta.texto}»</em></>
+        : 'No ha respondido')}
+      {d.diasSinResponder !== null && fila('Sin responder', <strong style={{ color: d.diasSinResponder >= 7 ? '#b91c1c' : '#92400e' }}>{d.diasSinResponder} día{d.diasSinResponder === 1 ? '' : 's'} desde nuestro último mensaje</strong>)}
+      {d.cadencia && fila('Cadencia', `${d.cadencia.nombre} · paso ${d.cadencia.paso} de ${d.cadencia.total}` +
+        (d.cadencia.estado === 'activa' ? ` · ${d.cadencia.automatico ? `automática por ${d.cadencia.canal}` : 'a mano'}${d.cadencia.proxima ? ` · próximo: ${f(d.cadencia.proxima)}` : ''}`
+          : d.cadencia.estado === 'respondio' ? ' · detenida porque respondió' : d.cadencia.estado === 'terminada' ? ' · terminada' : ''))}
+      {fila('WhatsApp', `${d.permisoWhatsApp ? 'Aceptó mensajes de Owl' : 'Sin permiso para escribirle primero'}${d.ia.modo !== 'apagada' ? ` · IA: ${d.ia.pausada ? 'lo atiende el equipo' : d.ia.modo === 'activa' ? 'responde sola' : 'en borrador'}` : ''}`)}
+      {d.ia.resumen && fila('Resumen del caso', <span>{d.ia.resumen} <span style={{ color: '#aaa' }}>(IA, {f(d.ia.resumenEn)})</span></span>)}
+    </div>
+  )
+}
+
 /** Conversación con el WhatsApp de Owl (API oficial): lo que escribió el prospecto y lo que le respondimos. */
 function TabWhatsApp({ p }: { p: any }) {
   const [c, setC] = useState<any>(null)
@@ -671,6 +701,13 @@ function TabWhatsApp({ p }: { p: any }) {
                 {new Date(m.created_at.replace(' ', 'T') + 'Z').toLocaleString('es-CO')}
                 {m.error ? ` · ${m.error}` : ''}
               </div>
+              {!mio && m.ia_accion && (
+                <div style={{ fontSize: 10.5, color: m.ia_accion === 'pasar_a_humano' ? '#92400e' : '#0e7490', marginTop: 4, borderTop: '1px dashed #e5e7eb', paddingTop: 3 }}>
+                  {m.ia_accion === 'responder' ? (m.ia_estado === 'pendiente' ? '🤖 La IA dejó un borrador' : m.ia_estado === 'descartada' ? '🤖 La IA propuso una respuesta (no se usó)' : '🤖 La IA respondió')
+                    : m.ia_accion === 'no_responder' ? '🤖 La IA no respondió' : '🙋 La IA lo pasó al equipo'}
+                  {m.ia_motivo ? `: ${m.ia_motivo}` : ''}
+                </div>
+              )}
             </div>
           )
         })}
