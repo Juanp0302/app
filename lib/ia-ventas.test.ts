@@ -190,7 +190,10 @@ describe('atender un WhatsApp', () => {
     expect(env.ok).toBe(true)
     const despues = await wv.conversacionDelProspecto(p, AHORA)
     expect(despues.ia.borrador).toBeNull()
-    expect(despues.ia.pausada).toBe(true)
+    expect(despues.ia.pausada).toBe(false)   // envió el borrador de la IA: ella sigue atendiendo
+    const propio = await wv.responderDesdeLaFicha(p, 'Te escribo yo, Luis.', 'adri', AHORA)
+    expect(propio.ok).toBe(true)
+    expect((await wv.conversacionDelProspecto(p, AHORA)).ia.pausada).toBe(true)   // mensaje propio: la IA se calla
   })
 
   it('un "gracias" no se contesta, y con la IA apagada vuelve la respuesta fija', async () => {

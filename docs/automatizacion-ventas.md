@@ -87,7 +87,7 @@ Interruptor `IA_VENTAS`:
 - `activa`: responde sola.
 - Sin definir u otro valor: apagada; queda la respuesta fija de la fase 3.
 
-Cómo decide, en cada mensaje: responder, no responder (un "gracias") o pasar a una persona (pide hablar con alguien, queja, investigación o sanción concreta, insiste en precios, ya es cliente, no es un ISP, o no sabe). Al pasar a una persona: le dice al prospecto que alguien le escribe pronto, se calla con ese prospecto, lo anota en el historial y le avisa al responsable por correo. También se calla si alguien del equipo responde desde la ficha. En la ficha: "Atender yo" / "Devolver a la IA".
+Cómo decide, en cada mensaje: responder, no responder (un "gracias") o pasar a una persona (pide hablar con alguien, queja, investigación o sanción concreta, insiste en precios, ya es cliente, no es un ISP, o no sabe). Al pasar a una persona: le dice al prospecto que alguien le escribe pronto, se calla con ese prospecto, lo anota en el historial y le avisa al responsable por correo. También se calla si alguien del equipo escribe su propio mensaje desde la ficha (enviar el borrador de la IA no la pausa). En la ficha: "Atender yo" / "Devolver a la IA".
 
 Seguridad: antes de enviar se revisa el texto (ningún precio distinto a los de referencia, ni descuentos, sin "plan" de Owl, solo 15 minutos, solo enlaces de Owl); si no pasa, va al equipo. Espera 15 segundos por si llegan varios mensajes seguidos y contesta solo el último. Máximo 6 respuestas por prospecto al día (`IA_MAX_RESPUESTAS_DIA`) y 300 llamadas al día en total (`IA_MAX_LLAMADAS_DIA`). Cualquier error o negativa del modelo = pasa al equipo. Si el modelo se niega por sus filtros de seguridad, la API reintenta con otro modelo (`fallbacks: "default"`).
 

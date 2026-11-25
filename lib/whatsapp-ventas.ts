@@ -235,7 +235,7 @@ export async function responderDesdeLaFicha(p: ProspectoRow, texto: string, user
   const r = await enviarTextoWhatsApp(c.telefono, limpio)
   await guardarSaliente(p.id, c.telefono, limpio, r, userId, 'equipo')
   if (!r.ok) return { ok: false, status: 502, error: `WhatsApp no aceptó el mensaje: ${r.error}` }
-  await equipoRespondio(p.id, usoBorrador)   // la conversación la lleva el equipo: la IA se calla con este prospecto
+  await equipoRespondio(p.id, usoBorrador)   // mensaje propio: la conversación la lleva el equipo y la IA se calla
   await execute(`UPDATE prospectos_isp SET updated_at = datetime('now') WHERE id = ?`, [p.id])
   return { ok: true }
 }

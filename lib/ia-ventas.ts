@@ -258,11 +258,14 @@ export async function borradorPendiente(prospectoId: string) {
     `SELECT id, texto, motivo, created_at FROM ia_respuestas WHERE prospecto_id = ? AND estado = 'pendiente' ORDER BY created_at DESC LIMIT 1`, [prospectoId])
 }
 
-/** Alguien del equipo respondió desde la ficha: la IA se calla con este prospecto y los borradores quedan resueltos. */
+/**
+ * Alguien del equipo respondió desde la ficha y los borradores pendientes quedan resueltos. Si envió el borrador de la IA
+ * (modo borrador), la IA sigue atendiendo; si escribió su propio mensaje, la conversación es suya y la IA se calla.
+ */
 export async function equipoRespondio(prospectoId: string, usoBorrador: boolean) {
   await migrateIA()
   await execute(`UPDATE ia_respuestas SET estado = ? WHERE prospecto_id = ? AND estado = 'pendiente'`, [usoBorrador ? 'usada' : 'descartada', prospectoId])
-  await execute(`UPDATE prospectos_isp SET ia_pausada = 1 WHERE id = ?`, [prospectoId])
+  if (!usoBorrador) await execute(`UPDATE prospectos_isp SET ia_pausada = 1 WHERE id = ?`, [prospectoId])
 }
 
 /** Desde la ficha: la IA vuelve a atender (o deja de hacerlo) a este prospecto. */
