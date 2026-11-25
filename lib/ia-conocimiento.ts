@@ -3,7 +3,7 @@
  * Lo que la IA de ventas sabe de Owl y las reglas con las que contesta (fase 4 de docs/automatizacion-ventas.md).
  * Fuente: docs/playbook-ventas.md y los mensajes aprobados de lib/cadencias.ts. Nada más: la IA no debe decir nada que no
  * esté aquí. Aprobado por el superadmin el 2026-11-25 (y la regla 2, "una respuesta que conteste todo", también ese día).
- * PENDIENTES DE APROBACIÓN: las secciones "Lo que sabemos del prospecto" y "Según su estado".
+ * Las secciones "Lo que sabemos del prospecto" y "Según su estado", aprobadas el 2026-11-26.
  * Cualquier cambio a este texto se vuelve a aprobar.
  * No poner aquí nada que cambie en cada mensaje (fechas, nombres): este texto se guarda en caché y así cuesta menos.
  */

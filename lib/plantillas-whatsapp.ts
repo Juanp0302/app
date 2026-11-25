@@ -3,7 +3,7 @@
  * Plantillas de WhatsApp (Meta exige plantillas aprobadas para escribirle primero a alguien o fuera de las 24 h).
  * Se usan en la cadencia automática por WhatsApp de los inscritos al webinar y en el seguimiento después de la reunión.
  * Los textos salen de los mensajes aprobados de lib/cadencias.ts, sin firma personal (los envía el número de Owl).
- * TEXTOS PENDIENTES DE APROBACIÓN del superadmin antes de registrarlos en Meta.
+ * Textos aprobados por el superadmin el 2026-11-26: cualquier cambio se vuelve a aprobar (y Meta lo vuelve a revisar).
  * Cada plantilla de marketing entregada cuesta (~US$0,0125 en Colombia desde octubre de 2026).
  * Sin acceso a BD.
  */
