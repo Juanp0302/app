@@ -94,7 +94,7 @@ export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[]): string {
   const conversacion = mensajes.slice(-30).map(m =>
     `[${fechaCorta(m.created_at)}] ${m.direccion === 'entrante' ? 'Prospecto' : 'Owl'}: ${limpio(m.texto)}`).join('\n')
   return `Datos del prospecto:\n${datos}\n\nConversación por WhatsApp, de la más antigua a la más reciente:\n<conversacion>\n${conversacion}\n</conversacion>\n\n` +
-    'Decide qué hacer con el último mensaje del prospecto y, si corresponde, escribe la respuesta de Owl.'
+    'Decide qué hacer con lo que el prospecto escribió desde la última respuesta de Owl (puede ser más de un mensaje) y, si corresponde, escribe una sola respuesta que conteste todo.'
 }
 
 /** Le pide a Claude la siguiente respuesta. Nunca lanza: ante cualquier problema, decide pasar a una persona. */
