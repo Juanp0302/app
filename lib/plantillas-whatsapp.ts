@@ -31,7 +31,7 @@ export interface DefinicionPlantilla {
 }
 
 /** Frases del webinar. Empiezan por "Te escribimos desde el WhatsApp de Owl": sirven igual si alguien del equipo ya le
- *  había escrito desde su celular (en la app no quedó registrado a quién). PENDIENTES DE APROBACIÓN (2026-11-26). */
+ *  había escrito desde su celular (en la app no quedó registrado a quién). Aprobadas por el superadmin el 2026-11-26. */
 const WEBINAR_ASISTIO = 'Te escribimos desde el WhatsApp de Owl Compliance. Hace un mes nos vimos en el webinar del 21 de octubre, “Que el MinTIC no sancione tu ISP”, con Nicolás Almeyda: gracias por acompañarnos.'
 const WEBINAR_INSCRITO = 'Te escribimos desde el WhatsApp de Owl Compliance. Te inscribiste al webinar del 21 de octubre, “Que el MinTIC no sancione tu ISP”, con Nicolás Almeyda, y vimos que no alcanzaste a conectarte.'
 const RADIOGRAFIA = 'una radiografía regulatoria de una página: en dos minutos verás lo que hoy ve el MinTIC de tu empresa, tus pagos regulatorios y tus próximos vencimientos. Te recomendamos mirar {{3}}.'
