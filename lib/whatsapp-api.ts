@@ -94,6 +94,16 @@ export function leerWebhook(payload: any, phoneId?: string): { mensajes: Mensaje
   return { mensajes, estados }
 }
 
+/** Los phone_number_id que trae un webhook (para avisar si llega algo de un número que no es el configurado). */
+export function numerosDelWebhook(payload: any): string[] {
+  const ids = new Set<string>()
+  for (const entry of payload?.entry ?? []) for (const ch of entry?.changes ?? []) {
+    const id = ch?.value?.metadata?.phone_number_id
+    if (id) ids.add(String(id))
+  }
+  return [...ids]
+}
+
 export type EnvioWhatsApp = { ok: true; wamid: string } | { ok: false; error: string; codigo?: number }
 
 /** Envía un texto libre. Solo funciona dentro de la ventana de 24 h (fuera de ella Meta exige una plantilla, que se cobra). */
