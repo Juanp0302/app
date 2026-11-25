@@ -160,7 +160,7 @@ sus vencimientos pueden haber cambiado. Sin radiografía cargada, el primer mens
    filas (un contacto por fila), todas reciben su radiografía. Cargar de nuevo reemplaza la anterior.
 3. Antes de enviar, regenerar con la fecha de hoy: las radiografías viejas traen vencimientos que ya pasaron.
 
-### Las tres cadencias
+### Las cadencias
 
 Cada prospecto sigue una cadencia, según de dónde viene. Los textos están en `lib/cadencias.ts` (dos versiones: con radiografía y sin ella).
 Los pasos se programan en días hábiles, sin sábados, domingos ni festivos.
@@ -187,7 +187,7 @@ Los pasos se programan en días hábiles, sin sábados, domingos ni festivos.
 webinar ("Preparamos para {ISP} una radiografía…"). Sin radiografía, el primer mensaje se presenta ("Acompañamos a los ISP en el cumplimiento
 ante la CRC, el MinTIC y la SIC") y pregunta cómo manejan hoy los reportes y los vencimientos. Se activa con
 `node scripts/cadencia-cold-mailing.mjs --prod` (primero `--dry --prod`): pone el paso 1 y la fecha, de a 25 por responsable por día desde el día
-hábil siguiente, empezando por investigación abierta (A), luego sanción registrada (B) y luego los demás por su puesto.
+hábil siguiente, empezando por investigación abierta (A), luego sanción registrada (B) y luego los demás por su puesto. Se activó el 6 de noviembre de 2026 para 189 prospectos, con los primeros mensajes del 9 al 12 de noviembre.
 
 **Cuando responde** (para todos los perfiles; lo que va entre [CORCHETES] se completa a mano):
 1. Si pide más información: la página de servicios y la propuesta de revisar su radiografía en 15 minutos.
@@ -202,6 +202,16 @@ marca **"Ya lo envié"** (el sistema programa el siguiente paso y pone el estado
 cadencia se detiene y toca agendar la reunión con los mensajes de "Cuando responde". Si termina sin respuesta, se marca No interesado ("no responde").
 Los marcados "⚠ ¿ISP?" (estudiantes, independientes, cédulas en vez de empresa) se confirman en el primer
 contacto y, si no son operadores, se descartan.
+
+### Modo automático (por correo)
+
+Un prospecto en **🤖 automático** recibe su cadencia por correo sin que nadie haga nada: el primero con la radiografía
+adjunta, los siguientes en el mismo hilo, sin la llamada. No aparece en "Para hoy". Cuando responde, el sistema detiene la
+cadencia, lo pasa a "Respondió" y le llega un correo al responsable con lo que escribió: desde ahí se le contesta en el mismo
+hilo y se agenda. Las bajas, los "no me interesa" y los correos que rebotan se registran solos.
+Quien escribe por la web (contacto, autodiagnóstico) entra solo a Prospectos con prioridad **E**, responsable asignado y la
+cadencia **"Escribió por la web"** (respuesta inmediata y dos seguimientos). Detalle y puesta en marcha:
+[automatizacion-ventas.md](automatizacion-ventas.md).
 
 ## 6. Guion de la reunión (hasta 30 min; en los mensajes siempre se dice 15)
 

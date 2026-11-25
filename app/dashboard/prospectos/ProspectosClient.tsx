@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import NavLogo from '@/components/NavLogo'
 import { celularParaWhatsApp, enlaceWhatsApp, nombreRemitente, firmaDelProspecto } from '@/lib/whatsapp'
 import { temperaturaProspecto, TEMPERATURA, type NivelTemperatura } from '@/lib/temperatura'
-import { CADENCIAS, pasoActual, textoDelPaso, secuenciaDelProspecto, mensajesCuandoResponde, type CadenciaId } from '@/lib/cadencias'
+import { CADENCIAS, pasoActual, textoDelPaso, secuenciaDelProspecto, mensajesCuandoResponde, datosDelProspecto, type CadenciaId } from '@/lib/cadencias'
+import { destinatario } from '@/lib/correo-ventas'
 import { hoyBogota } from '@/lib/ventas'
 import { puntoConcreto, mensajeRadiografia, estadoWebinar } from '@/lib/radiografia'
 import CargarBase from './CargarBase'
@@ -40,6 +41,8 @@ const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1
 function campanaTexto(p: any) {
   const web = p.webinar_asistio ? `asistió${p.webinar_minutos ? ` ${p.webinar_minutos} min` : ''}` : 'inscrito'
   if (p.campana === 'webinar') return `Webinar · ${web}`
+  if (p.campana === 'web') return `Escribió por la web${p.origen_lead ? ` (${p.origen_lead})` : ''}`
+  if (p.campana === 'whatsapp') return 'Escribió al WhatsApp de Owl'
   const base = !p.campana || p.campana === 'cold-mailing' ? 'Cold mailing' : p.campana   // bases cargadas desde Excel
   return p.en_webinar ? `${base} + webinar (${web})` : base
 }
@@ -48,7 +51,8 @@ const segmentoCampana = (p: any) => {
   if (p.campana === 'webinar' || p.en_webinar) return p.webinar_asistio ? 'webinar-asistio' : 'webinar-inscrito'
   return !p.campana || p.campana === 'cold-mailing' ? 'cold' : `base:${p.campana}`
 }
-const tocaHoy = (p: any) => !!pasoActual(p) && !!p.proxima_fecha && p.proxima_fecha <= hoyBogota()
+// Los que van en modo automático no son trabajo del equipo: el sistema les envía el correo solo.
+const tocaHoy = (p: any) => !p.automatico && !!pasoActual(p) && !!p.proxima_fecha && p.proxima_fecha <= hoyBogota()
 
 function ChipTemperatura({ nivel }: { nivel: NivelTemperatura }) {
   const t = TEMPERATURA[nivel]
@@ -100,7 +104,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const [guardando, setGuardando]   = useState(false)
   const [copiado, setCopiado]       = useState<string | null>(null)
   const [historial, setHistorial]   = useState<any[]>([])
-  const [tabDetalle, setTabDetalle] = useState<'seguimiento' | 'mensajes' | 'historial'>('seguimiento')
+  const [tabDetalle, setTabDetalle] = useState<'seguimiento' | 'mensajes' | 'whatsapp' | 'historial'>('seguimiento')
 
   const [form, setForm] = useState({ estado: '', fecha_contacto: '', proximo_paso: '', notas: '' })
 
@@ -154,7 +158,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   }
 
   /** Paso de la cadencia enviado, o "respondió": el servidor programa el siguiente y ajusta el estado. */
-  async function accionCadencia(accion: 'paso_enviado' | 'respondio') {
+  async function accionCadencia(accion: AccionCadencia) {
     if (!activo) return
     setGuardando(true)
     try {
@@ -376,6 +380,8 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     <ChipTemperatura nivel={nivelDe(p)} />
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: `${ESTADO_COLOR[p.estado] ?? '#888'}20`, color: ESTADO_COLOR[p.estado] ?? '#888' }}>{p.estado}</span>
+                    {!!p.automatico && pasoActual(p) && <span title="El sistema le envía la cadencia por correo" style={{ fontSize: 10, fontWeight: 700, color: '#0e7490' }}>🤖 Automático</span>}
+                    {!!p.baja && <span style={{ fontSize: 10, fontWeight: 700, color: '#b91c1c' }}>⛔ Baja</span>}
                     {tocaHoy(p) && (
                       <span style={{ fontSize: 10, fontWeight: 700, color: p.proxima_fecha < hoy ? '#dc2626' : '#15803d' }}>
                         {p.proxima_fecha < hoy ? '⚠ Atrasado' : '● Hoy'}: {pasoActual(p)?.paso.titulo}
@@ -460,7 +466,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
 
               {/* Tabs */}
               <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb' }}>
-                {(['seguimiento', 'mensajes', 'historial'] as const).map(t => (
+                {(['seguimiento', 'mensajes', 'whatsapp', 'historial'] as const).map(t => (
                   <button key={t} onClick={() => setTabDetalle(t)}
                     style={{ padding: '0.5rem 1rem', fontSize: 12, fontWeight: 700, textTransform: 'capitalize', background: 'none', border: 'none', cursor: 'pointer',
                       color: tabDetalle === t ? C.bordo : '#aaa', borderBottom: tabDetalle === t ? `2px solid ${C.bordo}` : '2px solid transparent' }}>
@@ -495,6 +501,8 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   </button>
                 </div>
               )}
+
+              {tabDetalle === 'whatsapp' && <TabWhatsApp key={activo.id} p={activo} />}
 
               {tabDetalle === 'mensajes' && <TabMensajes p={activo} firma={firma} hoy={hoy} copiado={copiado} setCopiado={setCopiado} />}
 
@@ -573,6 +581,111 @@ function CajaRadiografia({ p, vendedor, hoy, copiado, setCopiado }: {
  * la base: la secuencia de contacto (cada paso con su momento y si ya se hizo) y lo que se envía cuando responde. Los textos
  * salen firmados por quien firma (el responsable del prospecto) y llevan el nombre y la radiografía de este prospecto.
  */
+/** Conversación con el WhatsApp de Owl (API oficial): lo que escribió el prospecto y lo que le respondimos. */
+function TabWhatsApp({ p }: { p: any }) {
+  const [c, setC] = useState<any>(null)
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [deBorrador, setDeBorrador] = useState(false)
+  const cargar = useCallback(() => {
+    fetch(`/api/prospectos/whatsapp?id=${p.id}`).then(r => r.json()).then(setC).catch(() => setC({ mensajes: [] }))
+  }, [p.id])
+  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => {
+    const t = setInterval(cargar, 20000)   // los mensajes nuevos aparecen solos mientras la ficha está abierta
+    return () => clearInterval(t)
+  }, [cargar])
+
+  async function enviar() {
+    setEnviando(true); setError(null)
+    const r = await fetch('/api/prospectos/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, texto, usoBorrador: deBorrador }) })
+    const d = await r.json().catch(() => ({}))
+    setEnviando(false)
+    if (!r.ok) { setError(d.error ?? 'No se pudo enviar'); return }
+    setTexto(''); setDeBorrador(false); cargar()
+  }
+
+  async function cambiarIA(activa: boolean) {
+    await fetch('/api/prospectos/whatsapp', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, ia: activa }) })
+    cargar()
+  }
+
+  if (!c) return <div style={{ color: '#aaa', fontSize: 13 }}>Cargando…</div>
+  const mensajes: any[] = c.mensajes ?? []
+  const ia = c.ia ?? { modo: 'apagada', pausada: false, borrador: null }
+  const ESTADO: Record<string, string> = { automatico: '🤖 automático', ia: '🤖 IA', sent: '✓ enviado', delivered: '✓✓ entregado', read: '✓✓ leído', failed: '⚠ no salió' }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+      {c.configurado === false && (
+        <div style={{ fontSize: 12, color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: 6 }}>
+          El WhatsApp de Owl todavía no está conectado (faltan las variables de Meta en Render).
+        </div>
+      )}
+      {ia.modo !== 'apagada' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, background: ia.pausada ? '#f3f4f6' : '#ecfeff', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px' }}>
+          <span style={{ flex: 1 }}>
+            {ia.pausada ? '🙋 Esta conversación la lleva el equipo: la IA no le responde.'
+              : ia.modo === 'activa' ? '🤖 La IA le responde sola.' : '🤖 La IA escribe borradores; los envía una persona.'}
+          </span>
+          <button onClick={() => cambiarIA(ia.pausada)} style={{ background: 'none', border: '1px solid #ccc', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
+            {ia.pausada ? 'Devolver a la IA' : 'Atender yo'}
+          </button>
+        </div>
+      )}
+      {mensajes.length === 0 && (
+        <div style={{ color: '#888', fontSize: 13 }}>
+          No ha escrito al WhatsApp de Owl. Cuando escriba, la conversación aparece aquí y se le puede responder durante 24 horas.
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {mensajes.map(m => {
+          const mio = m.direccion === 'saliente'
+          return (
+            <div key={m.id} style={{ alignSelf: mio ? 'flex-end' : 'flex-start', maxWidth: '85%', background: mio ? '#dcf8c6' : '#fff',
+              border: '1px solid #e5e7eb', borderRadius: 10, padding: '0.5rem 0.75rem', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {m.texto}
+              <div style={{ fontSize: 10, color: '#999', marginTop: 4, textAlign: 'right' }}>
+                {mio ? `${m.user_nombre ?? (m.estado === 'ia' ? 'IA' : 'Sistema')} · ${ESTADO[m.estado] ?? m.estado ?? ''} · ` : ''}
+                {new Date(m.created_at.replace(' ', 'T') + 'Z').toLocaleString('es-CO')}
+                {m.error ? ` · ${m.error}` : ''}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {mensajes.length > 0 && (c.ventanaAbierta ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {ia.borrador && !deBorrador && (
+            <div style={{ background: '#ecfeff', border: '1px dashed #0e7490', borderRadius: 8, padding: '0.6rem 0.8rem', fontSize: 13 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0e7490', marginBottom: 4 }}>🤖 Borrador de la IA{ia.borrador.motivo ? ` · ${ia.borrador.motivo}` : ''}</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{ia.borrador.texto}</div>
+              <button onClick={() => { setTexto(ia.borrador.texto); setDeBorrador(true) }}
+                style={{ marginTop: 6, background: '#0e7490', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                Usar este borrador
+              </button>
+            </div>
+          )}
+          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={3} placeholder="Escribe la respuesta…"
+            style={{ padding: '0.6rem', border: '1px solid #ddd', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={enviar} disabled={enviando || !texto.trim()}
+              style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: enviando || !texto.trim() ? 0.6 : 1 }}>
+              {enviando ? 'Enviando…' : 'Enviar por WhatsApp'}
+            </button>
+            {c.ventanaHasta && <span style={{ fontSize: 11, color: '#888' }}>Puedes responder hasta el {new Date(c.ventanaHasta).toLocaleString('es-CO')}</span>}
+          </div>
+          {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: '#888', background: '#f9fafb', padding: '8px 10px', borderRadius: 6 }}>
+          Pasaron más de 24 horas desde su último mensaje: WhatsApp no deja responderle hasta que vuelva a escribir. Escríbele por correo.
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TabMensajes({ p, firma, hoy, copiado, setCopiado }: {
   p: any; firma: string | null; hoy: string; copiado: string | null; setCopiado: (v: string | null) => void
 }) {
@@ -651,22 +764,50 @@ function FichaTemperatura({ p, t }: { p: any; t: { nivel: NivelTemperatura; punt
 }
 
 /** Paso actual de la cadencia del webinar con sus botones: "Ya lo envié" programa el siguiente; "Respondió" la detiene. */
+type AccionCadencia = 'paso_enviado' | 'respondio' | 'automatico_on' | 'automatico_off'
+
+/** Aviso de modo automático por correo, baja o correo inválido, con el botón para pasar a automático o volver a manual. */
+function BarraAutomatico({ p, ocupado, accion }: { p: any; ocupado: boolean; accion: (a: AccionCadencia) => void }) {
+  const para = destinatario(p)
+  if (p.baja) return <div style={{ fontSize: 12.5, color: '#b91c1c', fontWeight: 600, marginBottom: 8 }}>⛔ Se dio de baja: no recibe más correos. No contactar.</div>
+  const boton = (texto: string, a: AccionCadencia) => (
+    <button disabled={ocupado} onClick={() => accion(a)}
+      style={{ padding: '4px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, border: '1px solid #0e7490', background: '#fff', color: '#0e7490', cursor: 'pointer' }}>
+      {texto}
+    </button>
+  )
+  if (p.automatico) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: '#0e7490' }}>🤖 <strong>Automático por correo</strong> a {para ?? 'sin correo'}: el sistema envía cada paso solo y detiene la cadencia si responde.</span>
+        {boton('Volver a manual', 'automatico_off')}
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+      <span style={{ fontSize: 11.5, color: p.correo_invalido ? '#b45309' : '#888' }}>
+        {p.correo_invalido ? '⚠ Su correo rebotó: solo WhatsApp o llamada.' : para ? `Correo: ${para}` : 'Sin correo válido: no puede ir en automático.'}
+      </span>
+      {para && !p.correo_invalido && (!p.cadencia_estado || p.cadencia_estado === 'activa') && boton('🤖 Pasar a automático (correo)', 'automatico_on')}
+    </div>
+  )
+}
+
 function CajaCadencia({ p, vendedor, ocupado, accion }: {
-  p: any; vendedor: string | null; ocupado: boolean; accion: (a: 'paso_enviado' | 'respondio') => void
+  p: any; vendedor: string | null; ocupado: boolean; accion: (a: AccionCadencia) => void
 }) {
   const [copiado, setCopiado] = useState<string | null>(null)
   const c = p.cadencia ? CADENCIAS[p.cadencia as CadenciaId] : null
-  if (!c) return null
+  if (!c) return <BarraAutomatico p={p} ocupado={ocupado} accion={accion} />
   const actual = pasoActual(p)
   // Los mensajes van a quien se inscribió; en filas del cold mailing puede no ser el representante legal.
-  const contacto = {
-    nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos,
-    // Si ya tiene radiografía, el primer mensaje es el que la presenta (lib/radiografia.ts) y el resto va en "usted".
-    punto: p.radiografia_en ? puntoConcreto(p, hoyBogota()) : null,
-  }
+  // Si ya tiene radiografía, el primer mensaje es el que la presenta (lib/radiografia.ts).
+  const contacto = datosDelProspecto(p, hoyBogota())
   const telefono = p.webinar_telefono || p.telefono
   return (
     <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 10, padding: '0.9rem 1.1rem', marginBottom: '1rem' }}>
+      <BarraAutomatico p={p} ocupado={ocupado} accion={accion} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: C.vino }}>Cadencia: {c.nombre}</span>
         <span style={{ fontSize: 11, color: '#888' }}>{p.proxima_fecha && actual ? `Toca el ${p.proxima_fecha}` : ''}</span>
@@ -679,7 +820,20 @@ function CajaCadencia({ p, vendedor, ocupado, accion }: {
       </div>
       {p.cadencia_estado === 'respondio' && <div style={{ fontSize: 12.5, color: '#15803d', fontWeight: 600 }}>✓ Respondió: la cadencia se detuvo. Ahora toca agendar la reunión.</div>}
       {p.cadencia_estado === 'terminada' && <div style={{ fontSize: 12.5, color: '#b45309' }}>Se enviaron todos los pasos sin respuesta. Márquelo &quot;No interesado&quot; o déjelo para más adelante.</div>}
-      {actual && (() => {
+      {actual && p.automatico && (
+        <>
+          <MensajeBox titulo={`Paso ${actual.indice + 1} de ${actual.total} · ${actual.paso.canal === 'llamada' ? 'la llamada se salta en modo automático' : `correo automático el ${p.proxima_fecha ?? 'próximo día hábil'}`}`}
+            texto={actual.paso.canal === 'llamada' ? 'En modo automático no hay llamadas: el sistema pasa al siguiente correo.' : textoDelPaso(actual.paso, contacto, vendedor, p.cadencia as CadenciaId, 'correo')}
+            waLink={null} copiado={copiado} setCopiado={setCopiado} />
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <button disabled={ocupado} onClick={() => accion('respondio')}
+              style={{ flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700, borderRadius: 6, border: `1px solid ${C.vino}`, background: '#fff', color: C.vino, cursor: 'pointer' }}>
+              Respondió por otro medio
+            </button>
+          </div>
+        </>
+      )}
+      {actual && !p.automatico && (() => {
         const texto = textoDelPaso(actual.paso, contacto, vendedor, p.cadencia as CadenciaId)
         const wa = actual.paso.canal === 'whatsapp' ? enlaceWhatsApp(telefono, texto) : null
         return (

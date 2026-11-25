@@ -3,9 +3,13 @@
  * Secuencias de seguimiento (cadencias) de la campaña de la radiografía regulatoria. Cada prospecto sigue una:
  *  - webinar-asistente: asistió al webinar "Que el MinTIC no sancione tu ISP" (21 oct 2026, con Inerxia AI y Nicolás Almeyda), 5 pasos;
  *  - webinar-inscrito: se inscribió y no asistió, 3 pasos;
- *  - cold-mailing: los del cold mailing (y las bases cargadas) que no están en el webinar, 5 pasos.
+ *  - cold-mailing: los del cold mailing (y las bases cargadas) que no están en el webinar, 5 pasos;
+ *  - entrante: quien escribió por la web (contacto, autodiagnóstico): respuesta inmediata y dos seguimientos.
  * El vendedor marca cada paso como enviado y el sistema programa el siguiente en días hábiles. Si responde, la cadencia se
  * detiene y toca agendar la reunión; para esa parte están los mensajes de CUANDO_RESPONDE.
+ *
+ * Los prospectos en modo automático (lib/ventas-auto.ts) reciben los mismos textos por correo: la llamada se salta y el cierre
+ * habla del correo en vez del WhatsApp.
  *
  * Todo va en "tú", WhatsApp y llamadas. El primer mensaje lleva la página de servicios de Owl; en todos se habla de reuniones
  * de 15 minutos y se manda el enlace al calendario público. Dos versiones del texto: con radiografía (el prospecto ya tiene su
@@ -19,7 +23,8 @@ export const WEBINAR = {
   ponente: 'Nicolás Almeyda',
 }
 
-export type CadenciaId = 'webinar-asistente' | 'webinar-inscrito' | 'cold-mailing'
+export type CadenciaId = 'webinar-asistente' | 'webinar-inscrito' | 'cold-mailing' | 'entrante'
+export type Canal = 'whatsapp' | 'correo'
 export type EstadoCadencia = 'activa' | 'respondio' | 'terminada'
 
 export interface DatosLead {
@@ -28,6 +33,8 @@ export interface DatosLead {
   minutos_webinar?: number | null
   /** Resultado de `puntoConcreto` (lib/radiografia.ts). Solo viene si el prospecto ya tiene su radiografía cargada. */
   punto?: string | null
+  /** Formulario por el que escribió (solo cadencia entrante): 'autodiagnostico', 'contacto'… */
+  origen?: string | null
 }
 
 /** Lo que ve cada texto: nombre ya listo para saludar, quién firma y si hay radiografía. */
@@ -42,6 +49,8 @@ interface Ctx {
   empresaRaw: string | null
   punto: string | null
   webinar: EstadoWebinar
+  canal: Canal
+  origen: string | null
 }
 
 export interface PasoCadencia {
@@ -126,18 +135,46 @@ const autodiagnostico: PasoCadencia = {
 
 const cierre: PasoCadencia = {
   esperaDias: 4, canal: 'whatsapp', titulo: 'WhatsApp · cierre amable',
-  texto: c => `${con(c.n, 'no te quiero llenar el WhatsApp. ')}¿Lo dejamos para más adelante o prefieres elegir un horario ahora (${CAL})? Con un "más adelante" me basta.`,
+  texto: c => `${con(c.n, `no te quiero llenar ${c.canal === 'correo' ? 'el correo' : 'el WhatsApp'}. `)}¿Lo dejamos para más adelante o prefieres elegir un horario ahora (${CAL})? Con un "más adelante" me basta.`,
+}
+
+const esAutodiagnostico = (c: Ctx) => /autodiagn/i.test(c.origen ?? '')
+
+/** Respuesta inmediata a quien escribió por la web. */
+const respuestaEntrante: PasoCadencia = {
+  esperaDias: 0, canal: 'whatsapp', titulo: 'Mensaje 1 · respuesta inmediata',
+  texto: c => {
+    const saludo = `¡Hola${c.n ? `, ${c.n}` : ''}! Soy ${c.yo}, de Owl Compliance.`
+    const cuerpo = esAutodiagnostico(c)
+      ? `Ya te llegó el informe de tu autodiagnóstico de cumplimiento. Lo más útil es revisarlo juntos: en una videollamada de ${MIN} minutos ` +
+        `te muestro qué significa cada brecha para ${c.empresa} y qué conviene atender primero.`
+      : `Gracias por escribirnos. Para darte una respuesta concreta para ${c.empresa}, te propongo una videollamada de ${MIN} minutos.`
+    return `${saludo} ${cuerpo}
+
+Elige el horario que te quede mejor: ${CAL}
+
+Mientras tanto, aquí puedes conocer nuestros servicios: ${WEB}`
+  },
+}
+
+const seguimientoEntrante: PasoCadencia = {
+  esperaDias: 2, canal: 'whatsapp', titulo: 'Mensaje 2 · seguimiento',
+  texto: c => esAutodiagnostico(c)
+    ? `${con(c.n, '¿pudiste ver el informe de tu autodiagnóstico? ')}En ${MIN} minutos lo revisamos juntos y te digo por dónde empezar. Elige el horario que te quede mejor: ${CAL}`
+    : `${con(c.n, 'te escribo de nuevo por tu mensaje. ')}¿Te queda bien una videollamada de ${MIN} minutos esta semana? Elige el horario que te quede mejor: ${CAL}`,
 }
 
 export const CADENCIAS: Record<CadenciaId, { nombre: string; pasos: PasoCadencia[] }> = {
   'webinar-asistente': { nombre: 'Webinar · asistió', pasos: [primerContacto, llamada, propuestaDeReunion, autodiagnostico, cierre] },
   'webinar-inscrito': { nombre: 'Webinar · inscrito, no asistió', pasos: [primerContacto, autodiagnostico, cierre] },
   'cold-mailing': { nombre: 'Cold mailing · radiografía', pasos: [primerContacto, llamada, propuestaDeReunion, autodiagnostico, cierre] },
+  'entrante': { nombre: 'Escribió por la web', pasos: [respuestaEntrante, seguimientoEntrante, cierre] },
 }
 
 /** La cadencia que le toca a un prospecto: la que ya tiene o, si no, según si asistió, se inscribió o viene del cold mailing. */
 export function cadenciaDe(p: { cadencia?: string | null; webinar_asistio?: number | null; en_webinar?: number | null; campana?: string | null }): CadenciaId {
   if (p.cadencia && p.cadencia in CADENCIAS) return p.cadencia as CadenciaId
+  if (p.campana === 'web') return 'entrante'
   const w = estadoWebinar(p)
   return w === 'asistio' ? 'webinar-asistente' : w === 'inscrito' ? 'webinar-inscrito' : 'cold-mailing'
 }
@@ -150,7 +187,7 @@ export function pasoActual(l: { cadencia?: string | null; paso_cadencia?: number
   return i < c.pasos.length ? { indice: i, total: c.pasos.length, paso: c.pasos[i] } : null
 }
 
-function contexto(l: DatosLead, vendedor: string | null | undefined, cadencia: CadenciaId): Ctx {
+function contexto(l: DatosLead, vendedor: string | null | undefined, cadencia: CadenciaId, canal: Canal = 'whatsapp'): Ctx {
   return {
     n: nombreParaSaludar(l.nombre),
     yo: vendedor || '[SU NOMBRE]',
@@ -161,12 +198,30 @@ function contexto(l: DatosLead, vendedor: string | null | undefined, cadencia: C
     empresaRaw: l.empresa ?? null,
     punto: l.punto ?? null,
     webinar: cadencia === 'webinar-asistente' ? 'asistio' : cadencia === 'webinar-inscrito' ? 'inscrito' : null,
+    canal,
+    origen: l.origen ?? null,
   }
 }
 
 /** Texto del paso, ya llenado con los datos del contacto. `cadencia` dice si asistió, se inscribió o viene del cold mailing. */
-export function textoDelPaso(paso: PasoCadencia, l: DatosLead, vendedor?: string | null, cadencia: CadenciaId = 'webinar-asistente') {
-  return sinDobles(paso.texto(contexto(l, vendedor, cadencia)))
+export function textoDelPaso(paso: PasoCadencia, l: DatosLead, vendedor?: string | null, cadencia: CadenciaId = 'webinar-asistente', canal: Canal = 'whatsapp') {
+  return sinDobles(paso.texto(contexto(l, vendedor, cadencia, canal)))
+}
+
+/** Los datos con que se llenan los textos de un prospecto: a quién se saluda, su empresa, su radiografía y de dónde vino. */
+export function datosDelProspecto(
+  p: {
+    webinar_nombre?: string | null; representante?: string | null; empresa?: string | null; webinar_minutos?: number | null
+    radiografia_en?: string | null; prioridad?: string | null; revisar_a_mano?: number | null; whatsapp_1?: string | null
+    origen_lead?: string | null
+  },
+  hoy: string,
+): DatosLead {
+  return {
+    nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos,
+    punto: p.radiografia_en ? puntoConcreto(p, hoy) : null,
+    origen: p.origen_lead ?? null,
+  }
 }
 
 // ── Todos los pasos de un prospecto, para la pestaña Mensajes ─────────────────────────────────────────────────
@@ -188,15 +243,14 @@ export function secuenciaDelProspecto(
     webinar_asistio?: number | null; en_webinar?: number | null; campana?: string | null
     webinar_nombre?: string | null; representante?: string | null; empresa?: string | null; webinar_minutos?: number | null
     radiografia_en?: string | null; prioridad?: string | null; revisar_a_mano?: number | null; whatsapp_1?: string | null
+    origen_lead?: string | null; automatico?: number | null
   },
   vendedor: string | null,
   hoy: string,
 ) {
   const id = cadenciaDe(p)
-  const lead: DatosLead = {
-    nombre: p.webinar_nombre || p.representante, empresa: p.empresa, minutos_webinar: p.webinar_minutos,
-    punto: p.radiografia_en ? puntoConcreto(p, hoy) : null,
-  }
+  const lead = datosDelProspecto(p, hoy)
+  const canal: Canal = p.automatico ? 'correo' : 'whatsapp'
   const hechos = Number(p.paso_cadencia ?? 0)
   const pasos: PasoVisible[] = CADENCIAS[id].pasos.map((paso, i) => ({
     indice: i,
@@ -204,7 +258,7 @@ export function secuenciaDelProspecto(
     canal: paso.canal,
     cuando: i === 0 ? 'Primer contacto' : `${paso.esperaDias} ${paso.esperaDias === 1 ? 'día hábil' : 'días hábiles'} después del paso anterior`,
     estado: i < hechos ? 'hecho' : i === hechos && p.cadencia === id && p.cadencia_estado === 'activa' ? 'toca' : 'pendiente',
-    texto: textoDelPaso(paso, lead, vendedor, id),
+    texto: textoDelPaso(paso, lead, vendedor, id, canal),
   }))
   return { id, nombre: CADENCIAS[id].nombre, pasos }
 }

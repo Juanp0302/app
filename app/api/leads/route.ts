@@ -9,7 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { migrateLeads, insertarLead, obtenerLeads, statsLeads } from '@/lib/leads-db'
+import { migrateLeads, insertarLead, obtenerLeads, statsLeads, inferirOrigen } from '@/lib/leads-db'
+import { alertar, prospectoDesdeLead } from '@/lib/ventas-auto'
 
 async function requireSuperadmin() {
   const session = await auth()
@@ -65,7 +66,27 @@ export async function POST(req: NextRequest) {
     datos:        normalizarDatos(body.datos),
   })
 
-  return NextResponse.json({ ok: true, id })
+  // Quien escribe por la web pasa a Prospectos (con responsable y respuesta automática). Si falla, el lead ya quedó guardado.
+  let prospecto: string | null = null
+  try {
+    let nit: string | null = null
+    try { nit = JSON.parse(normalizarDatos(body.datos) ?? '{}').nit ?? null } catch { /* sin NIT */ }
+    const r = await prospectoDesdeLead({
+      id,
+      origen:   inferirOrigen({ origen: body.origen, asunto: body.asunto ?? body.subject, landing_page: body.landing_page ?? body.landingPage }),
+      nombre:   body.nombre ?? body.name,
+      empresa:  body.empresa ?? body.company,
+      correo:   body.correo ?? body.email,
+      telefono: body.telefono ?? body.phone,
+      mensaje:  body.mensaje ?? body.message,
+      nit:      nit == null ? null : String(nit),
+    })
+    prospecto = r.accion
+  } catch (e: any) {
+    await alertar('un lead de la web no pasó a Prospectos', `Lead ${id}: ${e?.message ?? e}`).catch(() => null)
+  }
+
+  return NextResponse.json({ ok: true, id, prospecto })
 }
 
 // ── GET: dashboard superadmin ─────────────────────────────────────────────────

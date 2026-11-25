@@ -1,0 +1,33 @@
+# Reloj de las ventas automáticas (docs/automatizacion-ventas.md): cada hora, de 7 a. m. a 8 p. m. de Bogotá, llama al ciclo
+# de la app (lee el buzón y, en horario hábil, envía los correos de cadencia que tocan). Reemplaza el flujo de n8n.
+# Si la app no responde o el ciclo falla, GitHub le avisa por correo a quien hizo el último cambio en este archivo.
+# Necesita el secreto INTERNAL_SECRET (Settings → Secrets and variables → Actions), igual al de Render.
+name: Ventas automáticas
+
+on:
+  schedule:
+    # GitHub usa hora UTC; Bogotá es UTC-5 todo el año: 12–23 y 0–1 UTC = 7 a. m. a 8 p. m. en Bogotá.
+    - cron: '5 12-23,0-1 * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: ventas-automaticas
+  cancel-in-progress: false
+
+jobs:
+  ciclo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Correr el ciclo
+        env:
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+        run: |
+          if [ -z "$INTERNAL_SECRET" ]; then echo "Falta el secreto INTERNAL_SECRET en GitHub"; exit 1; fi
+          curl --fail-with-body --silent --show-error --max-time 290 \
+            --retry 3 --retry-delay 30 --retry-all-errors \
+            -X POST -H "Authorization: Bearer $INTERNAL_SECRET" \
+            https://app.owlcompliance.com/api/interno/ventas-automaticas
+          echo

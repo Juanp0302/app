@@ -85,6 +85,14 @@ export async function migrateProspectos() {
     `ALTER TABLE prospectos_isp ADD COLUMN webinar_nombre TEXT`,
     `ALTER TABLE prospectos_isp ADD COLUMN webinar_telefono TEXT`,
     `ALTER TABLE prospectos_isp ADD COLUMN webinar_correo TEXT`,
+    // Modo automático (lib/ventas-auto.ts): el sistema envía la cadencia por correo y lee las respuestas.
+    `ALTER TABLE prospectos_isp ADD COLUMN automatico INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE prospectos_isp ADD COLUMN baja INTEGER NOT NULL DEFAULT 0`,          // pidió no recibir más correos
+    `ALTER TABLE prospectos_isp ADD COLUMN baja_en TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN correo_invalido INTEGER NOT NULL DEFAULT 0`, // el correo rebotó
+    // Quien escribió por la web: de qué formulario y qué lead lo creó.
+    `ALTER TABLE prospectos_isp ADD COLUMN origen_lead TEXT`,
+    `ALTER TABLE prospectos_isp ADD COLUMN lead_id INTEGER`,
   ]) {
     try { await execute(sql) } catch { /* ya existe */ }
   }
@@ -152,6 +160,12 @@ export interface ProspectoRow {
   webinar_nombre?: string | null
   webinar_telefono?: string | null
   webinar_correo?: string | null
+  automatico?: number
+  baja?: number
+  baja_en?: string | null
+  correo_invalido?: number
+  origen_lead?: string | null
+  lead_id?: number | null
   created_at: string
   updated_at: string
   // Se agregan con JOIN, no son columnas propias:

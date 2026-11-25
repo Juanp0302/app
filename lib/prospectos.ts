@@ -9,7 +9,8 @@ import {
 } from './prospectos-db'
 import { execute } from './db'
 import { hoyBogota } from './ventas'
-import { CADENCIAS, pasoActual, sumarDiasHabiles, type CadenciaId } from './cadencias'
+import { CADENCIAS, cadenciaDe, pasoActual, sumarDiasHabiles, type CadenciaId } from './cadencias'
+import { destinatario } from './correo-ventas'
 
 // Los 10 estados exactos de la hoja "Tablero" del Excel — en este orden.
 export const ESTADOS_PROSPECTO = [
@@ -33,6 +34,7 @@ export const PRIORIDAD_LABEL: Record<string, string> = {
   C1: 'C1 — Sin investigación (top 50 ingresos)',
   C2: 'C2 — Sin investigación',
   W:  'W — Webinar (sin revisión regulatoria)',
+  E:  'E — Nos escribió (web o WhatsApp)',
 }
 
 export const PRIORIDAD_COLOR: Record<string, string> = {
@@ -41,6 +43,7 @@ export const PRIORIDAD_COLOR: Record<string, string> = {
   C1: '#16a34a', // verde
   C2: '#6b7280', // gris
   W:  '#6d28d9', // morado
+  E:  '#0e7490', // azul verdoso: llegó solo
 }
 
 /** Lista los prospectos visibles para este usuario: admin ve solo los suyos, superadmin ve los 200. */
@@ -62,8 +65,9 @@ export async function actualizarProspectoComoUsuario(
   prospectoId: string,
   camposIn: {
     estado?: string; fecha_contacto?: string | null; proximo_paso?: string | null; notas?: string | null
-    /** paso_enviado: marca el paso actual de la cadencia y programa el siguiente. respondio: la detiene. */
-    accion?: 'paso_enviado' | 'respondio'
+    /** paso_enviado: marca el paso actual de la cadencia y programa el siguiente. respondio: la detiene.
+     *  automatico_on / automatico_off: el sistema envía (o deja de enviar) la cadencia por correo (lib/ventas-auto.ts). */
+    accion?: 'paso_enviado' | 'respondio' | 'automatico_on' | 'automatico_off'
   }
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const prospecto = await buscarProspecto(prospectoId)
@@ -75,6 +79,7 @@ export async function actualizarProspectoComoUsuario(
 
   const { accion, ...campos } = camposIn as typeof camposIn & Parameters<typeof actualizarProspecto>[1]
   const hoy = hoyBogota()
+  if (accion === 'automatico_on' || accion === 'automatico_off') return cambiarModoAutomatico(user, prospecto, accion === 'automatico_on', hoy)
   if (accion === 'paso_enviado') {
     const actual = pasoActual(prospecto)
     if (!actual) return { ok: false, error: 'Este prospecto no tiene un paso de cadencia pendiente', status: 400 }
@@ -113,6 +118,28 @@ export async function actualizarProspectoComoUsuario(
     })
   }
 
+  return { ok: true }
+}
+
+/** Pasa un prospecto a modo automático (el sistema le envía la cadencia por correo) o lo devuelve a manual. */
+async function cambiarModoAutomatico(user: { id: string }, p: ProspectoRow, encender: boolean, hoy: string): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!encender) {
+    await execute(`UPDATE prospectos_isp SET automatico = 0, updated_at = datetime('now') WHERE id = ?`, [p.id])
+    await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: user.id, nota: 'Vuelve al trabajo manual (sale del modo automático)' })
+    return { ok: true }
+  }
+  if (p.baja) return { ok: false, error: 'Se dio de baja: no se le pueden enviar correos', status: 400 }
+  if (p.correo_invalido) return { ok: false, error: 'Su correo rebotó: no puede ir en automático', status: 400 }
+  if (!destinatario(p)) return { ok: false, error: 'No tiene un correo válido', status: 400 }
+  if (p.cadencia_estado && p.cadencia_estado !== 'activa') return { ok: false, error: 'Su cadencia ya no está activa (respondió o terminó)', status: 400 }
+  if (['No contactar', 'No interesado', 'Cliente'].includes(p.estado)) return { ok: false, error: `Está en "${p.estado}"`, status: 400 }
+  // Sin cadencia, empieza la que le corresponde; con cadencia, sigue desde el paso en que va (la llamada se salta).
+  const cadencia = p.cadencia ?? cadenciaDe(p)
+  await execute(
+    `UPDATE prospectos_isp SET automatico = 1, cadencia = ?, cadencia_estado = 'activa', paso_cadencia = COALESCE(paso_cadencia, 0),
+       proxima_fecha = COALESCE(proxima_fecha, ?), updated_at = datetime('now') WHERE id = ?`, [cadencia, hoy, p.id])
+  await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: user.id,
+    nota: `Pasa a modo automático: el sistema le envía la cadencia por correo a ${destinatario(p)}` })
   return { ok: true }
 }
 
