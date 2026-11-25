@@ -2,7 +2,10 @@
  * Pasa prospectos existentes a modo automático (lib/ventas-auto.ts): desde ahí el sistema les envía su cadencia por correo,
  * lee las respuestas y los saca de "Para hoy" del equipo. Es lo mismo que el botón "🤖 Pasar a automático" de la ficha, en lote.
  *
- * Uso: node scripts/pasar-a-automatico.mjs [--dry] [--prod] [--campana cold-mailing|webinar|<base>] [--responsable <texto>] [--limite N]
+ * Uso: node scripts/pasar-a-automatico.mjs [--dry] [--prod] [--canal correo|whatsapp] [--campana cold-mailing|webinar|<base>] [--responsable <texto>] [--limite N]
+ *   --canal whatsapp: la cadencia sale por plantillas de WhatsApp desde el número de Owl. Solo para la campaña webinar (el
+ *   superadmin confirmó el 2026-11-25 que a los inscritos se les puede escribir; quedan con whatsapp_ok = 1) o para quien ya
+ *   aceptó mensajes por WhatsApp. Necesita un celular válido. Sin --canal, por correo.
  *   Sin --prod usa SOLO la BD local. Con --prod usa Turso (.env.local). Siempre --dry --prod primero.
  *   Correr DESPUÉS de desplegar el código de ventas automáticas (crea sus columnas la primera vez que se usa).
  *
@@ -23,6 +26,8 @@ const prod = args.includes('--prod')
 const campana = opcion('--campana', null)
 const responsable = opcion('--responsable', null)
 const limite = Number(opcion('--limite', 100000))
+const canal = opcion('--canal', 'correo')
+if (!['correo', 'whatsapp'].includes(canal)) { console.error('--canal debe ser correo o whatsapp'); process.exit(1) }
 const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
 
 const envPath = path.join(__dirname, '..', '.env.local')
@@ -42,7 +47,7 @@ const db = prod && process.env.TURSO_DATABASE_URL
   : createClient({ url: dbUrl })
 
 const columnas = (await db.execute(`PRAGMA table_info(prospectos_isp)`)).rows.map(r => r.name)
-if (!columnas.includes('automatico')) {
+if (!columnas.includes('automatico') || !columnas.includes('canal_auto')) {
   console.error('La tabla todavía no tiene las columnas del modo automático: despliega el código y abre Prospectos una vez antes de correr esto.')
   process.exit(1)
 }
@@ -50,31 +55,46 @@ if (!columnas.includes('automatico')) {
 // Igual que destinatario() de lib/correo-ventas.ts: quien se inscribió al webinar o, si no, el correo de la empresa.
 const primerCorreo = s => (String(s ?? '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/)?.[0] ?? '').toLowerCase() || null
 const destinatario = f => primerCorreo(f.webinar_correo) ?? primerCorreo(f.correo)
+// Igual que celularParaWhatsApp de lib/whatsapp.ts.
+const celular = raw => {
+  const m = String(raw ?? '').replace(/[()]/g, ' ').match(/(?<!\d)(?:\+?57[\s\-.]*)?(3\d{2})[\s\-.]*(\d{3})[\s\-.]*(\d{4})(?!\d)/)
+  return m ? `57${m[1]}${m[2]}${m[3]}` : null
+}
+const celularDe = f => celular(f.webinar_telefono) ?? celular(f.telefono)
+const puedeWhatsApp = f => f.whatsapp_ok || f.campana === 'webinar'
+const sirve = canal === 'whatsapp' ? f => celularDe(f) && puedeWhatsApp(f) : destinatario
 
 const filas = (await db.execute(
-  `SELECT p.id, p.empresa, p.campana, p.cadencia, p.paso_cadencia, p.proxima_fecha, p.correo, p.webinar_correo, u.nombre AS responsable
+  `SELECT p.id, p.empresa, p.campana, p.cadencia, p.paso_cadencia, p.proxima_fecha, p.correo, p.webinar_correo, p.telefono, p.webinar_telefono,
+     p.whatsapp_ok, u.nombre AS responsable
    FROM prospectos_isp p LEFT JOIN users u ON u.id = p.responsable_id
-   WHERE p.automatico = 0 AND p.baja = 0 AND p.correo_invalido = 0 AND p.cadencia_estado = 'activa'
+   WHERE p.automatico = 0 AND p.baja = 0 AND p.cadencia_estado = 'activa' ${canal === 'correo' ? 'AND p.correo_invalido = 0' : ''}
      AND p.estado NOT IN ('No contactar', 'No interesado', 'Cliente')
      ${campana ? 'AND COALESCE(p.campana, \'cold-mailing\') = ?' : ''}
    ORDER BY p.proxima_fecha, p.puesto`, campana ? [campana] : [])).rows
   .filter(f => !responsable || String(f.responsable ?? '').toLowerCase().includes(responsable.toLowerCase()))
 
-const conCorreo = filas.filter(destinatario).slice(0, limite)
-console.log(`Con cadencia activa${campana ? ` (campaña ${campana})` : ''}${responsable ? ` de "${responsable}"` : ''}: ${filas.length} · con correo válido: ${filas.filter(destinatario).length} · se pasan: ${conCorreo.length}`)
+const conCorreo = filas.filter(sirve).slice(0, limite)
+console.log(`Canal: ${canal}`)
+console.log(`Con cadencia activa${campana ? ` (campaña ${campana})` : ''}${responsable ? ` de "${responsable}"` : ''}: ${filas.length} · ${canal === 'whatsapp' ? 'con celular y permiso de WhatsApp' : 'con correo válido'}: ${filas.filter(sirve).length} · se pasan: ${conCorreo.length}`)
 const cuenta = clave => Object.entries(conCorreo.reduce((a, f) => { const k = clave(f); a[k] = (a[k] ?? 0) + 1; return a }, {}))
   .sort().map(([k, n]) => `${k} ${n}`).join(' · ')
 console.log('Por responsable:', cuenta(f => f.responsable ?? 'Sin asignar'))
 console.log('Por campaña:', cuenta(f => f.campana ?? 'cold-mailing'))
 console.log('Por paso en que van (0 = primer contacto):', cuenta(f => `${f.cadencia} paso ${f.paso_cadencia}`))
 const atrasados = conCorreo.filter(f => !f.proxima_fecha || f.proxima_fecha <= hoy).length
-console.log(`Les toca correo ya (hoy o atrasados): ${atrasados}. Con el tope de 100 por día, se ponen al día en ~${Math.ceil(atrasados / 100)} día(s) hábil(es).`)
+const tope = canal === 'whatsapp' ? 200 : 100
+console.log(`Les toca mensaje ya (hoy o atrasados): ${atrasados}. Con el tope de ${tope} por día, se ponen al día en ~${Math.ceil(atrasados / tope)} día(s) hábil(es).`)
+if (canal === 'whatsapp') console.log(`Costo aproximado por paso enviado a todos: US$${(conCorreo.length * 0.0125).toFixed(2)} (plantillas de marketing, ~US$0,0125 c/u en Colombia).`)
 
 if (dry) { console.log('Simulación: no se escribió nada.'); process.exit(0) }
 for (const f of conCorreo) {
-  await db.execute(`UPDATE prospectos_isp SET automatico = 1, proxima_fecha = COALESCE(proxima_fecha, ?), updated_at = datetime('now') WHERE id = ?`, [hoy, f.id])
+  await db.execute(`UPDATE prospectos_isp SET automatico = 1, canal_auto = ?, whatsapp_ok = CASE WHEN ? = 'whatsapp' THEN 1 ELSE whatsapp_ok END,
+      proxima_fecha = COALESCE(proxima_fecha, ?), updated_at = datetime('now') WHERE id = ?`, [canal, canal, hoy, f.id])
   await db.execute(`INSERT INTO prospectos_isp_historial (id, prospecto_id, estado_anterior, estado_nuevo, user_id, nota)
     SELECT lower(hex(randomblob(16))), id, estado, estado, NULL, ? FROM prospectos_isp WHERE id = ?`,
-    [`Pasa a modo automático (en lote): el sistema le envía la cadencia por correo a ${destinatario(f)}`, f.id])
+    [canal === 'whatsapp'
+      ? `Pasa a modo automático (en lote): el sistema le envía la cadencia por WhatsApp (plantillas) a +${celularDe(f)}`
+      : `Pasa a modo automático (en lote): el sistema le envía la cadencia por correo a ${destinatario(f)}`, f.id])
 }
 console.log(`✓ ${conCorreo.length} prospectos en modo automático.`)

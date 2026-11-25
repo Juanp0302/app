@@ -129,6 +129,57 @@ export async function enviarTextoWhatsApp(para: string, texto: string): Promise<
   }
 }
 
+/** Cuenta de WhatsApp Business de Owl (OWL Compliance). No es secreta. */
+export const wabaId = () => process.env.WHATSAPP_WABA_ID || '2586269871867852'
+
+async function graph(ruta: string, init: { method?: string; body?: any } = {}): Promise<{ ok: boolean; status: number; d: any }> {
+  const token = process.env.WHATSAPP_TOKEN
+  if (!token) return { ok: false, status: 0, d: { error: { message: 'WHATSAPP_TOKEN no configurado' } } }
+  try {
+    const r = await fetch(`https://graph.facebook.com/${version()}/${ruta}`, {
+      method: init.method ?? 'GET',
+      headers: { Authorization: `Bearer ${token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
+      body: init.body ? JSON.stringify(init.body) : undefined,
+      signal: AbortSignal.timeout(20000),
+    })
+    return { ok: r.ok, status: r.status, d: await r.json().catch(() => ({})) }
+  } catch (e: any) {
+    return { ok: false, status: 0, d: { error: { message: e?.message ?? String(e) } } }
+  }
+}
+
+/** Envía una plantilla aprobada (sirve fuera de la ventana de 24 h). Se cobra por mensaje entregado. */
+export async function enviarPlantillaWhatsApp(para: string, nombre: string, parametros: string[], boton?: string): Promise<EnvioWhatsApp> {
+  const phoneId = process.env.WHATSAPP_PHONE_ID
+  if (!phoneId) return { ok: false, error: 'WHATSAPP_PHONE_ID no configurado' }
+  const components: any[] = []
+  if (parametros.length) components.push({ type: 'body', parameters: parametros.map(text => ({ type: 'text', text })) })
+  if (boton) components.push({ type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: boton }] })
+  const r = await graph(`${phoneId}/messages`, { method: 'POST', body: {
+    messaging_product: 'whatsapp', recipient_type: 'individual', to: para.replace(/\D/g, ''), type: 'template',
+    template: { name: nombre, language: { code: 'es' }, components },
+  } })
+  if (!r.ok || !r.d?.messages?.[0]?.id) return { ok: false, codigo: r.d?.error?.code, error: r.d?.error?.message ?? `HTTP ${r.status}` }
+  return { ok: true, wamid: String(r.d.messages[0].id) }
+}
+
+export interface EstadoPlantilla { nombre: string; estado: string; categoria?: string; motivo?: string | null }
+
+/** Las plantillas registradas en Meta con su estado (APPROVED, PENDING, REJECTED…). */
+export async function listarPlantillasMeta(): Promise<{ ok: true; plantillas: EstadoPlantilla[] } | { ok: false; error: string }> {
+  const r = await graph(`${wabaId()}/message_templates?fields=name,status,category,rejected_reason,language&limit=200`)
+  if (!r.ok) return { ok: false, error: r.d?.error?.message ?? `HTTP ${r.status}` }
+  return { ok: true, plantillas: (r.d?.data ?? []).filter((t: any) => !t.language || String(t.language).startsWith('es'))
+    .map((t: any) => ({ nombre: t.name, estado: t.status, categoria: t.category, motivo: t.rejected_reason && t.rejected_reason !== 'NONE' ? t.rejected_reason : null })) }
+}
+
+/** Registra una plantilla en Meta para que la revise. */
+export async function registrarPlantillaMeta(cuerpo: any): Promise<{ ok: true; estado: string } | { ok: false; error: string }> {
+  const r = await graph(`${wabaId()}/message_templates`, { method: 'POST', body: cuerpo })
+  if (!r.ok) return { ok: false, error: r.d?.error?.error_user_msg ?? r.d?.error?.message ?? `HTTP ${r.status}` }
+  return { ok: true, estado: r.d?.status ?? 'PENDING' }
+}
+
 /** ¿Sigue abierta la ventana para responder con texto libre? */
 export const ventanaAbierta = (ultimoEntrante: Date | string | null | undefined, ahora = new Date()) => {
   if (!ultimoEntrante) return false

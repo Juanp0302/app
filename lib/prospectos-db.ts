@@ -93,6 +93,10 @@ export async function migrateProspectos() {
     // Quien escribió por la web: de qué formulario y qué lead lo creó.
     `ALTER TABLE prospectos_isp ADD COLUMN origen_lead TEXT`,
     `ALTER TABLE prospectos_isp ADD COLUMN lead_id INTEGER`,
+    // Canal del modo automático (correo | whatsapp) y si aceptó recibir mensajes de Owl por WhatsApp (lib/plantillas-whatsapp.ts).
+    `ALTER TABLE prospectos_isp ADD COLUMN canal_auto TEXT NOT NULL DEFAULT 'correo'`,
+    `ALTER TABLE prospectos_isp ADD COLUMN whatsapp_ok INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE prospectos_isp ADD COLUMN ia_pausada INTEGER NOT NULL DEFAULT 0`,
   ]) {
     try { await execute(sql) } catch { /* ya existe */ }
   }
@@ -166,6 +170,9 @@ export interface ProspectoRow {
   correo_invalido?: number
   origen_lead?: string | null
   lead_id?: number | null
+  canal_auto?: 'correo' | 'whatsapp' | null
+  whatsapp_ok?: number
+  ia_pausada?: number
   created_at: string
   updated_at: string
   // Se agregan con JOIN, no son columnas propias:

@@ -23,7 +23,7 @@ export const WEBINAR = {
   ponente: 'Nicolás Almeyda',
 }
 
-export type CadenciaId = 'webinar-asistente' | 'webinar-inscrito' | 'cold-mailing' | 'entrante'
+export type CadenciaId = 'webinar-asistente' | 'webinar-inscrito' | 'cold-mailing' | 'entrante' | 'post-reunion'
 export type Canal = 'whatsapp' | 'correo'
 export type EstadoCadencia = 'activa' | 'respondio' | 'terminada'
 
@@ -54,6 +54,8 @@ interface Ctx {
 }
 
 export interface PasoCadencia {
+  /** Identificador estable del paso (lo usan las plantillas de WhatsApp, lib/plantillas-whatsapp.ts). */
+  id: string
   /** Días hábiles desde el paso anterior. */
   esperaDias: number
   canal: 'whatsapp' | 'llamada'
@@ -90,14 +92,14 @@ function primerSinRadiografia(c: Ctx): string {
 }
 
 const primerContacto: PasoCadencia = {
-  esperaDias: 0, canal: 'whatsapp', titulo: 'WhatsApp 1 · primer contacto',
+  id: 'primer', esperaDias: 0, canal: 'whatsapp', titulo: 'WhatsApp 1 · primer contacto',
   texto: c => (c.punto
     ? mensajeRadiografia({ nombre: c.nombre, empresa: c.empresaRaw, remitente: c.remitente, webinar: c.webinar, punto: c.punto })
     : primerSinRadiografia(c)),
 }
 
 const llamada: PasoCadencia = {
-  esperaDias: 1, canal: 'llamada', titulo: 'Llamada · si no respondió',
+  id: 'llamada', esperaDias: 1, canal: 'llamada', titulo: 'Llamada · si no respondió',
   texto: c => {
     const porQue = c.punto
       ? `Te llamo porque te escribí por WhatsApp con la radiografía regulatoria de ${c.empresa}. ¿Alcanzaste a verla?`
@@ -118,7 +120,7 @@ const llamada: PasoCadencia = {
 }
 
 const propuestaDeReunion: PasoCadencia = {
-  esperaDias: 2, canal: 'whatsapp', titulo: 'WhatsApp 2 · propuesta de reunión',
+  id: 'propuesta', esperaDias: 2, canal: 'whatsapp', titulo: 'WhatsApp 2 · propuesta de reunión',
   texto: c => (c.punto
     ? `${con(c.n, `te escribo de nuevo por la radiografía regulatoria de ${c.empresa}: ¿pudiste verla? `)}` +
       `Si te parece, la revisamos en una videollamada de ${MIN} minutos y hacemos juntos el autodiagnóstico. Elige el horario que te quede mejor: ${CAL}`
@@ -127,14 +129,14 @@ const propuestaDeReunion: PasoCadencia = {
 }
 
 const autodiagnostico: PasoCadencia = {
-  esperaDias: 3, canal: 'whatsapp', titulo: 'WhatsApp · autodiagnóstico',
+  id: 'autodiagnostico', esperaDias: 3, canal: 'whatsapp', titulo: 'WhatsApp · autodiagnóstico',
   texto: c => `${con(c.n, 'si ahora no tienes tiempo para una videollamada, te dejo el autodiagnóstico gratuito: ')}` +
     `son 5 minutos y te da tu porcentaje de cumplimiento preliminar.\n\n${ENLACES.autodiagnostico}\n\n` +
     `Cuando lo tengas, lo revisamos juntos en ${MIN} minutos: ${CAL}`,
 }
 
 const cierre: PasoCadencia = {
-  esperaDias: 4, canal: 'whatsapp', titulo: 'WhatsApp · cierre amable',
+  id: 'cierre', esperaDias: 4, canal: 'whatsapp', titulo: 'WhatsApp · cierre amable',
   texto: c => `${con(c.n, `no te quiero llenar ${c.canal === 'correo' ? 'el correo' : 'el WhatsApp'}. `)}¿Lo dejamos para más adelante o prefieres elegir un horario ahora (${CAL})? Con un "más adelante" me basta.`,
 }
 
@@ -142,7 +144,7 @@ const esAutodiagnostico = (c: Ctx) => /autodiagn/i.test(c.origen ?? '')
 
 /** Respuesta inmediata a quien escribió por la web. */
 const respuestaEntrante: PasoCadencia = {
-  esperaDias: 0, canal: 'whatsapp', titulo: 'Mensaje 1 · respuesta inmediata',
+  id: 'respuesta-entrante', esperaDias: 0, canal: 'whatsapp', titulo: 'Mensaje 1 · respuesta inmediata',
   texto: c => {
     const saludo = `¡Hola${c.n ? `, ${c.n}` : ''}! Soy ${c.yo}, de Owl Compliance.`
     const cuerpo = esAutodiagnostico(c)
@@ -158,10 +160,20 @@ Mientras tanto, aquí puedes conocer nuestros servicios: ${WEB}`
 }
 
 const seguimientoEntrante: PasoCadencia = {
-  esperaDias: 2, canal: 'whatsapp', titulo: 'Mensaje 2 · seguimiento',
+  id: 'seguimiento-entrante', esperaDias: 2, canal: 'whatsapp', titulo: 'Mensaje 2 · seguimiento',
   texto: c => esAutodiagnostico(c)
     ? `${con(c.n, '¿pudiste ver el informe de tu autodiagnóstico? ')}En ${MIN} minutos lo revisamos juntos y te digo por dónde empezar. Elige el horario que te quede mejor: ${CAL}`
     : `${con(c.n, 'te escribo de nuevo por tu mensaje. ')}¿Te queda bien una videollamada de ${MIN} minutos esta semana? Elige el horario que te quede mejor: ${CAL}`,
+}
+
+/** Después de la reunión: arranca sola cuando el prospecto pasa a "Propuesta enviada" (lib/prospectos.ts). */
+const seguimientoPropuesta: PasoCadencia = {
+  id: 'seguimiento-propuesta', esperaDias: 2, canal: 'whatsapp', titulo: 'Seguimiento · ¿revisó la propuesta?',
+  texto: c => `${con(c.n, `¿pudiste revisar la propuesta que te enviamos para ${c.empresa}? `)}Si tienes alguna duda, la resolvemos en ${MIN} minutos. Elige el horario que te quede mejor: ${CAL}`,
+}
+const recordatorioPropuesta: PasoCadencia = {
+  id: 'recordatorio-propuesta', esperaDias: 3, canal: 'whatsapp', titulo: 'Seguimiento · recordatorio de la propuesta',
+  texto: c => `${con(c.n, `te escribo de nuevo por la propuesta para ${c.empresa}. `)}¿Quieres que la revisemos juntos? Son ${MIN} minutos y eliges el horario aquí: ${CAL}`,
 }
 
 export const CADENCIAS: Record<CadenciaId, { nombre: string; pasos: PasoCadencia[] }> = {
@@ -169,6 +181,7 @@ export const CADENCIAS: Record<CadenciaId, { nombre: string; pasos: PasoCadencia
   'webinar-inscrito': { nombre: 'Webinar · inscrito, no asistió', pasos: [primerContacto, autodiagnostico, cierre] },
   'cold-mailing': { nombre: 'Cold mailing · radiografía', pasos: [primerContacto, llamada, propuestaDeReunion, autodiagnostico, cierre] },
   'entrante': { nombre: 'Escribió por la web', pasos: [respuestaEntrante, seguimientoEntrante, cierre] },
+  'post-reunion': { nombre: 'Después de la reunión · seguimiento de la propuesta', pasos: [seguimientoPropuesta, recordatorioPropuesta, cierre] },
 }
 
 /** La cadencia que le toca a un prospecto: la que ya tiene o, si no, según si asistió, se inscribió o viene del cold mailing. */

@@ -28,6 +28,7 @@ export function aHtml(texto: string): string {
 /** Asunto del primer correo; los siguientes van como respuesta en el mismo hilo ("Re: …"). */
 export function asuntoInicial(cadencia: CadenciaId, d: DatosLead): string {
   const isp = isPara(d.empresa)
+  if (cadencia === 'post-reunion') return isp === 'tu ISP' ? 'Propuesta de Owl Compliance' : `Propuesta de Owl Compliance para ${isp}`
   if (cadencia === 'entrante') {
     return /autodiagn/i.test(d.origen ?? '') ? 'Tu autodiagnóstico de cumplimiento: revisémoslo juntos' : 'Recibimos tu mensaje · Owl Compliance'
   }

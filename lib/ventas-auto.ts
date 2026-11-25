@@ -21,7 +21,9 @@ import { armarCorreo, asuntoInicial, clasificarEntrante, correosEn, despuesDeEnv
 import { enlaceBaja, enlaceBajaDirecta, URL_APP } from './baja'
 import { enviarSmtp, cuentaCorreo } from './smtp'
 import { hoyBogota, soloDigitos } from './ventas'
-import { nombreRemitente } from './whatsapp'
+import { nombreRemitente, celularParaWhatsApp } from './whatsapp'
+import { enviarPlantillaWhatsApp, listarPlantillasMeta } from './whatsapp-api'
+import { plantillaDelPaso, textoDePlantilla } from './plantillas-whatsapp'
 
 export type ModoVentas = 'activo' | 'simulacion'
 export const modoVentasAuto = (): ModoVentas => (process.env.VENTAS_AUTOMATICAS === 'activo' ? 'activo' : 'simulacion')
@@ -31,6 +33,9 @@ export const MAX_ENVIOS_POR_CICLO = 30
 /** Máximo de correos de cadencia por día: enviar cientos de correos fríos en un día desde el dominio lo manda a spam.
  *  Las respuestas inmediatas a quien escribe por la web no cuentan. */
 export const MAX_ENVIOS_POR_DIA = 100
+/** WhatsApp por plantillas: Meta deja escribirle primero a 250 personas distintas al día (sin verificación del negocio). */
+export const MAX_WHATSAPP_POR_CICLO = 60
+export const MAX_WHATSAPP_POR_DIA = 200
 /** Después de tres fallos en el mismo paso, el prospecto vuelve a manual y se avisa. */
 const MAX_FALLOS = 3
 
@@ -62,6 +67,23 @@ export async function migrateVentasAuto() {
     )`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_envios_prospecto ON envios_correo(prospecto_id)`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_envios_message ON envios_correo(message_id)`)
+  // Conversaciones de WhatsApp (lib/whatsapp-ventas.ts); el ciclo también escribe aquí las plantillas que envía.
+  await execute(`
+    CREATE TABLE IF NOT EXISTS mensajes_whatsapp (
+      id           TEXT PRIMARY KEY,         -- wamid de Meta
+      prospecto_id TEXT,
+      direccion    TEXT NOT NULL,            -- entrante | saliente
+      telefono     TEXT NOT NULL,            -- 57XXXXXXXXXX
+      nombre       TEXT,
+      tipo         TEXT,
+      texto        TEXT NOT NULL,
+      estado       TEXT,                     -- recibido | automatico | sent | delivered | read | failed
+      error        TEXT,
+      user_id      TEXT,                     -- quién respondió (null = sistema)
+      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
+  await execute(`CREATE INDEX IF NOT EXISTS idx_wa_prospecto ON mensajes_whatsapp(prospecto_id, created_at)`)
+  await execute(`CREATE INDEX IF NOT EXISTS idx_wa_telefono ON mensajes_whatsapp(telefono, created_at)`)
   await execute(`
     CREATE TABLE IF NOT EXISTS ventas_auto_estado (
       clave      TEXT PRIMARY KEY,
@@ -125,12 +147,14 @@ export interface EnvioResultado {
   para: string | null
   paso: string
   asunto: string | null
-  resultado: 'enviado' | 'simulado' | 'error' | 'sin-correo' | 'terminada'
+  resultado: 'enviado' | 'simulado' | 'error' | 'sin-correo' | 'sin-whatsapp' | 'sin-plantilla' | 'terminada'
   error?: string
+  canal?: 'correo' | 'whatsapp'
 }
 
 /** Arma y (en modo activo) envía el paso que le toca al prospecto; luego programa el siguiente. */
-export async function enviarPasoDelProspecto(p: ProspectoRow, hoy: string, modo: ModoVentas): Promise<EnvioResultado> {
+export async function enviarPasoDelProspecto(p: ProspectoRow, hoy: string, modo: ModoVentas, plantillasAprobadas?: Set<string>): Promise<EnvioResultado> {
+  if (p.canal_auto === 'whatsapp') return enviarPasoPorWhatsApp(p, hoy, modo, plantillasAprobadas)
   const cadencia = cadenciaDe(p)
   const base = { prospecto: p.id, empresa: p.empresa }
   const para = destinatario(p)
@@ -201,24 +225,102 @@ export async function enviarPasoDelProspecto(p: ProspectoRow, hoy: string, modo:
   return { ...base, para, paso: titulo, asunto, resultado: 'enviado' }
 }
 
-/** Los prospectos en modo automático a los que hoy les toca un correo. */
-export async function pendientesDeEnvio(hoy: string, limite = MAX_ENVIOS_POR_CICLO): Promise<ProspectoRow[]> {
+// ── Envío de la cadencia por WhatsApp (plantillas) ──────────────────────────────────────────────────────────
+
+/** Celular al que se le escribe: el del webinar o, si no, el del prospecto. */
+export const celularDe = (p: ProspectoRow) => celularParaWhatsApp(p.webinar_telefono) ?? celularParaWhatsApp(p.telefono)
+
+/** Igual que el correo, pero con la plantilla de WhatsApp del paso. Solo a quien aceptó mensajes de Owl por WhatsApp. */
+async function enviarPasoPorWhatsApp(p: ProspectoRow, hoy: string, modo: ModoVentas, aprobadas?: Set<string>): Promise<EnvioResultado> {
+  const cadencia = cadenciaDe(p)
+  const para = celularDe(p)
+  const base = { prospecto: p.id, empresa: p.empresa, para: para ? `+${para}` : null, canal: 'whatsapp' as const }
+  const indice = pasoCorreoDesde(cadencia, Number(p.paso_cadencia ?? 0))
+  if (indice === null) {
+    if (modo === 'activo') await execute(`UPDATE prospectos_isp SET cadencia_estado = 'terminada', proxima_fecha = NULL, updated_at = datetime('now') WHERE id = ?`, [p.id])
+    return { ...base, paso: '—', asunto: null, resultado: 'terminada' }
+  }
+  const titulo = CADENCIAS[cadencia].pasos[indice].titulo
+  const salir = async (resultado: 'sin-whatsapp' | 'sin-plantilla', nota: string): Promise<EnvioResultado> => {
+    if (modo === 'activo') {
+      await execute(`UPDATE prospectos_isp SET automatico = 0, updated_at = datetime('now') WHERE id = ?`, [p.id])
+      await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: null, nota })
+    }
+    return { ...base, paso: titulo, asunto: null, resultado }
+  }
+  if (!para) return salir('sin-whatsapp', 'Sin celular válido: sale del modo automático por WhatsApp y vuelve al trabajo manual')
+  if (!p.whatsapp_ok) return salir('sin-whatsapp', 'No aceptó mensajes de Owl por WhatsApp: sale del modo automático y vuelve al trabajo manual')
+  const pl = plantillaDelPaso(cadencia, indice, datosDelProspecto(p, hoy), p.id)
+  if (!pl) return salir('sin-plantilla', `El paso "${titulo}" no tiene plantilla de WhatsApp: vuelve al trabajo manual`)
+  // Mientras Meta no apruebe la plantilla, el paso espera (no cuenta como fallo).
+  if (aprobadas && !aprobadas.has(pl.nombre)) return { ...base, paso: titulo, asunto: pl.nombre, resultado: 'sin-plantilla', error: `La plantilla ${pl.nombre} no está aprobada en Meta` }
+  if (modo === 'simulacion') return { ...base, paso: titulo, asunto: pl.nombre, resultado: 'simulado' }
+
+  const yaEnviado = await queryOne(`SELECT 1 AS x FROM envios_correo WHERE prospecto_id = ? AND cadencia = ? AND paso = ? AND estado = 'enviado'`, [p.id, cadencia, indice])
+  const texto = textoDePlantilla(pl.nombre, pl.parametros)
+  if (!yaEnviado) {
+    const r = await enviarPlantillaWhatsApp(para, pl.nombre, pl.parametros, pl.boton)
+    await execute(
+      `INSERT INTO envios_correo (id, prospecto_id, cadencia, paso, para, asunto, message_id, estado, error) VALUES (?,?,?,?,?,?,?,?,?)`,
+      [crypto.randomUUID(), p.id, cadencia, indice, `+${para}`, pl.nombre, r.ok ? r.wamid : null, r.ok ? 'enviado' : 'error', r.ok ? null : r.error])
+    if (!r.ok) {
+      const fallos = await queryOne<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM envios_correo WHERE prospecto_id = ? AND cadencia = ? AND paso = ? AND estado = 'error'`, [p.id, cadencia, indice])
+      if (Number(fallos?.n ?? 0) >= MAX_FALLOS) {
+        await execute(`UPDATE prospectos_isp SET automatico = 0, updated_at = datetime('now') WHERE id = ?`, [p.id])
+        await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: null,
+          nota: `El WhatsApp automático falló ${MAX_FALLOS} veces (${r.error}): vuelve al trabajo manual` })
+      }
+      return { ...base, paso: titulo, asunto: pl.nombre, resultado: 'error', error: r.error }
+    }
+    // Queda en la conversación de la ficha (y la IA lo ve si la persona responde).
+    await execute(
+      `INSERT OR IGNORE INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, tipo, texto, estado) VALUES (?, ?, 'saliente', ?, 'template', ?, 'plantilla')`,
+      [r.wamid, p.id, para, texto])
+  }
+  const { siguiente, esperaDias } = despuesDeEnviar(cadencia, indice)
+  const estado = ['Pendiente'].includes(p.estado) ? 'WA1 enviado' : p.estado
+  await execute(
+    `UPDATE prospectos_isp SET paso_cadencia = ?, proxima_fecha = ?, cadencia_estado = ?, estado = ?,
+       fecha_contacto = COALESCE(fecha_contacto, ?), updated_at = datetime('now') WHERE id = ?`,
+    [siguiente ?? CADENCIAS[cadencia].pasos.length, siguiente === null ? null : sumarDiasHabiles(hoy, esperaDias),
+     siguiente === null ? 'terminada' : 'activa', estado, hoy, p.id])
+  await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: estado, user_id: null,
+    nota: `WhatsApp automático enviado a +${para}: ${titulo} (plantilla ${pl.nombre})` })
+  return { ...base, paso: titulo, asunto: pl.nombre, resultado: 'enviado' }
+}
+
+/** Los prospectos en modo automático a los que hoy les toca un mensaje por ese canal. */
+export async function pendientesDeEnvio(hoy: string, limite = MAX_ENVIOS_POR_CICLO, canal: 'correo' | 'whatsapp' = 'correo'): Promise<ProspectoRow[]> {
   await migrateVentasAuto()
   return queryAll<ProspectoRow>(
     `${SELECT_PROSPECTO}
-     WHERE p.automatico = 1 AND p.cadencia_estado = 'activa' AND p.baja = 0 AND p.correo_invalido = 0
+     WHERE p.automatico = 1 AND p.cadencia_estado = 'activa' AND p.baja = 0
+       AND COALESCE(p.canal_auto, 'correo') = ? ${canal === 'correo' ? 'AND p.correo_invalido = 0' : ''}
        AND p.proxima_fecha IS NOT NULL AND p.proxima_fecha <= ?
        AND p.estado NOT IN ('No contactar', 'No interesado', 'Cliente')
-     ORDER BY p.proxima_fecha, p.puesto LIMIT ?`, [hoy, limite])
+     ORDER BY p.proxima_fecha, p.puesto LIMIT ?`, [canal, hoy, limite])
 }
 
 const pausa = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-export async function procesarEnvios(hoy: string, modo: ModoVentas, limite = MAX_ENVIOS_POR_CICLO): Promise<EnvioResultado[]> {
+/** Envía lo que toca hoy: `limite` correos y `limiteWhatsApp` plantillas de WhatsApp. */
+export async function procesarEnvios(hoy: string, modo: ModoVentas, limite = MAX_ENVIOS_POR_CICLO, limiteWhatsApp = MAX_WHATSAPP_POR_CICLO): Promise<EnvioResultado[]> {
   const out: EnvioResultado[] = []
-  for (const p of await pendientesDeEnvio(hoy, limite)) {
-    out.push(await enviarPasoDelProspecto(p, hoy, modo))
+  for (const p of limite > 0 ? await pendientesDeEnvio(hoy, limite, 'correo') : []) {
+    out.push({ ...(await enviarPasoDelProspecto(p, hoy, modo)), canal: 'correo' })
     if (modo === 'activo') await pausa(1500)
+  }
+  const porWhatsApp = limiteWhatsApp > 0 ? await pendientesDeEnvio(hoy, limiteWhatsApp, 'whatsapp') : []
+  if (porWhatsApp.length) {
+    // Una sola consulta a Meta por ciclo: qué plantillas están aprobadas.
+    const lista = await listarPlantillasMeta()
+    const aprobadas = new Set(lista.ok ? lista.plantillas.filter(t => t.estado === 'APPROVED').map(t => t.nombre) : [])
+    if (!lista.ok) await alertar('no se pudo consultar las plantillas de WhatsApp', lista.error)
+    for (const p of porWhatsApp) {
+      out.push(await enviarPasoDelProspecto(p, hoy, modo, aprobadas))
+      if (modo === 'activo') await pausa(500)
+    }
   }
   return out
 }
@@ -465,14 +567,18 @@ export async function cicloVentasAutomaticas(ahora = new Date()): Promise<Resume
     // En simulación, el reporte del día sale una sola vez: no se recalcula cada hora.
     const simuladoHoy = modo === 'simulacion' && (await leerEstado('simulacion_reportada')) === hoy
     if (!simuladoHoy) {
-      const yaHoy = Number(JSON.parse((await leerEstado(`dia:${hoy}`)) ?? '{}')['envio:enviado'] ?? 0)
+      const dia = JSON.parse((await leerEstado(`dia:${hoy}`)) ?? '{}')
+      const yaHoy = Number(dia['envio:enviado'] ?? 0), yaHoyWA = Number(dia['wa:enviado'] ?? 0)
       const cupo = modo === 'simulacion' ? MAX_ENVIOS_POR_DIA : Math.min(MAX_ENVIOS_POR_CICLO, MAX_ENVIOS_POR_DIA - yaHoy)
-      try { if (cupo > 0) r.envios = await procesarEnvios(hoy, modo, cupo) } catch (e: any) {
+      const cupoWA = modo === 'simulacion' ? MAX_WHATSAPP_POR_DIA : Math.min(MAX_WHATSAPP_POR_CICLO, MAX_WHATSAPP_POR_DIA - yaHoyWA)
+      try { if (cupo > 0 || cupoWA > 0) r.envios = await procesarEnvios(hoy, modo, cupo, cupoWA) } catch (e: any) {
         r.errores.push(`Envíos: ${e?.message ?? e}`)
         await alertar('falló el envío de la cadencia', String(e?.message ?? e))
       }
       const fallidos = r.envios.filter(x => x.resultado === 'error')
-      if (fallidos.length) await alertar(`${fallidos.length} correo(s) no salieron`, fallidos.slice(0, 5).map(f => `${f.empresa}: ${f.error}`).join(' · '))
+      if (fallidos.length) await alertar(`${fallidos.length} mensaje(s) automáticos no salieron`, fallidos.slice(0, 5).map(f => `${f.empresa}: ${f.error}`).join(' · '))
+      const sinPlantilla = r.envios.filter(x => x.resultado === 'sin-plantilla' && x.error)
+      if (sinPlantilla.length) await alertar('hay WhatsApp esperando plantillas sin aprobar', `${sinPlantilla.length} prospecto(s) esperan: ${[...new Set(sinPlantilla.map(x => x.asunto))].join(', ')}. Revisa las plantillas en Prospectos.`)
       if (modo === 'simulacion') {
         await guardarEstado('simulacion_reportada', hoy)
         await reporteSimulacion(r)
@@ -492,7 +598,10 @@ export async function cicloVentasAutomaticas(ahora = new Date()): Promise<Resume
 async function acumularDia(r: ResumenCiclo) {
   const clave = `dia:${r.hoy}`
   const d = JSON.parse((await leerEstado(clave)) ?? '{}') as Record<string, number>
-  for (const e of r.envios) if (r.modo === 'activo') d[`envio:${e.resultado}`] = (d[`envio:${e.resultado}`] ?? 0) + 1
+  for (const e of r.envios) if (r.modo === 'activo') {
+    const k = `${e.canal === 'whatsapp' ? 'wa' : 'envio'}:${e.resultado}`
+    d[k] = (d[k] ?? 0) + 1
+  }
   for (const e of r.entrantes) d[`entrante:${e.tipo}`] = (d[`entrante:${e.tipo}`] ?? 0) + 1
   d.ciclos = (d.ciclos ?? 0) + 1
   await guardarEstado(clave, JSON.stringify(d))
@@ -500,11 +609,11 @@ async function acumularDia(r: ResumenCiclo) {
 
 async function reporteSimulacion(r: ResumenCiclo) {
   const filas = r.envios.slice(0, 40).map(e =>
-    `<tr><td>${escHtml(e.empresa)}</td><td>${escHtml(e.para ?? '— sin correo')}</td><td>${escHtml(e.paso)}</td><td>${escHtml(e.asunto ?? '')}</td></tr>`).join('')
-  await avisar(await correoSuperadmin(), `🧪 Simulación de ventas automáticas: hoy se enviarían ${r.envios.filter(e => e.resultado === 'simulado').length} correos`, [
+    `<tr><td>${escHtml(e.empresa)}</td><td>${e.canal === 'whatsapp' ? 'WhatsApp' : 'Correo'}</td><td>${escHtml(e.para ?? '— sin destino')}</td><td>${escHtml(e.paso)}</td><td>${escHtml(e.asunto ?? '')}${e.resultado === 'sin-plantilla' ? ' (plantilla sin aprobar)' : ''}</td></tr>`).join('')
+  await avisar(await correoSuperadmin(), `🧪 Simulación de ventas automáticas: hoy se enviarían ${r.envios.filter(e => e.resultado === 'simulado').length} mensajes`, [
     'Las ventas automáticas están en <strong>simulación</strong>: no se envió nada. Esto es lo que saldría hoy.',
-    r.envios.length ? `<table cellpadding="4" style="border-collapse:collapse;font-size:12px;"><tr><th align="left">Empresa</th><th align="left">Para</th><th align="left">Paso</th><th align="left">Asunto</th></tr>${filas}</table>` +
-      (r.envios.length > 40 ? `<p>… y ${r.envios.length - 40} más.</p>` : '') : 'Hoy no le toca correo a ningún prospecto en modo automático.',
+    r.envios.length ? `<table cellpadding="4" style="border-collapse:collapse;font-size:12px;"><tr><th align="left">Empresa</th><th align="left">Canal</th><th align="left">Para</th><th align="left">Paso</th><th align="left">Asunto / plantilla</th></tr>${filas}</table>` +
+      (r.envios.length > 40 ? `<p>… y ${r.envios.length - 40} más.</p>` : '') : 'Hoy no le toca mensaje a ningún prospecto en modo automático.',
     'Para que salgan de verdad, se pone VENTAS_AUTOMATICAS=activo en Render.',
   ])
 }
@@ -516,6 +625,7 @@ async function resumenDiario(hoy: string) {
   await avisar(await correoSuperadmin(), `📊 Ventas automáticas · ${hoy}`, [
     `Modo: <strong>${modoVentasAuto() === 'activo' ? 'activo' : 'simulación'}</strong> · ${n('ciclos')} ciclos corrieron hoy.`,
     `Correos enviados: <strong>${n('envio:enviado')}</strong>${n('envio:error') ? ` · con error: ${n('envio:error')}` : ''}${n('envio:sin-correo') ? ` · sin correo: ${n('envio:sin-correo')}` : ''}`,
+    `WhatsApp enviados (plantillas): <strong>${n('wa:enviado')}</strong>${n('wa:error') ? ` · con error: ${n('wa:error')}` : ''} · costo aproximado US$${(n('wa:enviado') * 0.0125).toFixed(2)}`,
     `Respuestas: <strong>${n('entrante:respuesta')}</strong> · bajas: ${n('entrante:baja')} · no interesados: ${n('entrante:no-interesado')} · rebotes: ${n('entrante:rebote')} · respuestas automáticas ignoradas: ${n('entrante:automatica')}`,
     `Prospectos en modo automático con cadencia activa: ${Number(activos?.n ?? 0)}.`,
   ])

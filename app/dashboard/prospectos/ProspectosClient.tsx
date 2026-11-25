@@ -10,6 +10,7 @@ import { hoyBogota } from '@/lib/ventas'
 import { puntoConcreto, mensajeRadiografia, estadoWebinar } from '@/lib/radiografia'
 import CargarBase from './CargarBase'
 import CargarRadiografias from './CargarRadiografias'
+import PlantillasWhatsApp from './PlantillasWhatsApp'
 
 const C = { vino: '#270205', bordo: '#712529', olivo: '#968622', marfil: '#e7dfca' }
 
@@ -94,6 +95,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
   const [soloHoy, setSoloHoy]             = useState(false)
   const [cargando, setCargando]           = useState(false)
   const [cargandoPdf, setCargandoPdf]     = useState(false)
+  const [verPlantillas, setVerPlantillas] = useState(false)
   const [soloRad, setSoloRad]             = useState(false)
 
   const [modoSeleccion, setModoSeleccion] = useState(false)
@@ -340,6 +342,10 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                   style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer', background: '#0f766e', color: '#fff', border: 'none' }}>
                   📄 Cargar radiografías
                 </button>
+                <button onClick={() => setVerPlantillas(true)} title="Plantillas de WhatsApp: textos y estado en Meta"
+                  style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 6, cursor: 'pointer', background: '#16a34a', color: '#fff', border: 'none' }}>
+                  💬 Plantillas WhatsApp
+                </button>
                 {modoSeleccion && <span style={{ fontSize: 11, color: '#888' }}>{seleccionados.size} seleccionados</span>}
               </div>
             )}
@@ -526,6 +532,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
           )}
         </div>
       </div>
+      {verPlantillas && <PlantillasWhatsApp onCerrar={() => setVerPlantillas(false)} />}
       {cargandoPdf && <CargarRadiografias onCerrar={() => setCargandoPdf(false)} onCargado={() => { cargar() }} />}
       {cargando && <CargarBase admins={admins} onCerrar={() => setCargando(false)} onCargado={() => { cargar() }} />}
     </div>
@@ -597,13 +604,27 @@ function TabWhatsApp({ p }: { p: any }) {
     return () => clearInterval(t)
   }, [cargar])
 
+  const [resumen, setResumen] = useState(false)
+  const [redactando, setRedactando] = useState(false)
+
   async function enviar() {
     setEnviando(true); setError(null)
-    const r = await fetch('/api/prospectos/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, texto, usoBorrador: deBorrador }) })
+    const r = await fetch('/api/prospectos/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, texto, usoBorrador: deBorrador, comoResumen: resumen }) })
     const d = await r.json().catch(() => ({}))
     setEnviando(false)
     if (!r.ok) { setError(d.error ?? 'No se pudo enviar'); return }
-    setTexto(''); setDeBorrador(false); cargar()
+    setTexto(''); setDeBorrador(false); setResumen(false); cargar()
+  }
+
+  /** La IA redacta el resumen de la reunión a partir de las notas de la ficha; una persona lo revisa y lo envía. */
+  async function redactarResumen() {
+    setRedactando(true); setError(null)
+    const r = await fetch('/api/prospectos/whatsapp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, accion: 'redactar_resumen' }) })
+    const d = await r.json().catch(() => ({}))
+    setRedactando(false)
+    if (!r.ok) { setError(d.error ?? 'No se pudo redactar'); return }
+    setTexto(d.texto); setResumen(true); setDeBorrador(false)
   }
 
   async function cambiarIA(activa: boolean) {
@@ -614,7 +635,7 @@ function TabWhatsApp({ p }: { p: any }) {
   if (!c) return <div style={{ color: '#aaa', fontSize: 13 }}>Cargando…</div>
   const mensajes: any[] = c.mensajes ?? []
   const ia = c.ia ?? { modo: 'apagada', pausada: false, borrador: null }
-  const ESTADO: Record<string, string> = { automatico: '🤖 automático', ia: '🤖 IA', sent: '✓ enviado', delivered: '✓✓ entregado', read: '✓✓ leído', failed: '⚠ no salió' }
+  const ESTADO: Record<string, string> = { automatico: '🤖 automático', ia: '🤖 IA', plantilla: '📋 plantilla automática', sent: '✓ enviado', delivered: '✓✓ entregado', read: '✓✓ leído', failed: '⚠ no salió' }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
       {c.configurado === false && (
@@ -654,9 +675,24 @@ function TabWhatsApp({ p }: { p: any }) {
           )
         })}
       </div>
-      {mensajes.length > 0 && (c.ventanaAbierta ? (
+      {p.notas?.trim() && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+          <button onClick={redactarResumen} disabled={redactando}
+            style={{ background: '#fff', border: '1px solid #712529', color: '#712529', borderRadius: 6, padding: '4px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', opacity: redactando ? 0.6 : 1 }}>
+            {redactando ? 'Redactando…' : '📝 Resumen de la reunión con IA'}
+          </button>
+          <span style={{ color: '#888' }}>Lo escribe a partir de las notas; tú lo revisas antes de enviarlo.</span>
+        </div>
+      )}
+      {(c.ventanaAbierta || resumen) ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {ia.borrador && !deBorrador && (
+          {resumen && !c.ventanaAbierta && (
+            <div style={{ fontSize: 11.5, color: '#92400e', background: '#fffbeb', padding: '6px 10px', borderRadius: 6 }}>
+              Pasaron más de 24 horas desde su último mensaje: el resumen sale como la plantilla "Resumen de la reunión" (se cobra como mensaje de utilidad).
+              {!p.whatsapp_ok && ' Solo si aceptó mensajes de Owl por WhatsApp.'}
+            </div>
+          )}
+          {ia.borrador && !deBorrador && !resumen && (
             <div style={{ background: '#ecfeff', border: '1px dashed #0e7490', borderRadius: 8, padding: '0.6rem 0.8rem', fontSize: 13 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#0e7490', marginBottom: 4 }}>🤖 Borrador de la IA{ia.borrador.motivo ? ` · ${ia.borrador.motivo}` : ''}</div>
               <div style={{ whiteSpace: 'pre-wrap' }}>{ia.borrador.texto}</div>
@@ -677,11 +713,13 @@ function TabWhatsApp({ p }: { p: any }) {
           </div>
           {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
         </div>
-      ) : (
+      ) : mensajes.length > 0 ? (
         <div style={{ fontSize: 12, color: '#888', background: '#f9fafb', padding: '8px 10px', borderRadius: 6 }}>
-          Pasaron más de 24 horas desde su último mensaje: WhatsApp no deja responderle hasta que vuelva a escribir. Escríbele por correo.
+          Pasaron más de 24 horas desde su último mensaje: WhatsApp no deja responderle con texto libre hasta que vuelva a escribir.
+          Los seguimientos automáticos salen como plantillas; si no, escríbele por correo.
         </div>
-      ))}
+      ) : null}
+      {error && !(c.ventanaAbierta || resumen) && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
     </div>
   )
 }
@@ -764,7 +802,7 @@ function FichaTemperatura({ p, t }: { p: any; t: { nivel: NivelTemperatura; punt
 }
 
 /** Paso actual de la cadencia del webinar con sus botones: "Ya lo envié" programa el siguiente; "Respondió" la detiene. */
-type AccionCadencia = 'paso_enviado' | 'respondio' | 'automatico_on' | 'automatico_off'
+type AccionCadencia = 'paso_enviado' | 'respondio' | 'automatico_on' | 'automatico_on_whatsapp' | 'automatico_off' | 'whatsapp_ok_on' | 'whatsapp_ok_off'
 
 /** Aviso de modo automático por correo, baja o correo inválido, con el botón para pasar a automático o volver a manual. */
 function BarraAutomatico({ p, ocupado, accion }: { p: any; ocupado: boolean; accion: (a: AccionCadencia) => void }) {
@@ -776,20 +814,39 @@ function BarraAutomatico({ p, ocupado, accion }: { p: any; ocupado: boolean; acc
       {texto}
     </button>
   )
+  const celular = celularParaWhatsApp(p.webinar_telefono) ?? celularParaWhatsApp(p.telefono)
+  // Permiso para escribirle por WhatsApp desde el número de Owl (plantillas): lo exige Meta.
+  const permiso = celular && (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#555', cursor: 'pointer' }}>
+      <input type="checkbox" checked={!!p.whatsapp_ok} disabled={ocupado} onChange={e => accion(e.target.checked ? 'whatsapp_ok_on' : 'whatsapp_ok_off')} />
+      Aceptó mensajes de Owl por WhatsApp
+    </label>
+  )
   if (p.automatico) {
+    const porWA = p.canal_auto === 'whatsapp'
     return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: '#0e7490' }}>🤖 <strong>Automático por correo</strong> a {para ?? 'sin correo'}: el sistema envía cada paso solo y detiene la cadencia si responde.</span>
-        {boton('Volver a manual', 'automatico_off')}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 8, padding: '6px 10px' }}>
+          <span style={{ fontSize: 12, color: '#0e7490' }}>🤖 <strong>Automático por {porWA ? 'WhatsApp' : 'correo'}</strong> a {porWA ? (celular ? `+${celular}` : 'sin celular') : (para ?? 'sin correo')}: el sistema envía cada paso solo{porWA ? ' (plantillas)' : ''} y detiene la cadencia si responde.</span>
+          {boton('Volver a manual', 'automatico_off')}
+        </div>
+        {permiso && <div style={{ marginTop: 4 }}>{permiso}</div>}
       </div>
     )
   }
+  const cadenciaActiva = !p.cadencia_estado || p.cadencia_estado === 'activa'
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-      <span style={{ fontSize: 11.5, color: p.correo_invalido ? '#b45309' : '#888' }}>
-        {p.correo_invalido ? '⚠ Su correo rebotó: solo WhatsApp o llamada.' : para ? `Correo: ${para}` : 'Sin correo válido: no puede ir en automático.'}
-      </span>
-      {para && !p.correo_invalido && (!p.cadencia_estado || p.cadencia_estado === 'activa') && boton('🤖 Pasar a automático (correo)', 'automatico_on')}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11.5, color: p.correo_invalido ? '#b45309' : '#888' }}>
+          {p.correo_invalido ? '⚠ Su correo rebotó: solo WhatsApp o llamada.' : para ? `Correo: ${para}` : 'Sin correo válido.'}
+        </span>
+        <span style={{ display: 'flex', gap: 6 }}>
+          {para && !p.correo_invalido && cadenciaActiva && boton('🤖 Automático por correo', 'automatico_on')}
+          {celular && p.whatsapp_ok && cadenciaActiva && boton('🤖 Automático por WhatsApp', 'automatico_on_whatsapp')}
+        </span>
+      </div>
+      {permiso}
     </div>
   )
 }

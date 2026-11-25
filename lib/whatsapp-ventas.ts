@@ -15,7 +15,9 @@ import { queryAll, queryOne, execute } from './db'
 import { registrarHistorial, type ProspectoRow } from './prospectos-db'
 import { pideBaja, noInteresado } from './correo-ventas'
 import { celularParaWhatsApp } from './whatsapp'
-import { enviarTextoWhatsApp, ventanaAbierta, type MensajeWhatsApp, type EstadoWhatsApp, type EnvioWhatsApp } from './whatsapp-api'
+import { enviarTextoWhatsApp, enviarPlantillaWhatsApp, ventanaAbierta, type MensajeWhatsApp, type EstadoWhatsApp, type EnvioWhatsApp } from './whatsapp-api'
+import { limpiarVariable, textoDePlantilla } from './plantillas-whatsapp'
+import { nombreParaSaludar } from './radiografia'
 import { ENLACES, MINUTOS_REUNION, hoyBogota } from './ventas'
 import { modoIA, iaConfigurada, migrateIA, borradorPendiente, equipoRespondio } from './ia-ventas'
 import {
@@ -30,22 +32,6 @@ export async function migrateWhatsApp() {
   await migrateVentasAuto()
   if (_migrado) return
   _migrado = true
-  await execute(`
-    CREATE TABLE IF NOT EXISTS mensajes_whatsapp (
-      id           TEXT PRIMARY KEY,         -- wamid de Meta
-      prospecto_id TEXT,
-      direccion    TEXT NOT NULL,            -- entrante | saliente
-      telefono     TEXT NOT NULL,            -- 57XXXXXXXXXX
-      nombre       TEXT,
-      tipo         TEXT,
-      texto        TEXT NOT NULL,
-      estado       TEXT,                     -- recibido | automatico | sent | delivered | read | failed
-      error        TEXT,
-      user_id      TEXT,                     -- quién respondió (null = sistema)
-      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-    )`)
-  await execute(`CREATE INDEX IF NOT EXISTS idx_wa_prospecto ON mensajes_whatsapp(prospecto_id, created_at)`)
-  await execute(`CREATE INDEX IF NOT EXISTS idx_wa_telefono ON mensajes_whatsapp(telefono, created_at)`)
 }
 
 export interface FilaWhatsApp {
@@ -101,7 +87,8 @@ export interface ResultadoEntranteWA {
 /** Procesa un mensaje que llegó por WhatsApp. Es idempotente: Meta puede mandar el mismo webhook más de una vez. */
 export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Date()): Promise<ResultadoEntranteWA> {
   await migrateWhatsApp()
-  const tipo = pideBaja(m.texto) ? 'baja' : noInteresado(m.texto) ? 'no-interesado' : 'respuesta'
+  // "BAJA" a secas es lo que piden las plantillas para no recibir más mensajes.
+  const tipo = pideBaja(m.texto) || /^\s*baja\s*[.!]*\s*$/i.test(m.texto) ? 'baja' : noInteresado(m.texto) ? 'no-interesado' : 'respuesta'
   const previo = await queryOne<{ prospecto_id: string }>(`SELECT prospecto_id FROM mensajes_whatsapp WHERE id = ?`, [m.wamid])
   if (previo) return { wamid: m.wamid, accion: 'duplicado', tipo, prospectoId: previo.prospecto_id }
 
@@ -118,6 +105,8 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
     accion = 'creado'
   } else {
     accion = conversacionNueva || tipo !== 'respuesta' ? 'existente' : 'conversacion'
+    // Nos escribió por WhatsApp: se le puede responder y hacer seguimiento por ahí.
+    if (!p.whatsapp_ok && tipo === 'respuesta') await execute(`UPDATE prospectos_isp SET whatsapp_ok = 1 WHERE id = ?`, [p.id])
   }
 
   await execute(
@@ -157,8 +146,8 @@ async function crearProspectoDesdeWhatsApp(m: MensajeWhatsApp, hoy: string): Pro
   const empresa = m.nombre?.trim() || `+${m.de}`
   await execute(
     `INSERT INTO prospectos_isp (id, puesto, prioridad, empresa, representante, telefono, estado, proximo_paso, notas,
-       responsable_id, campana, automatico, origen_lead, fecha_contacto)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       responsable_id, campana, automatico, origen_lead, fecha_contacto, whatsapp_ok)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
     [id, puesto, 'E', empresa, m.nombre ?? null, `+${m.de}`, 'Respondió', 'Responder por WhatsApp y confirmar la empresa', null,
      responsable, 'whatsapp', 0, 'whatsapp', hoy])
   await registrarHistorial({ prospecto_id: id, estado_anterior: null, estado_nuevo: 'Respondió', user_id: null,
@@ -189,7 +178,7 @@ export async function procesarEstadoWhatsApp(s: EstadoWhatsApp) {
   if (!fila) return
   // Los webhooks pueden llegar en desorden: "leído" no vuelve a "entregado".
   if (s.estado !== 'failed' && orden.indexOf(s.estado) <= orden.indexOf(fila.estado ?? '')) return
-  if (s.estado === 'sent' && (fila.estado === 'automatico' || fila.estado === 'ia')) return   // ya dice quién lo envió
+  if (s.estado === 'sent' && ['automatico', 'ia', 'plantilla'].includes(fila.estado ?? '')) return   // ya dice quién lo envió
   await execute(`UPDATE mensajes_whatsapp SET estado = ?, error = COALESCE(?, error) WHERE id = ?`, [s.estado, s.error, s.wamid])
 }
 
@@ -223,19 +212,36 @@ export async function conversacionDelProspecto(p: ProspectoRow, ahora = new Date
 }
 
 /** Respuesta escrita por alguien del equipo desde la ficha. */
-export async function responderDesdeLaFicha(p: ProspectoRow, texto: string, userId: string, ahora = new Date(), usoBorrador = false):
+export async function responderDesdeLaFicha(p: ProspectoRow, texto: string, userId: string, ahora = new Date(), usoBorrador = false, comoResumen = false):
   Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const limpio = texto.trim()
   if (!limpio) return { ok: false, error: 'El mensaje está vacío', status: 400 }
   if (limpio.length > 4000) return { ok: false, error: 'El mensaje es demasiado largo (máximo 4.000 caracteres)', status: 400 }
   const c = await conversacionDelProspecto(p, ahora)
+  // El resumen de la reunión sale aunque la ventana esté cerrada: como plantilla (owl_resumen_reunion).
+  if (comoResumen && !c.ventanaAbierta) {
+    const tel = c.telefono
+    if (!tel) return { ok: false, status: 400, error: 'No tiene un celular válido para WhatsApp.' }
+    if (!p.whatsapp_ok) return { ok: false, status: 400, error: 'No aceptó mensajes de Owl por WhatsApp: márcalo en la ficha si lo aceptó en la reunión, o envíale el resumen por correo.' }
+    const parametros = [limpiarVariable(nombreParaSaludar(p.webinar_nombre || p.representante) ?? '') || 'equipo', limpiarVariable(limpio)]
+    const r = await enviarPlantillaWhatsApp(tel, 'owl_resumen_reunion', parametros)
+    if (!r.ok) return { ok: false, status: 502, error: `WhatsApp no aceptó el resumen: ${r.error}` }
+    await execute(`INSERT INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, tipo, texto, estado, user_id) VALUES (?, ?, 'saliente', ?, 'template', ?, 'sent', ?)`,
+      [r.wamid, p.id, tel, textoDePlantilla('owl_resumen_reunion', parametros), userId])
+    await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: userId, nota: 'Resumen de la reunión enviado por WhatsApp' })
+    return { ok: true }
+  }
+  // Con la ventana abierta, el resumen sale como texto, con el mismo saludo y cierre de la plantilla.
+  const aEnviar = comoResumen
+    ? textoDePlantilla('owl_resumen_reunion', [nombreParaSaludar(p.webinar_nombre || p.representante) ?? 'equipo', limpio]).trim()
+    : limpio
   if (!c.ventanaAbierta || !c.telefono) {
     return { ok: false, status: 409, error: 'Pasaron más de 24 horas desde su último mensaje: WhatsApp solo deja responder cuando vuelva a escribir. Escríbele por correo.' }
   }
-  const r = await enviarTextoWhatsApp(c.telefono, limpio)
-  await guardarSaliente(p.id, c.telefono, limpio, r, userId, 'equipo')
+  const r = await enviarTextoWhatsApp(c.telefono, aEnviar)
+  await guardarSaliente(p.id, c.telefono, aEnviar, r, userId, 'equipo')
   if (!r.ok) return { ok: false, status: 502, error: `WhatsApp no aceptó el mensaje: ${r.error}` }
-  await equipoRespondio(p.id, usoBorrador)   // mensaje propio: la conversación la lleva el equipo y la IA se calla
+  await equipoRespondio(p.id, usoBorrador || comoResumen)   // mensaje propio: la conversación la lleva el equipo y la IA se calla
   await execute(`UPDATE prospectos_isp SET updated_at = datetime('now') WHERE id = ?`, [p.id])
   return { ok: true }
 }

@@ -1,6 +1,8 @@
 /**
  * GET  /api/prospectos/whatsapp?id=xxx  → conversación de WhatsApp del prospecto y si se le puede responder (ventana de 24 h)
- * POST  /api/prospectos/whatsapp         { id, texto, usoBorrador? } → le responde por WhatsApp (lib/whatsapp-ventas.ts)
+ * POST  /api/prospectos/whatsapp         { id, texto, usoBorrador?, comoResumen? } → le responde por WhatsApp (lib/whatsapp-ventas.ts);
+ *                                        el resumen de la reunión sale como plantilla si pasaron las 24 h
+ *                                        { id, accion: 'redactar_resumen' } → borrador del resumen escrito por la IA a partir de las notas
  * PATCH /api/prospectos/whatsapp         { id, ia: boolean } → la IA vuelve a responderle, o deja de hacerlo
  * Solo su responsable o el superadmin.
  */
@@ -9,7 +11,7 @@ import { auth } from '@/lib/auth'
 import { buscarProspecto } from '@/lib/prospectos-db'
 import { conversacionDelProspecto, responderDesdeLaFicha } from '@/lib/whatsapp-ventas'
 import { whatsappConfigurado } from '@/lib/whatsapp-api'
-import { cambiarIAdelProspecto } from '@/lib/ia-ventas'
+import { cambiarIAdelProspecto, redactarResumenReunion } from '@/lib/ia-ventas'
 
 async function prospectoPermitido(id: string | null | undefined) {
   const session = await auth()
@@ -33,7 +35,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const r = await prospectoPermitido(body?.id)
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status })
-  const res = await responderDesdeLaFicha(r.p, String(body?.texto ?? ''), r.user.id, new Date(), !!body?.usoBorrador)
+  if (body?.accion === 'redactar_resumen') {
+    const d = await redactarResumenReunion(r.p)
+    return d.ok ? NextResponse.json({ texto: d.texto }) : NextResponse.json({ error: d.error }, { status: 400 })
+  }
+  const res = await responderDesdeLaFicha(r.p, String(body?.texto ?? ''), r.user.id, new Date(), !!body?.usoBorrador, !!body?.comoResumen)
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status })
   return NextResponse.json({ ok: true })
 }

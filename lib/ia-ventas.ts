@@ -23,6 +23,7 @@ import { registrarHistorial, type ProspectoRow } from './prospectos-db'
 import { INSTRUCCIONES_IA, ESQUEMA_RESPUESTA_IA, PRECIOS_REFERENCIA } from './ia-conocimiento'
 import { enviarTextoWhatsApp, ventanaAbierta } from './whatsapp-api'
 import { hoyBogota } from './ventas'
+import { puntoConcreto } from './radiografia'
 import { avisar, escHtml, SELECT_PROSPECTO } from './ventas-auto'
 import type { FilaWhatsApp } from './whatsapp-ventas'
 
@@ -80,16 +81,33 @@ const fechaCorta = (s: string) => new Date(s.replace(' ', 'T') + 'Z').toLocaleSt
 /** El texto del prospecto va entre etiquetas: que no pueda cerrarlas para colar instrucciones. */
 const limpio = (s: string) => s.replace(/<\/?conversacion>/gi, '').slice(0, 3000)
 
-/** Lo que recibe la IA en cada llamada: datos del prospecto y la conversación (lo que cambia; las reglas van en caché). */
-export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[]): string {
+export interface ContextoProspecto {
+  hoy: string
+  historial: { nota: string | null; estado_nuevo: string; created_at: string }[]
+  /** Correos y plantillas de la cadencia que ya se le enviaron (envios_correo). */
+  enviados: { asunto: string; para: string; created_at: string }[]
+}
+
+/** Lo que el sistema sabe del prospecto (ficha, historial y cadencia) y la conversación; las reglas van aparte, en caché. */
+export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[], ctx?: ContextoProspecto): string {
+  const x = p as any
+  const fecha = (s: string) => s.slice(0, 10)
   const datos = [
     `Empresa (según nuestro sistema; si llegó por WhatsApp puede ser solo el nombre de su perfil): ${p.empresa}`,
     p.webinar_nombre || p.representante ? `Contacto: ${p.webinar_nombre || p.representante}` : null,
+    p.municipio || p.departamento ? `Ubicación: ${[p.municipio, p.departamento].filter(Boolean).join(', ')}` : null,
     `Estado en el embudo de Owl: ${p.estado}`,
-    p.campana === 'webinar' ? 'Se inscribió al webinar de Owl sobre cumplimiento regulatorio.' : null,
-    p.campana === 'web' ? 'Llegó por un formulario de la web de Owl.' : null,
-    (p as any).radiografia_en ? 'Ya recibió su radiografía regulatoria.' : null,
-    p.estado === 'Cliente' ? 'Ya es cliente de Owl.' : null,
+    p.proximo_paso ? `Próximo paso anotado por el equipo: ${p.proximo_paso}` : null,
+    p.fecha_contacto ? `Primer contacto: ${fecha(p.fecha_contacto)}` : null,
+    p.prioridad === 'A' ? 'Según registros públicos, tiene una investigación abierta en el MinTIC.' : null,
+    p.prioridad === 'B' ? 'Según registros públicos, tiene una sanción registrada.' : null,
+    x.webinar_asistio ? `Asistió al webinar de Owl${x.webinar_minutos ? ` (${x.webinar_minutos} minutos)` : ''}.`
+      : p.campana === 'webinar' || x.en_webinar ? 'Se inscribió al webinar de Owl, pero no se conectó.' : null,
+    p.campana === 'web' ? `Llegó por un formulario de la web de Owl${p.origen_lead ? ` (${p.origen_lead})` : ''}.` : null,
+    x.radiografia_en && ctx ? `Ya recibió su radiografía regulatoria; lo más relevante es ${puntoConcreto(p as any, ctx.hoy)}.` : x.radiografia_en ? 'Ya recibió su radiografía regulatoria.' : null,
+    p.notas ? `Notas internas del equipo:\n${String(p.notas).slice(0, 2000)}` : null,
+    ctx?.enviados.length ? `Mensajes de la cadencia que ya se le enviaron:\n${ctx.enviados.map(e => `- ${fecha(e.created_at)}: ${e.asunto} (a ${e.para})`).join('\n')}` : null,
+    ctx?.historial.length ? `Historial reciente (lo más nuevo al final):\n${ctx.historial.map(h => `- ${fecha(h.created_at)}: ${h.nota ?? `pasó a ${h.estado_nuevo}`}`).join('\n')}` : null,
   ].filter(Boolean).join('\n')
   const conversacion = mensajes.slice(-30).map(m =>
     `[${fechaCorta(m.created_at)}] ${m.direccion === 'entrante' ? 'Prospecto' : 'Owl'}: ${limpio(m.texto)}`).join('\n')
@@ -98,7 +116,7 @@ export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[]): string {
 }
 
 /** Le pide a Claude la siguiente respuesta. Nunca lanza: ante cualquier problema, decide pasar a una persona. */
-export async function pedirRespuestaIA(p: ProspectoRow, mensajes: FilaWhatsApp[]): Promise<DecisionIA> {
+export async function pedirRespuestaIA(p: ProspectoRow, mensajes: FilaWhatsApp[], ctx?: ContextoProspecto): Promise<DecisionIA> {
   const humano = (motivo: string): DecisionIA => ({ accion: 'pasar_a_humano', mensaje: '', motivo })
   try {
     const r: any = await (cliente().beta.messages.create as any)({
@@ -108,7 +126,7 @@ export async function pedirRespuestaIA(p: ProspectoRow, mensajes: FilaWhatsApp[]
       fallbacks: 'default',
       system: [{ type: 'text', text: INSTRUCCIONES_IA, cache_control: { type: 'ephemeral' } }],
       output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA_RESPUESTA_IA } },
-      messages: [{ role: 'user', content: armarPedido(p, mensajes) }],
+      messages: [{ role: 'user', content: armarPedido(p, mensajes, ctx) }],
     })
     const uso = { entrada: r.usage?.input_tokens ?? 0, salida: r.usage?.output_tokens ?? 0, cache: r.usage?.cache_read_input_tokens ?? 0 }
     if (r.stop_reason === 'refusal') return { ...humano('El modelo no quiso responder este mensaje'), uso }
@@ -170,8 +188,15 @@ export async function atenderConIA(wamid: string, opciones: { esperar?: number; 
 
   const p = await queryOne<ProspectoRow & { ia_pausada?: number }>(`${SELECT_PROSPECTO} WHERE p.id = ?`, [m.prospecto_id])
   if (!p) return { resultado: 'omitida', motivo: 'prospecto no existe' }
-  if (p.baja || ['No contactar', 'No interesado'].includes(p.estado)) return { resultado: 'omitida', motivo: 'no se le escribe' }
   if (p.ia_pausada) return { resultado: 'omitida', motivo: 'la conversación la lleva el equipo' }
+  // Estos los atiende siempre una persona, sin pasar por la IA.
+  const directo = p.baja || p.estado === 'No contactar' ? 'Había pedido que no le escribiéramos y volvió a escribir'
+    : p.estado === 'No interesado' ? 'Había dicho que no le interesaba y volvió a escribir'
+    : p.estado === 'Cliente' ? 'Ya es cliente: lo atiende el equipo' : null
+  if (directo) {
+    await pasarAHumano(p, wamid, modo, { accion: 'pasar_a_humano', mensaje: '', motivo: directo })
+    return { resultado: 'humano', motivo: directo }
+  }
   if (!ventanaAbierta(m.created_at, ahora())) return { resultado: 'omitida', motivo: 'ventana cerrada' }
 
   const hoy = hoyBogota(ahora())
@@ -185,7 +210,11 @@ export async function atenderConIA(wamid: string, opciones: { esperar?: number; 
 
   const mensajes = await queryAll<FilaWhatsApp>(
     `SELECT * FROM mensajes_whatsapp WHERE prospecto_id = ? AND estado <> 'failed' ORDER BY created_at, rowid`, [p.id])
-  const d = await pedirRespuestaIA(p, mensajes)
+  const historial = (await queryAll<{ nota: string | null; estado_nuevo: string; created_at: string }>(
+    `SELECT nota, estado_nuevo, created_at FROM prospectos_isp_historial WHERE prospecto_id = ? ORDER BY created_at DESC LIMIT 12`, [p.id])).reverse()
+  const enviados = await queryAll<{ asunto: string; para: string; created_at: string }>(
+    `SELECT asunto, para, created_at FROM envios_correo WHERE prospecto_id = ? AND estado = 'enviado' ORDER BY created_at`, [p.id])
+  const d = await pedirRespuestaIA(p, mensajes, { hoy, historial, enviados })
 
   if (d.accion === 'no_responder') {
     await guardarRespuesta(p.id, wamid, modo, d, 'no-enviada')
@@ -247,6 +276,36 @@ async function pasarAHumano(p: ProspectoRow, wamid: string, modo: ModoIA, d: Dec
     aviso === 'enviada' ? 'La IA ya le dijo que una persona le escribe pronto.' : '',
     'Respóndele desde su ficha en Prospectos (pestaña WhatsApp): tienes 24 horas desde su último mensaje. La IA no le vuelve a escribir hasta que la reactives ahí.',
   ].filter(Boolean))
+}
+
+// ── Resumen de la reunión ───────────────────────────────────────────────────────────────────────────────────
+
+const INSTRUCCIONES_RESUMEN = `Redactas, en nombre del equipo de Owl Compliance, el resumen de una reunión con un prospecto (un ISP de Colombia), para enviárselo por WhatsApp.
+- Tutea. De 2 a 4 frases, claras y concretas. Sin markdown ni listas. No saludes, no pongas su nombre al principio y no te despidas: el saludo y el cierre ya van en el mensaje (empieza directo, por ejemplo "En la reunión revisamos…").
+- Usa solo lo que está en las notas internas: qué se revisó, qué se encontró y el siguiente paso acordado con su fecha, si está. No inventes nada.
+- No incluyas precios, descuentos ni condiciones que no estén en las notas. Di "suscripción", nunca "plan".
+- Escribe en un solo párrafo (sin saltos de línea).
+Devuelve solo el texto del resumen.`
+
+/** Borrador del resumen de la reunión, a partir de las notas de la ficha. Lo revisa y lo envía una persona. */
+export async function redactarResumenReunion(p: ProspectoRow): Promise<{ ok: true; texto: string } | { ok: false; error: string }> {
+  if (!p.notas?.trim()) return { ok: false, error: 'La ficha no tiene notas de la reunión: escríbelas primero en Seguimiento → Notas.' }
+  if (!iaConfigurada()) return { ok: false, error: 'La IA no está configurada (falta ANTHROPIC_API_KEY).' }
+  try {
+    const r: any = await (cliente().beta.messages.create as any)({
+      model: modeloIA(), max_tokens: 2000,
+      betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+      system: INSTRUCCIONES_RESUMEN,
+      output_config: { effort: 'low' },
+      messages: [{ role: 'user', content: `Empresa: ${p.empresa}\nContacto: ${p.webinar_nombre || p.representante || '(sin nombre)'}\n\nNotas internas de la reunión:\n${String(p.notas).slice(0, 4000)}` }],
+    })
+    if (r.stop_reason === 'refusal') return { ok: false, error: 'El modelo no quiso redactar este resumen. Escríbelo a mano.' }
+    const texto = (r.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('').replace(/\s*\n+\s*/g, ' ').trim()
+    if (!texto) return { ok: false, error: 'La IA no devolvió texto. Escríbelo a mano.' }
+    return { ok: true, texto }
+  } catch (e: any) {
+    return { ok: false, error: `Error al llamar a la IA: ${e?.message ?? e}` }
+  }
 }
 
 // ── Lo que usa la ficha ─────────────────────────────────────────────────────────────────────────────────────
