@@ -30,12 +30,42 @@ export interface DefinicionPlantilla {
   boton?: { texto: string; url: string; ejemplo: string }
 }
 
+/** Frases del webinar. Empiezan por "Te escribimos desde el WhatsApp de Owl": sirven igual si alguien del equipo ya le
+ *  había escrito desde su celular (en la app no quedó registrado a quién). PENDIENTES DE APROBACIÓN (2026-11-26). */
+const WEBINAR_ASISTIO = 'Te escribimos desde el WhatsApp de Owl Compliance. Hace un mes nos vimos en el webinar del 21 de octubre, “Que el MinTIC no sancione tu ISP”, con Nicolás Almeyda: gracias por acompañarnos.'
+const WEBINAR_INSCRITO = 'Te escribimos desde el WhatsApp de Owl Compliance. Te inscribiste al webinar del 21 de octubre, “Que el MinTIC no sancione tu ISP”, con Nicolás Almeyda, y vimos que no alcanzaste a conectarte.'
+const RADIOGRAFIA = 'una radiografía regulatoria de una página: en dos minutos verás lo que hoy ve el MinTIC de tu empresa, tus pagos regulatorios y tus próximos vencimientos. Te recomendamos mirar {{3}}.'
+const REVISAR_RADIOGRAFIA = `Si te parece, la revisamos en una videollamada de ${MIN} minutos y hacemos juntos el autodiagnóstico de cumplimiento. Elige el horario que te quede mejor: ${CAL}`
+const BOTON_RADIOGRAFIA = { texto: 'Ver la radiografía', url: 'https://app.owlcompliance.com/r/{{1}}', ejemplo: 'https://app.owlcompliance.com/r/ejemplo.firma' }
+const EJEMPLO_PUNTO = 'el punto 2: el reporte T.1.1 de suscriptores, que vence el 15 de enero'
+
 export const PLANTILLAS: DefinicionPlantilla[] = [
   {
-    nombre: 'owl_webinar_contacto', categoria: 'MARKETING', titulo: 'Webinar · primer contacto (sin radiografía)',
-    cuerpo: 'Hola, {{1}}. Te escribimos de Owl Compliance por el webinar “Que el MinTIC no sancione tu ISP” con Nicolás Almeyda.\n\n' +
-      `Queremos ayudarte a aterrizar lo que se habló en {{2}}: en una videollamada de ${MIN} minutos revisamos qué obligaciones le aplican y cuáles están en riesgo de sanción.\n\n` +
+    nombre: 'owl_webinar_asistio_radiografia', categoria: 'MARKETING', titulo: 'Webinar · asistió · primer contacto con la radiografía',
+    cuerpo: `Hola, {{1}}. ${WEBINAR_ASISTIO}\n\nDespués del webinar preparamos para {{2}} ${RADIOGRAFIA}\n\n${REVISAR_RADIOGRAFIA}`,
+    ejemplos: ['Andrés', 'Conexiones del Llano SAS', EJEMPLO_PUNTO], pie: PIE_BAJA, boton: BOTON_RADIOGRAFIA,
+  },
+  {
+    nombre: 'owl_webinar_inscrito_radiografia', categoria: 'MARKETING', titulo: 'Webinar · inscrito · primer contacto con la radiografía',
+    cuerpo: `Hola, {{1}}. ${WEBINAR_INSCRITO}\n\nPreparamos para {{2}} ${RADIOGRAFIA}\n\n${REVISAR_RADIOGRAFIA}`,
+    ejemplos: ['Andrés', 'Conexiones del Llano SAS', EJEMPLO_PUNTO], pie: PIE_BAJA, boton: BOTON_RADIOGRAFIA,
+  },
+  {
+    nombre: 'owl_webinar_asistio', categoria: 'MARKETING', titulo: 'Webinar · asistió · primer contacto (sin radiografía)',
+    cuerpo: `Hola, {{1}}. ${WEBINAR_ASISTIO}\n\nNos gustaría aterrizar lo que se habló al caso de {{2}}: en una videollamada de ${MIN} minutos revisamos qué obligaciones le aplican y cuáles están en riesgo de sanción. ` +
       `Elige el horario que te quede mejor: ${CAL}\n\nConoce nuestros servicios: ${ENLACES.servicios}`,
+    ejemplos: ['Andrés', 'Conexiones del Llano SAS'], pie: PIE_BAJA,
+  },
+  {
+    nombre: 'owl_webinar_inscrito', categoria: 'MARKETING', titulo: 'Webinar · inscrito · primer contacto (sin radiografía)',
+    cuerpo: `Hola, {{1}}. ${WEBINAR_INSCRITO}\n\nSi te sirve, te contamos en ${MIN} minutos lo más importante, aplicado a {{2}}. Elige el horario que te quede mejor: ${CAL}\n\n` +
+      `Conoce nuestros servicios: ${ENLACES.servicios}`,
+    ejemplos: ['Andrés', 'Conexiones del Llano SAS'], pie: PIE_BAJA,
+  },
+  {
+    nombre: 'owl_propuesta_webinar', categoria: 'MARKETING', titulo: 'Webinar · asistió · propuesta de reunión',
+    cuerpo: `Hola, {{1}}. Te proponemos algo concreto: ${MIN} minutos para revisar qué obligaciones aplican a {{2}} y cuáles están en riesgo de sanción, ` +
+      `aterrizando lo que vimos en el webinar. Elige el horario que mejor te quede: ${CAL}`,
     ejemplos: ['Andrés', 'Conexiones del Llano SAS'], pie: PIE_BAJA,
   },
   {
@@ -126,11 +156,16 @@ export function plantillaDelPaso(cadencia: CadenciaId, indice: number, d: DatosL
   if (!paso) return null
   const nombre = limpiarVariable(nombreParaSaludar(d.nombre) ?? '') || 'equipo'
   const empresa = limpiarVariable(isPara(d.empresa))
+  const asistio = cadencia === 'webinar-asistente', inscrito = cadencia === 'webinar-inscrito'
   switch (paso.id) {
     case 'primer':
-      if (d.punto) return { nombre: 'owl_radiografia', parametros: [nombre, empresa, limpiarVariable(d.punto)], boton: tokenRadiografia(prospectoId) }
-      return cadencia.startsWith('webinar') ? { nombre: 'owl_webinar_contacto', parametros: [nombre, empresa] } : null
-    case 'propuesta': return { nombre: 'owl_propuesta_reunion', parametros: [nombre, empresa] }
+      if (d.punto) {
+        const pl = asistio ? 'owl_webinar_asistio_radiografia' : inscrito ? 'owl_webinar_inscrito_radiografia' : 'owl_radiografia'
+        return { nombre: pl, parametros: [nombre, empresa, limpiarVariable(d.punto)], boton: tokenRadiografia(prospectoId) }
+      }
+      return asistio ? { nombre: 'owl_webinar_asistio', parametros: [nombre, empresa] }
+        : inscrito ? { nombre: 'owl_webinar_inscrito', parametros: [nombre, empresa] } : null
+    case 'propuesta': return { nombre: asistio ? 'owl_propuesta_webinar' : 'owl_propuesta_reunion', parametros: [nombre, empresa] }
     case 'autodiagnostico': return { nombre: 'owl_autodiagnostico', parametros: [nombre] }
     case 'cierre': return { nombre: 'owl_cierre', parametros: [nombre] }
     case 'seguimiento-propuesta': return { nombre: 'owl_seguimiento_propuesta', parametros: [nombre, empresa] }

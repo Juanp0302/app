@@ -21,7 +21,7 @@ vi.mock('@/lib/smtp', () => ({
 
 /** Simulacro de Meta: envíos y lista de plantillas aprobadas. */
 const aMeta: any[] = []
-let aprobadas = ['owl_webinar_contacto', 'owl_propuesta_reunion', 'owl_autodiagnostico', 'owl_cierre', 'owl_seguimiento_propuesta', 'owl_recordatorio_propuesta', 'owl_resumen_reunion', 'owl_radiografia']
+let aprobadas = ['owl_webinar_inscrito', 'owl_webinar_asistio', 'owl_propuesta_webinar', 'owl_propuesta_reunion', 'owl_autodiagnostico', 'owl_cierre', 'owl_seguimiento_propuesta', 'owl_recordatorio_propuesta', 'owl_resumen_reunion', 'owl_radiografia']
 let n = 0
 const fetchOriginal = globalThis.fetch
 globalThis.fetch = vi.fn(async (url: any, init: any) => {
@@ -64,9 +64,13 @@ beforeEach(() => { correos.length = 0; aMeta.length = 0 })
 describe('plantillas', () => {
   it('cada paso usa su plantilla; la llamada y el primer contacto en frío sin radiografía no', () => {
     const d = { nombre: 'Andrés Rojas', empresa: 'Conexiones del Llano SAS', punto: null }
-    expect(plantillaDelPaso('webinar-asistente', 0, d, 'x')).toEqual({ nombre: 'owl_webinar_contacto', parametros: ['Andrés', 'Conexiones del Llano SAS'] })
+    expect(plantillaDelPaso('webinar-asistente', 0, d, 'x')).toEqual({ nombre: 'owl_webinar_asistio', parametros: ['Andrés', 'Conexiones del Llano SAS'] })
+    expect(plantillaDelPaso('webinar-inscrito', 0, d, 'x')?.nombre).toBe('owl_webinar_inscrito')
+    expect(plantillaDelPaso('webinar-asistente', 0, { ...d, punto: 'el punto 2' }, 'x')?.nombre).toBe('owl_webinar_asistio_radiografia')
+    expect(plantillaDelPaso('webinar-inscrito', 0, { ...d, punto: 'el punto 2' }, 'x')?.nombre).toBe('owl_webinar_inscrito_radiografia')
     expect(plantillaDelPaso('webinar-asistente', 1, d, 'x')).toBeNull()                       // la llamada
-    expect(plantillaDelPaso('webinar-asistente', 2, d, 'x')?.nombre).toBe('owl_propuesta_reunion')
+    expect(plantillaDelPaso('webinar-asistente', 2, d, 'x')?.nombre).toBe('owl_propuesta_webinar')
+    expect(plantillaDelPaso('cold-mailing', 2, d, 'x')?.nombre).toBe('owl_propuesta_reunion')
     expect(plantillaDelPaso('webinar-inscrito', 1, d, 'x')).toEqual({ nombre: 'owl_autodiagnostico', parametros: ['Andrés'] })
     expect(plantillaDelPaso('cold-mailing', 0, d, 'x')).toBeNull()
     expect(plantillaDelPaso('post-reunion', 0, d, 'x')?.nombre).toBe('owl_seguimiento_propuesta')
@@ -102,14 +106,14 @@ describe('plantillas', () => {
 describe('cadencia automática por WhatsApp', () => {
   it('en simulación no envía nada', async () => {
     const r = await va.procesarEnvios(HOY, 'simulacion', 0)
-    expect(r.map(x => [x.prospecto, x.resultado, x.asunto])).toEqual([['web1', 'simulado', 'owl_webinar_contacto'], ['web2', 'sin-whatsapp', null]])
+    expect(r.map(x => [x.prospecto, x.resultado, x.asunto])).toEqual([['web1', 'simulado', 'owl_webinar_inscrito'], ['web2', 'sin-whatsapp', null]])
     expect(aMeta).toHaveLength(0)
   })
 
   it('en activo envía la plantilla, la deja en la conversación y avanza; sin permiso, vuelve a manual', async () => {
     const r = await va.procesarEnvios(HOY, 'activo', 0)
     expect(r.find(x => x.prospecto === 'web1')).toMatchObject({ resultado: 'enviado', canal: 'whatsapp', para: '+573105551234' })
-    expect(aMeta[0]).toMatchObject({ to: '573105551234', type: 'template', template: { name: 'owl_webinar_contacto', language: { code: 'es' } } })
+    expect(aMeta[0]).toMatchObject({ to: '573105551234', type: 'template', template: { name: 'owl_webinar_inscrito', language: { code: 'es' } } })
     expect(aMeta[0].template.components[0].parameters.map((p: any) => p.text)).toEqual(['Andrés', 'Conexiones del Llano SAS'])
     const p = await prospecto('web1')
     expect(p).toMatchObject({ paso_cadencia: 1, estado: 'WA1 enviado', cadencia_estado: 'activa' })
