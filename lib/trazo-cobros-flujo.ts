@@ -24,7 +24,7 @@
 import crypto from 'crypto'
 import { crearCobro, type CrearCobroInput, type TrazoIdType } from './trazo'
 import { PLANES, type PlanKey } from './suscripcion'
-import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, eliminarCobroTrazo, type TrazoCobroRow } from './trazo-cobros-db'
+import { guardarCobroTrazo, buscarCobroTrazo, actualizarCobroTrazo, listarCobrosTrazo, eliminarCobroTrazo, type TrazoCobroRow, type TipoCobro } from './trazo-cobros-db'
 import { queryOne, execute } from './db'
 import { conAvisoDeRevision } from './revision'
 
@@ -55,7 +55,9 @@ export interface DatosContratoParaCobro {
 }
 
 async function generarCobro(opts: {
-  plan: PlanKey
+  plan: PlanKey | ''
+  tipo?: TipoCobro
+  concepto?: string
   monto: number
   descripcion: string
   nombreCliente: string
@@ -80,7 +82,8 @@ async function generarCobro(opts: {
     // correo con el enlace de pago ya lo enviamos nosotros mismos.
     channel:      'EMAIL',
     user_notification: false,   // el correo ya lo enviamos nosotros
-    return_url:   `${APP_URL}/pago-exitoso`,
+    // On demand no crea cuenta: la página de retorno no debe prometer usuario y contraseña
+    return_url:   opts.tipo === 'on_demand' ? `${APP_URL}/pago-exitoso?tipo=servicio` : `${APP_URL}/pago-exitoso`,
     // A diferencia de Suscripciones (que usa el webhook global del comercio),
     // soporte de Trazo indicó (2026-08-03) que cada Cobro debe llevar su
     // propio custom_webhook para que el evento de pago llegue.
@@ -106,6 +109,8 @@ async function generarCobro(opts: {
     cliente_nombre: opts.nombreCliente,
     contrato_datos: opts.contratoDatos ?? null,
     cliente_id: opts.clienteId ?? null,
+    tipo: opts.tipo ?? 'suscripcion',
+    concepto: opts.concepto ?? null,
   })
 
   return { externalReference: cobro.external_reference, link: cobro.link }
@@ -158,6 +163,50 @@ export async function crearCobroTrazoRenovacion(datos: {
     email: datos.email,
     clienteId: datos.clienteId,
   })
+}
+
+/**
+ * Enlace de pago de un servicio on demand (2026-11-26), creado por el
+ * superadmin desde su panel. Es un Cobro igual a los demás (mismo webhook),
+ * pero con tipo 'on_demand': al pagarse NO crea cuenta, NO cambia el plan ni
+ * la suscripción del cliente y NO envía usuario/contraseña — solo se marca
+ * como pagado y se avisa al superadmin (ver registrarPagoOnDemand).
+ */
+export async function crearCobroOnDemand(datos: {
+  concepto:             string
+  monto:                number
+  nombreCliente:        string
+  tipoIdentificacion:   string
+  numeroIdentificacion: string
+  email:                string
+  clienteId?:           string | null
+}): Promise<{ externalReference: string; link: string }> {
+  return generarCobro({
+    plan: '',
+    tipo: 'on_demand',
+    concepto: datos.concepto,
+    monto: datos.monto,
+    descripcion: `Owl Compliance — ${datos.concepto}`.slice(0, 200),
+    nombreCliente: datos.nombreCliente,
+    tipoIdentificacion: datos.tipoIdentificacion,
+    numeroIdentificacion: datos.numeroIdentificacion,
+    email: datos.email,
+    clienteId: datos.clienteId ?? null,
+  })
+}
+
+/** Pago confirmado de un cobro on demand: solo estado + aviso. Nada de cuentas. */
+async function registrarPagoOnDemand(seguimiento: TrazoCobroRow): Promise<void> {
+  await actualizarCobroTrazo(seguimiento.external_reference, { estado: 'pagada' })
+  const { enviarEmail } = await import('./email')
+  const superadmin = process.env.SUPERADMIN_EMAIL ?? 'owlcompliance2026@gmail.com'
+  enviarEmail({
+    to: superadmin,
+    subject: `[PAGO ON DEMAND] ${seguimiento.concepto ?? 'Servicio'} — ${seguimiento.cliente_nombre}`,
+    html: `<p>Se confirmó el pago de <strong>$${Number(seguimiento.monto).toLocaleString('es-CO')} COP</strong>
+      por <strong>${seguimiento.concepto ?? 'servicio on demand'}</strong> de <strong>${seguimiento.cliente_nombre}</strong>
+      (${seguimiento.cliente_email}).</p><p>Referencia Trazo: ${seguimiento.external_reference}</p>`,
+  }).catch(e => console.error('[trazo-cobros-flujo] Error avisando pago on demand:', e))
 }
 
 // ── Verificación de firma del webhook (calculada, no exigida por defecto) ────
@@ -279,6 +328,11 @@ export async function confirmarCobroManual(externalReference: string): Promise<{
   if (!seguimiento) throw new Error(`Cobro ${externalReference} no encontrado`)
   if (seguimiento.estado === 'pagada') throw new Error(`El cobro ${externalReference} ya estaba marcado como pagado`)
 
+  if (seguimiento.tipo === 'on_demand') {
+    await registrarPagoOnDemand(seguimiento)
+    return { clienteId: seguimiento.cliente_id ?? '' }
+  }
+
   const clienteId = await activarCuentaPorCobro(seguimiento)
   return { clienteId }
 }
@@ -323,13 +377,19 @@ export async function procesarWebhookCobroTrazo(payload: WebhookCobroTrazo): Pro
       return { accion: 'ignorado', detalle: `monto no coincide (pagado ${montoPagado}, esperado ${seguimiento.monto})` }
     }
 
+    if (seguimiento.tipo === 'on_demand') {
+      await registrarPagoOnDemand(seguimiento)
+      return { accion: 'pagada', detalle: `on demand: ${seguimiento.concepto ?? ''}` }
+    }
+
     const clienteId = await activarCuentaPorCobro(seguimiento)
     return { accion: 'pagada', detalle: `cliente ${clienteId}` }
   }
 
   if (status === 'failed' || status === 'overdue' || status === 'blocked' || status === 'cancel') {
     await actualizarCobroTrazo(externalReference, { estado: 'rechazada' })
-    if (seguimiento.cliente_id) {
+    // Un servicio on demand sin pagar no toca la suscripción del cliente
+    if (seguimiento.cliente_id && seguimiento.tipo !== 'on_demand') {
       await execute(`UPDATE clientes SET suscripcion_estado = 'suspendida', updated_at = datetime('now') WHERE id = ?`, [seguimiento.cliente_id])
       const { notificarSuscripcion } = await import('./notificaciones')
       notificarSuscripcion({

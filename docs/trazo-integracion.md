@@ -377,6 +377,26 @@ Cambio que toca los flujos de pago (Trazo Cobros, Trazo Suscripciones y Wompi):
 - **Pruebas:** `lib/revision.test.ts` (BD temporal, rutas reales). `tsc` limpio; los 15 tests de Trazo siguen pasando.
 - **Consecuencia a recordar:** bajar de plan (Pro→Básico) o cerrar un diagnóstico saca de la cola los documentos que sigan pendientes.
 
+## 5sexies. Enlaces de pago on demand desde el panel de superadmin (2026-11-26)
+
+Pedido del usuario: crear desde la Vista Global del superadmin enlaces de pago de Trazo para **servicios on demand** (fuera de la suscripción), que **no generen suscripción ni disparen la creación de perfil/cuenta**.
+
+**Diseño:** se reutiliza el módulo de Cobros (sección 5ter), sin pasarela nueva. Cada enlace es un `POST /transaction` normal, con el mismo `custom_webhook` (`/api/webhooks/trazo-cobros`). La diferencia está de nuestro lado: la fila de `trazo_cobros` lleva `tipo = 'on_demand'` (columna nueva; las filas viejas quedan como `'suscripcion'`) y `concepto`.
+
+- `lib/trazo-cobros-db.ts`: columnas `tipo` y `concepto` (ALTER perezoso). `listarCobrosTrazo(soloPendientes, tipo)` filtra por tipo, así la lista "Pagos de Trazo pendientes de confirmación" (que crea cuentas al confirmar) **no** muestra los on demand.
+- `lib/trazo-cobros-flujo.ts`: `crearCobroOnDemand()`. En el webhook y en `confirmarCobroManual()`, si el cobro es `on_demand` se llama a `registrarPagoOnDemand()` (marca `pagada` y envía un correo `[PAGO ON DEMAND]` al `SUPERADMIN_EMAIL`) **en vez de** `activarCuentaPorCobro()`. Un rechazo (`failed`/`overdue`/…) solo marca `rechazada`: **no** suspende la suscripción del cliente. Se mantiene el control de monto.
+- `return_url` de los on demand: `/pago-exitoso?tipo=servicio`, con un mensaje que no promete usuario y contraseña.
+- **Rediseño del mismo día — el cliente llena sus datos.** Pedido del usuario: que quien paga escriba sus datos de contacto (para poder llamarlo) y el **objeto del servicio**, y que haya una pantalla de seguimiento del avance. Flujo final:
+  1. El superadmin crea el servicio en `/dashboard/on-demand` (concepto + valor; opcional: cliente existente para precargar sus datos, y correo al que enviar la invitación). Todavía **no** se llama a Trazo.
+  2. Se genera un enlace propio `https://app.owlcompliance.com/pago/<token>` (token aleatorio de 16 bytes). Página pública `app/pago/[token]/` con formulario: objeto del servicio, nombre, empresa, tipo y número de documento, celular, correo, autorización de datos (enlace a /privacidad) y honeypot.
+  3. Al enviar (`POST /api/on-demand/<token>`): se valida, se crea el Cobro de Trazo con `crearCobroOnDemand()` (si el documento es NIT, el pagador es la empresa), se guardan los datos, se registra un **lead** con origen `on demand` y se avisa al superadmin por correo (`[ON DEMAND] … llenó sus datos`, con teléfono y objeto). La respuesta trae el `link` de Trazo y el navegador redirige a pagar. Si vuelve a enviar con el pago pendiente, recibe el mismo enlace (no se crea otro cobro). Si ya está pagado: 409. Si se canceló: 404.
+- `lib/on-demand-db.ts`: tabla `servicios_on_demand` (concepto, monto, cliente_id, datos de quien paga, `autorizacion_fecha`, `datos_at`, `external_reference`, `link_pago`, `avance` por_iniciar/en_curso/entregado/cancelado, `notas`, `creado_por`). El **estado del pago no se duplica**: se lee de `trazo_cobros` por `external_reference` (`esperando_datos` si aún no hay cobro).
+- `app/api/superadmin/pagos-on-demand/route.ts` (solo superadmin): GET lista, POST crea el servicio, PATCH `{ id, avance?, notas?, marcar_pagado? }` (marcar pagado exige que ya haya cobro; usa `confirmarCobroManual`, que no crea cuentas para on demand), DELETE `?id=` (no permite borrar uno pagado). Borrar no cancela el cobro en Trazo: si lo pagan igual, el webhook lo marca y avisa.
+- UI: `app/dashboard/on-demand/` (tarjeta "Servicios on demand" en el dashboard del superadmin y enlace "$ Servicios on demand" en la Vista Global). Totales cobrado/por cobrar, filtros por avance, botones para llamar, abrir WhatsApp y enviar correo, objeto del servicio, cambio de avance, notas, copiar enlace, marcar pagado y eliminar. El modal inicial `PagosOnDemand.tsx` se eliminó.
+- Leads: etiqueta "Servicio on demand" en `LeadsClient.tsx`.
+- Pruebas: `lib/trazo-on-demand.test.ts` (17), con Trazo simulado.
+- **Pendiente:** la política de privacidad (v1.1) no menciona el pago de servicios ni que se comparten nombre, documento y correo con Trazo como encargado de los pagos. Revisarla con el usuario antes de usar esto con clientes.
+
 ## 6. Cómo retomar esto
 
 1. Si ya llegó respuesta de Trazo sobre las preguntas de la sección 4, empezar por ahí — probablemente cambie el diseño de cómo nos enteramos de los cobros (webhook vs. polling).

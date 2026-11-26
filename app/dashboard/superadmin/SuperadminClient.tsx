@@ -377,6 +377,12 @@ export default function SuperadminClient() {
             background: 'rgba(150,134,34,0.08)' }}>
             % Códigos de descuento
           </button>
+          <a href="/dashboard/on-demand" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
+            border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem',
+            background: 'rgba(150,134,34,0.08)' }}>
+            $ Servicios on demand
+          </a>
           <a href="/dashboard/superadmin/asignacion" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: C.olivo, textDecoration: 'none',
             border: `1px solid ${C.olivo}`, borderRadius: 6, padding: '0.3rem 0.8rem',

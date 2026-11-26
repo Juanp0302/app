@@ -7,6 +7,7 @@ const C = { vino: '#270205', olivo: '#968622', marfil: '#e7dfca' }
 export default function PagoExitosoClient() {
   const params = useSearchParams()
   const error  = params.get('error') === '1'
+  const servicio = params.get('tipo') === 'servicio'   // pago on demand: no hay cuenta que activar
 
   return (
     <div style={{
@@ -35,6 +36,23 @@ export default function PagoExitosoClient() {
                 color: C.vino, borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem',
                 letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
               Volver a los planes
+            </a>
+          </>
+        ) : servicio ? (
+          <>
+            <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>✅</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, marginBottom: '1rem' }}>
+              ¡Pago recibido!
+            </div>
+            <p style={{ fontSize: '0.9rem', color: 'rgba(231,223,202,0.65)', lineHeight: 1.7, marginBottom: '2rem' }}>
+              Gracias. Nuestro equipo confirmará el pago y se pondrá en contacto con usted para continuar con el servicio.
+              Si tiene alguna duda, escríbanos a <strong style={{ color: C.olivo }}>contacto@owlcompliance.com</strong>.
+            </p>
+            <a href="https://owlcompliance.com"
+              style={{ display: 'inline-block', padding: '0.75rem 2rem', background: C.olivo,
+                color: C.vino, borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem',
+                letterSpacing: '0.12em', textTransform: 'uppercase', textDecoration: 'none' }}>
+              Volver a Owl Compliance
             </a>
           </>
         ) : (

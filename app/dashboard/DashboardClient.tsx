@@ -29,6 +29,7 @@ export default function DashboardClient({
     { titulo: 'Proyectos Regulatorios', desc: 'Seguimiento y participación en proyectos de la CRC, el MinTIC y la SIC', href: '/dashboard/proyectos-regulatorios', icono: '🏛️' },
     { titulo: 'Prospectos ISP', desc: 'Cold mailing y webinar: temperatura, qué enviar hoy y seguimiento uno a uno', href: '/dashboard/prospectos', icono: '🎯' },
     { titulo: 'Diagnósticos', desc: 'Solicitudes de diagnóstico integral: activar y cerrar el servicio', href: '/dashboard/diagnosticos', icono: '🩺' },
+    { titulo: 'Servicios on demand', desc: 'Enlaces de pago de servicios sueltos: datos del cliente, pago y avance', href: '/dashboard/on-demand', icono: '💳' },
   ] : [
     ...(isAdmin ? [
       { titulo: 'Clientes',         desc: 'Ver y gestionar todos los clientes y su nivel de cumplimiento', href: '/dashboard/clientes',      icono: '👥' },

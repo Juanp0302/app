@@ -31,7 +31,13 @@ export async function migrateTrazoCobros() {
       updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `)
+  // Servicios on demand (2026-11-26): cobros sueltos creados por el superadmin
+  // que NO crean ni activan cuenta (ver trazo-cobros-flujo.ts → crearCobroOnDemand)
+  try { await execute(`ALTER TABLE trazo_cobros ADD COLUMN tipo TEXT NOT NULL DEFAULT 'suscripcion'`) } catch {}
+  try { await execute(`ALTER TABLE trazo_cobros ADD COLUMN concepto TEXT`) } catch {}
 }
+
+export type TipoCobro = 'suscripcion' | 'on_demand'
 
 export interface TrazoCobroRow {
   id: string
@@ -45,6 +51,8 @@ export interface TrazoCobroRow {
   contrato_datos: string | null
   estado: string
   cliente_id: string | null
+  tipo: TipoCobro
+  concepto: string | null
   created_at: string
   updated_at: string
 }
@@ -59,12 +67,14 @@ export async function guardarCobroTrazo(row: {
   cliente_nombre: string
   contrato_datos?: object | null
   cliente_id?: string | null
+  tipo?: TipoCobro
+  concepto?: string | null
 }): Promise<void> {
   await migrateTrazoCobros()
   await execute(
     `INSERT INTO trazo_cobros
-       (id, external_reference, process_id, plan, monto, link, cliente_email, cliente_nombre, contrato_datos, cliente_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+       (id, external_reference, process_id, plan, monto, link, cliente_email, cliente_nombre, contrato_datos, cliente_id, tipo, concepto)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       crypto.randomUUID(),
       row.external_reference,
@@ -76,6 +86,8 @@ export async function guardarCobroTrazo(row: {
       row.cliente_nombre,
       row.contrato_datos ? JSON.stringify(row.contrato_datos) : null,
       row.cliente_id ?? null,
+      row.tipo ?? 'suscripcion',
+      row.concepto ?? null,
     ]
   )
 }
@@ -90,13 +102,14 @@ export async function buscarCobroTrazo(externalReference: string): Promise<Trazo
  * mientras el webhook de Trazo no está registrado (ver lib/trazo-cobros-flujo.ts
  * → confirmarCobroManual). Por defecto solo los pendientes.
  */
-export async function listarCobrosTrazo(soloPendientes = true): Promise<TrazoCobroRow[]> {
+export async function listarCobrosTrazo(soloPendientes = true, tipo: TipoCobro = 'suscripcion'): Promise<TrazoCobroRow[]> {
   await migrateTrazoCobros()
   const { queryAll } = await import('./db')
   return queryAll<TrazoCobroRow>(
     soloPendientes
-      ? `SELECT * FROM trazo_cobros WHERE estado = 'pendiente' ORDER BY created_at DESC`
-      : `SELECT * FROM trazo_cobros ORDER BY created_at DESC LIMIT 100`
+      ? `SELECT * FROM trazo_cobros WHERE estado = 'pendiente' AND tipo = ? ORDER BY created_at DESC`
+      : `SELECT * FROM trazo_cobros WHERE tipo = ? ORDER BY created_at DESC LIMIT 100`,
+    [tipo]
   )
 }
 
