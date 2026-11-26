@@ -66,8 +66,14 @@ export async function ejecutarRecordatorios(): Promise<ResultadoRecordatorio> {
 
     for (const [diasStr, items] of Object.entries(porUmbral)) {
       const diasAntes     = parseInt(diasStr)
-      const emailCliente  = (cliente as any).cliente_email ?? (cliente as any).user_email
-      const destinatarios = [emailCliente, adminEmail].filter(Boolean)
+      // || y no ??: un correo de cliente vacío ('') también debe caer al del usuario
+      const emailCliente  = String((cliente as any).cliente_email || (cliente as any).user_email || '').trim()
+      const destinatarios = [emailCliente, adminEmail.trim()].filter(Boolean)
+      if (destinatarios.length === 0) {
+        resultado.errores++
+        resultado.detalles.push(`✗ ${(cliente as any).razon_social} no tiene correo — no se envió`)
+        continue
+      }
 
       const asunto = diasAntes === 0
         ? `⚠️ Vence HOY — ${items.length} obligación(es) | ${(cliente as any).razon_social}`

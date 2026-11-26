@@ -18,7 +18,14 @@ export interface EmailParams {
 export async function enviarEmail(params: EmailParams): Promise<boolean> {
   const webhookUrl = process.env.N8N_EMAIL_WEBHOOK
 
-  const toStr = Array.isArray(params.to) ? params.to.join(', ') : params.to
+  const toStr = (Array.isArray(params.to) ? params.to : [params.to])
+    .map(e => String(e ?? '').trim()).filter(Boolean).join(', ')
+
+  // Sin destinatario, Gmail en n8n falla con "Invalid email address" y el flujo queda sin responder
+  if (!toStr) {
+    console.error('[email] Sin destinatario — no se envía:', params.subject)
+    return false
+  }
 
   if (!webhookUrl) {
     console.log('\n📧 EMAIL (modo desarrollo — no enviado):')
