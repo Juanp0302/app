@@ -35,8 +35,9 @@ const ESTADO_COLOR: Record<string, string> = {
 const PRIORIDAD_LABEL: Record<string, string> = {
   A: 'A — Investigación en marcha', B: 'B — Multa impuesta',
   C1: 'C1 — Sin investigación (top 50)', C2: 'C2 — Sin investigación', W: 'W — Webinar', O: 'O — Otra base cargada',
+  E: 'E — Nos escribió (web o WhatsApp)',
 }
-const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280', W: '#6d28d9', O: '#0f766e' }
+const PRIORIDAD_COLOR: Record<string, string> = { A: '#dc2626', B: '#f59e0b', C1: '#16a34a', C2: '#6b7280', W: '#6d28d9', O: '#0f766e', E: '#0e7490' }
 
 /** De qué campaña viene, en corto: "Cold mailing", "Webinar · asistió 112 min", "Expo ISP 2026", "Cold mailing + webinar (inscrito)". */
 function campanaTexto(p: any) {
@@ -49,6 +50,7 @@ function campanaTexto(p: any) {
 }
 /** Valor del filtro de campaña: "cold", "webinar-asistio", "webinar-inscrito" o "base:<nombre>" para las cargadas desde Excel. */
 const segmentoCampana = (p: any) => {
+  if (p.campana === 'web' || p.campana === 'whatsapp') return 'entrantes'
   if (p.campana === 'webinar' || p.en_webinar) return p.webinar_asistio ? 'webinar-asistio' : 'webinar-inscrito'
   return !p.campana || p.campana === 'cold-mailing' ? 'cold' : `base:${p.campana}`
 }
@@ -311,6 +313,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
               <option value="cold">Cold mailing</option>
               <option value="webinar-asistio">Webinar · asistieron</option>
               <option value="webinar-inscrito">Webinar · inscritos que no asistieron</option>
+              <option value="entrantes">Nos escribieron (web o WhatsApp)</option>
               {[...new Set(prospectos.map(segmentoCampana).filter(s => s.startsWith('base:')))].sort().map(s => (
                 <option key={s} value={s}>{s.slice(5)}</option>
               ))}
