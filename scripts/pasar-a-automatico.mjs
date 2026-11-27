@@ -83,7 +83,7 @@ console.log('Por responsable:', cuenta(f => f.responsable ?? 'Sin asignar'))
 console.log('Por campaña:', cuenta(f => f.campana ?? 'cold-mailing'))
 console.log('Por paso en que van (0 = primer contacto):', cuenta(f => `${f.cadencia} paso ${f.paso_cadencia}`))
 const atrasados = conCorreo.filter(f => !f.proxima_fecha || f.proxima_fecha <= hoy).length
-const tope = canal === 'whatsapp' ? 200 : 100
+const tope = canal === 'whatsapp' ? Number(process.env.WHATSAPP_MAX_POR_DIA ?? 50) || 50 : 100
 console.log(`Les toca mensaje ya (hoy o atrasados): ${atrasados}. Con el tope de ${tope} por día, se ponen al día en ~${Math.ceil(atrasados / tope)} día(s) hábil(es).`)
 if (canal === 'whatsapp') console.log(`Costo aproximado por paso enviado a todos: US$${(conCorreo.length * 0.0125).toFixed(2)} (plantillas de marketing, ~US$0,0125 c/u en Colombia).`)
 

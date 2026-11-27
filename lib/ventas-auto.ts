@@ -33,9 +33,13 @@ export const MAX_ENVIOS_POR_CICLO = 30
 /** Máximo de correos de cadencia por día: enviar cientos de correos fríos en un día desde el dominio lo manda a spam.
  *  Las respuestas inmediatas a quien escribe por la web no cuentan. */
 export const MAX_ENVIOS_POR_DIA = 100
+const HORA_INICIO_ENVIOS_CONST = 9
+const HORA_FIN_ENVIOS_CONST = 17
 /** WhatsApp por plantillas: Meta deja escribirle primero a 250 personas distintas al día (sin verificación del negocio). */
-export const MAX_WHATSAPP_POR_CICLO = 60
-export const MAX_WHATSAPP_POR_DIA = 200
+/** El superadmin pidió 50 contactos por WhatsApp al día (2026-11-26); se puede cambiar con WHATSAPP_MAX_POR_DIA en Render.
+ *  Se reparten en los 8 ciclos del horario (9 a. m. a 4 p. m.) para que las respuestas no lleguen todas a la vez. */
+export const MAX_WHATSAPP_POR_DIA = Math.max(0, Number(process.env.WHATSAPP_MAX_POR_DIA ?? 50) || 0)
+export const MAX_WHATSAPP_POR_CICLO = Math.ceil(MAX_WHATSAPP_POR_DIA / (HORA_FIN_ENVIOS_CONST - HORA_INICIO_ENVIOS_CONST))
 /** Después de tres fallos en el mismo paso, el prospecto vuelve a manual y se avisa. */
 const MAX_FALLOS = 3
 
@@ -45,8 +49,8 @@ export const horaBogota = (d = new Date()) =>
 export const esDiaHabil = (fecha: string) => sumarDiasHabiles(fecha, 0) === fecha
 
 /** Ventana de envío de los mensajes automáticos (hora de Bogotá): desde las 9:00 hasta antes de las 17:00. */
-export const HORA_INICIO_ENVIOS = 9
-export const HORA_FIN_ENVIOS = 17
+export const HORA_INICIO_ENVIOS = HORA_INICIO_ENVIOS_CONST
+export const HORA_FIN_ENVIOS = HORA_FIN_ENVIOS_CONST
 export const enHorarioDeEnvio = (fecha: string, hora: number) => esDiaHabil(fecha) && hora >= HORA_INICIO_ENVIOS && hora < HORA_FIN_ENVIOS
 
 // ── Tablas ──────────────────────────────────────────────────────────────────────────────────────────────────
