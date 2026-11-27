@@ -193,3 +193,19 @@ describe('la ficha', () => {
     expect(f).toMatchObject({ estado: 'failed', error: 'Re-engagement message' })
   })
 })
+
+describe('no me interesa', () => {
+  it('queda en No interesado y se le responde una sola vez con un cierre amable', async () => {
+    const { execute } = await import('@/lib/db')
+    await execute(`INSERT INTO prospectos_isp (id, puesto, prioridad, empresa, telefono, representante, estado, responsable_id, campana)
+      VALUES ('ni', 9, 'C2', 'Fibra Norte SAS', '3157770000', 'Carlos Pérez', 'WA1 enviado', 'adri', 'cold-mailing')`)
+    const ahora = new Date('2026-11-27T15:00:00Z')
+    aMeta.length = 0
+    await wv.procesarMensajeWhatsApp(msj('wamid.NI1', '573157770000', 'No me interesa, gracias', ahora, 'Carlos'), ahora)
+    expect((await prospecto('ni')).estado).toBe('No interesado')
+    expect(aMeta.map(x => x.body.text.body)).toEqual(['Entendido, Carlos. Gracias por tu tiempo. Quedamos atentos para acompañar a Fibra Norte SAS cuando lo necesites.'])
+    await wv.procesarMensajeWhatsApp(msj('wamid.NI2', '573157770000', 'Ya les dije que no nos interesa', new Date(ahora.getTime() + 60000), 'Carlos'), new Date(ahora.getTime() + 60000))
+    expect(aMeta).toHaveLength(1)
+  })
+})
+

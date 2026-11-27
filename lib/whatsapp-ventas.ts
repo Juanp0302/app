@@ -17,7 +17,7 @@ import { pideBaja, noInteresado } from './correo-ventas'
 import { celularParaWhatsApp } from './whatsapp'
 import { enviarTextoWhatsApp, enviarPlantillaWhatsApp, descargarMedio, ventanaAbierta, type MensajeWhatsApp, type EstadoWhatsApp, type EnvioWhatsApp } from './whatsapp-api'
 import { limpiarVariable, textoDePlantilla } from './plantillas-whatsapp'
-import { nombreParaSaludar } from './radiografia'
+import { nombreParaSaludar, isPara } from './radiografia'
 import { ENLACES, MINUTOS_REUNION, hoyBogota } from './ventas'
 import { modoIA, iaConfigurada, migrateIA, borradorPendiente, equipoRespondio } from './ia-ventas'
 import {
@@ -64,6 +64,16 @@ export async function prospectoDelTelefono(numero: string): Promise<ProspectoRow
   const candidatos = await queryAll<ProspectoRow>(
     `${SELECT_PROSPECTO} WHERE p.telefono LIKE ? OR p.webinar_telefono LIKE ? ORDER BY p.updated_at DESC`, [`%${cola}%`, `%${cola}%`])
   return candidatos.find(p => celularParaWhatsApp(p.telefono) === numero || celularParaWhatsApp(p.webinar_telefono) === numero)
+}
+
+/**
+ * Cierre amable cuando dice que no le interesa (idea del superadmin, 2026-11-26). Sale siempre, sin importar el modo de la IA:
+ * es una respuesta dentro de las 24 horas, no un mensaje nuevo.
+ */
+export function cierreNoInteresado(nombre: string | null, empresa: string | null): string {
+  const primer = (nombre ?? '').trim().split(/\s+/)[0]
+  const saludo = primer && /^[\p{L}]{2,}$/u.test(primer) ? `Entendido, ${primer}.` : 'Entendido.'
+  return `${saludo} Gracias por tu tiempo. Quedamos atentos para acompañar a ${isPara(empresa)} cuando lo necesites.`
 }
 
 /**
@@ -125,6 +135,18 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
     // sale aparte, con el archivo adjunto).
     await actuarSobreProspecto(p, tipo, { de: `+${m.de}${m.nombre ? ` (${m.nombre})` : ''}`, asunto: '', texto: m.texto, cabeceras: {}, responde: [] },
       hoy, 'whatsapp', !m.medio)
+  }
+
+  // "No me interesa": queda en No interesado (actuarSobreProspecto) y se le contesta una sola vez con un cierre amable.
+  if (tipo === 'no-interesado' && !p.baja) {
+    const yaCerrado = await queryOne(`SELECT 1 AS x FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'saliente' AND tipo = 'cierre'`, [p.id])
+    if (!yaCerrado) {
+      const texto = cierreNoInteresado(m.nombre ?? p.webinar_nombre ?? p.representante, p.empresa)
+      const r = await enviarTextoWhatsApp(m.de, texto)
+      await execute(`INSERT INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, tipo, texto, estado, error) VALUES (?, ?, 'saliente', ?, 'cierre', ?, ?, ?)`,
+        [r.ok ? r.wamid : `error-${crypto.randomUUID()}`, p.id, m.de, texto, r.ok ? 'automatico' : 'failed', r.ok ? null : r.error])
+    }
+    return { wamid: m.wamid, accion, tipo, prospectoId: p.id }
   }
 
   // Audios, fotos y documentos: la IA no los procesa. Se reenvían al responsable y la conversación pasa al equipo.
