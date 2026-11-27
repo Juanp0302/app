@@ -32,9 +32,9 @@ export async function paraRetomar(p: ProspectoRow, ahora = new Date()): Promise<
     `SELECT estado, user_id, COUNT(*) AS n, MAX(created_at) AS ultimo FROM mensajes_whatsapp
      WHERE prospecto_id = ? AND direccion = 'saliente' AND COALESCE(estado, '') <> 'failed' GROUP BY estado, user_id`, [p.id])
   const entrantes = await queryOne<{ n: number; ultimo: string | null }>(
-    `SELECT COUNT(*) AS n, MAX(created_at) AS ultimo FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante'`, [p.id])
+    `SELECT COUNT(*) AS n, MAX(created_at) AS ultimo FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante' AND estado <> 'autorespuesta'`, [p.id])
   const ultimoWA = entrantes?.ultimo
-    ? await queryOne<{ texto: string }>(`SELECT texto FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante' ORDER BY created_at DESC, rowid DESC LIMIT 1`, [p.id])
+    ? await queryOne<{ texto: string }>(`SELECT texto FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante' AND estado <> 'autorespuesta' ORDER BY created_at DESC, rowid DESC LIMIT 1`, [p.id])
     : undefined
   // Las respuestas por correo quedan en el historial (lib/ventas-auto.ts, actuarSobreProspecto).
   const porCorreo = await queryAll<{ nota: string; created_at: string }>(

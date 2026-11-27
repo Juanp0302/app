@@ -97,9 +97,30 @@ export function respuestaAutomatica(nombre: string | null): string {
   ].join('\n\n')
 }
 
+/**
+ * El mensaje de bienvenida o de "no estamos disponibles" que tienen muchos ISP en su WhatsApp de empresa. Llega segundos
+ * después de nuestra plantilla, pero no lo escribió una persona: no cuenta como respuesta, no detiene los seguimientos y la
+ * IA no lo contesta (visto el 2026-11-27 con Jigartel y Villanet). Solo frases que una persona no escribe al responder.
+ */
+export function esAutorespuestaWhatsApp(texto: string): boolean {
+  const t = (texto ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return [
+    /gracias por (comunicarte|comunicarse|contactarnos|contactarte|contactarse|escribirnos|preferirnos|elegirnos) (con|a)\b/,
+    /gracias por (comunicarte|comunicarse|contactarnos|escribirnos)\b[\s\S]*\b(atenderte|atenderle|atenderlo|asesor|en breve|pronto|horario)/,
+    /bienvenid[oa]s? a\b/,
+    /terminos y condiciones/, /tratamiento de (sus |tus )?datos/, /politica de (privacidad|tratamiento)/,
+    /(selecciona|elige|escoge|digita|marca|escribe) (una|la) opcion/, /(responde|escribe|digita) (con )?el numero/, /\bmenu (principal|de opciones)\b/,
+    /en (este|estos) momentos? no (podemos|estamos|nos es posible)/, /no (podemos|es posible) (responder|atender)(te|le)? en este momento/,
+    /fuera de(l| nuestro)? horario/, /nuestro horario de atencion/, /horario de atencion (es|:)/,
+    /(asistente|agente) virtual/, /(mensaje|respuesta) automatic[oa]/,
+    /para atender(te|le|lo) (de manera|mejor|de forma)/,
+    /\b(te|le) (responderemos|contactaremos|atenderemos|escribiremos)\b/, /lo haremos lo antes posible/,
+  ].some(r => r.test(t))
+}
+
 export interface ResultadoEntranteWA {
   wamid: string
-  accion: 'duplicado' | 'existente' | 'creado' | 'conversacion'
+  accion: 'duplicado' | 'existente' | 'creado' | 'conversacion' | 'autorespuesta'
   tipo: 'baja' | 'no-interesado' | 'respuesta'
   prospectoId: string
   respuestaAutomatica?: 'enviada' | 'simulada' | 'error'
@@ -117,11 +138,22 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
 
   const hoy = hoyBogota(ahora)
   const ultimo = await queryOne<{ created_at: string }>(
-    `SELECT created_at FROM mensajes_whatsapp WHERE telefono = ? AND direccion = 'entrante' ORDER BY created_at DESC LIMIT 1`, [m.de])
+    `SELECT created_at FROM mensajes_whatsapp WHERE telefono = ? AND direccion = 'entrante' AND estado <> 'autorespuesta' ORDER BY created_at DESC LIMIT 1`, [m.de])
   const conversacionNueva = !ultimo
     || ahora.getTime() - new Date(ultimo.created_at.replace(' ', 'T') + 'Z').getTime() > HORAS_CONVERSACION_NUEVA * 3600 * 1000
 
   let p = await prospectoDelTelefono(m.de)
+  // El WhatsApp de su empresa contestó solo: queda guardado y anotado, pero nada más cambia.
+  if (p && tipo === 'respuesta' && !m.medio && esAutorespuestaWhatsApp(m.texto)) {
+    await execute(
+      `INSERT INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, nombre, tipo, texto, estado, created_at)
+       VALUES (?, ?, 'entrante', ?, ?, ?, ?, 'autorespuesta', ?)`,
+      [m.wamid, p.id, m.de, m.nombre, m.tipo, m.texto, fechaSql(m.fecha)])
+    const cita = m.texto.replace(/\s+/g, ' ').trim()
+    await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: null,
+      nota: `Su WhatsApp respondió con un mensaje automático (no cuenta como respuesta; los seguimientos siguen): «${cita.length > 200 ? cita.slice(0, 200) + '…' : cita}»` })
+    return { wamid: m.wamid, accion: 'autorespuesta', tipo, prospectoId: p.id }
+  }
   let accion: ResultadoEntranteWA['accion']
   if (!p) {
     p = await crearProspectoDesdeWhatsApp(m, hoy)

@@ -732,7 +732,8 @@ function TabWhatsApp({ p }: { p: any }) {
                 </>
               ) : m.texto}
               <div style={{ fontSize: 10, color: '#999', marginTop: 4, textAlign: 'right' }}>
-                {mio ? `${m.user_nombre ?? (m.estado === 'ia' ? 'IA' : 'Sistema')} · ${ESTADO[m.estado] ?? m.estado ?? ''} · ` : ''}
+                {mio ? `${m.user_nombre ?? (m.estado === 'ia' ? 'IA' : 'Sistema')} · ${ESTADO[m.estado] ?? m.estado ?? ''} · `
+                  : m.estado === 'autorespuesta' ? '🤖 Respuesta automática de su WhatsApp (no cuenta como respuesta) · ' : ''}
                 {new Date(m.created_at.replace(' ', 'T') + 'Z').toLocaleString('es-CO')}
                 {m.error ? ` · ${m.error}` : ''}
               </div>

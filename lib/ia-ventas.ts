@@ -116,7 +116,7 @@ export function armarPedido(p: ProspectoRow, mensajes: FilaWhatsApp[], ctx?: Con
     ctx?.historial.length ? `Historial reciente (lo más nuevo al final):\n${ctx.historial.map(h => `- ${fecha(h.created_at)}: ${h.nota ?? `pasó a ${h.estado_nuevo}`}`).join('\n')}` : null,
   ].filter(Boolean).join('\n')
   const conversacion = mensajes.slice(-30).map(m =>
-    `[${fechaCorta(m.created_at)}] ${m.direccion === 'entrante' ? 'Prospecto' : 'Owl'}: ${limpio(m.texto)}`).join('\n')
+    `[${fechaCorta(m.created_at)}] ${m.direccion === 'saliente' ? 'Owl' : m.estado === 'autorespuesta' ? 'Mensaje automático del WhatsApp de su empresa (no lo escribió una persona)' : 'Prospecto'}: ${limpio(m.texto)}`).join('\n')
   return `Datos del prospecto:\n${datos}\n\nConversación por WhatsApp, de la más antigua a la más reciente:\n<conversacion>\n${conversacion}\n</conversacion>\n\n` +
     'Decide qué hacer con lo que el prospecto escribió desde la última respuesta de Owl (puede ser más de un mensaje) y, si corresponde, escribe una sola respuesta que conteste todo.'
 }
@@ -188,7 +188,7 @@ export async function atenderConIA(wamid: string, opciones: { esperar?: number; 
   const m = await queryOne<FilaWhatsApp>(`SELECT * FROM mensajes_whatsapp WHERE id = ?`, [wamid])
   if (!m?.prospecto_id) return { resultado: 'omitida', motivo: 'mensaje sin prospecto' }
   const masNuevo = await queryOne<{ id: string }>(
-    `SELECT id FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante' ORDER BY created_at DESC, rowid DESC LIMIT 1`, [m.prospecto_id])
+    `SELECT id FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'entrante' AND estado <> 'autorespuesta' ORDER BY created_at DESC, rowid DESC LIMIT 1`, [m.prospecto_id])
   if (masNuevo?.id !== wamid) return { resultado: 'omitida', motivo: 'llegó un mensaje más nuevo' }
   if (await queryOne(`SELECT 1 FROM ia_respuestas WHERE responde_a = ?`, [wamid])) return { resultado: 'omitida', motivo: 'ya se atendió' }
 

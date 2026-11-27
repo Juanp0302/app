@@ -212,3 +212,43 @@ describe('no me interesa', () => {
   })
 })
 
+
+describe('respuestas automáticas del WhatsApp del ISP', () => {
+  const VILLANET = '👋 ¡Hola! Gracias por comunicarte con Villanet Technology S.A.S. 🌐\n\nPara atenderte de manera más rápida, selecciona una opción:'
+  const JIGARTEL_1 = 'Al continuar con este chat usted acepta nuestros términos y condiciones del uso y tratamiento de datos personales.'
+  const JIGARTEL_2 = 'Gracias por tu mensaje. En este momento no podemos responder, pero lo haremos lo antes posible.'
+
+  it('reconoce los mensajes automáticos y no confunde a una persona', () => {
+    for (const t of [VILLANET, JIGARTEL_1, JIGARTEL_2, 'Bienvenido a NetSur, nuestro horario de atención es de 8 a 5', 'Soy el asistente virtual de RedPlus']) {
+      expect(wv.esAutorespuestaWhatsApp(t), t).toBe(true)
+    }
+    for (const t of ['Como están', 'Muy bien \nVoy a mirar y programamos una fecha', 'Gracias por la información, ¿cuánto cuesta la Pro?',
+      'Hola, sí me interesa. ¿Me pueden llamar mañana?', 'Gracias, ya revisé la radiografía', 'Buenos días, ¿quién habla?']) {
+      expect(wv.esAutorespuestaWhatsApp(t), t).toBe(false)
+    }
+  })
+
+  it('se guardan y se anotan, pero no detienen los seguimientos ni avisan; luego una persona sí cuenta', async () => {
+    await q(`INSERT INTO prospectos_isp (id, puesto, prioridad, empresa, telefono, representante, estado, responsable_id, campana,
+               cadencia, paso_cadencia, cadencia_estado, proxima_fecha, automatico, whatsapp_ok)
+             VALUES ('villa', 9, 'C2', 'Villanet SAS', '318 246 1357', 'Agustín', 'WA1 enviado', 'adri', 'webinar', 'webinar', 1, 'activa', '2026-11-30', 1, 1)`)
+    process.env.VENTAS_AUTOMATICAS = 'activo'
+    for (const [i, t] of [VILLANET, JIGARTEL_1, JIGARTEL_2].entries()) {
+      const r = await wv.procesarMensajeWhatsApp(msj(`wamid.AUTO${i}`, '573182461357', t), AHORA)
+      expect(r).toMatchObject({ accion: 'autorespuesta', prospectoId: 'villa' })
+      expect(r.paraIA).toBeUndefined()
+    }
+    const p = await prospecto('villa')
+    expect([p.estado, p.automatico, p.cadencia_estado, p.proxima_fecha]).toEqual(['WA1 enviado', 1, 'activa', '2026-11-30'])
+    expect(correos).toHaveLength(0)
+    expect(aMeta).toHaveLength(0)
+    expect((await q<any>(`SELECT COUNT(*) AS n FROM mensajes_whatsapp WHERE prospecto_id = 'villa' AND estado = 'autorespuesta'`)).n).toBe(3)
+    expect((await q<any>(`SELECT nota FROM prospectos_isp_historial WHERE prospecto_id = 'villa' ORDER BY rowid DESC LIMIT 1`)).nota).toMatch(/mensaje automático/)
+
+    const despues = new Date(AHORA.getTime() + 10 * 60000)
+    const r = await wv.procesarMensajeWhatsApp(msj('wamid.AUTO9', '573182461357', 'Hola, soy Agustín. Sí me interesa', despues), despues)
+    expect(r).toMatchObject({ accion: 'existente', tipo: 'respuesta' })
+    expect((await prospecto('villa')).estado).toBe('Respondió')
+    expect(correos.map(c => c.asunto)).toEqual(['💬 Respondió: Villanet SAS'])
+  })
+})
