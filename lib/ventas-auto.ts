@@ -55,10 +55,14 @@ export const enHorarioDeEnvio = (fecha: string, hora: number) => esDiaHabil(fech
 
 // ── Tablas ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-let _migrado = false
-export async function migrateVentasAuto() {
-  if (_migrado) return
-  _migrado = true
+// Una sola promesa compartida: si dos llamadas llegan a la vez (el reloj y un webhook al arrancar), la segunda espera a que
+// las tablas existan en lugar de seguir de largo.
+let _migracion: Promise<void> | null = null
+export function migrateVentasAuto(): Promise<void> {
+  _migracion ??= crearTablasVentasAuto().catch(e => { _migracion = null; throw e })
+  return _migracion
+}
+async function crearTablasVentasAuto() {
   await migrateProspectos()
   await migrateRadiografiasTabla()
   await execute(`

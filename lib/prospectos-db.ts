@@ -10,10 +10,13 @@
 import { queryOne, queryAll, execute } from './db'
 import crypto from 'crypto'
 
-let _migrated = false
-export async function migrateProspectos() {
-  if (_migrated) return
-  _migrated = true
+let _migrated: Promise<void> | null = null
+/** Una sola promesa compartida: llamadas simultáneas esperan a que las tablas existan. */
+export function migrateProspectos(): Promise<void> {
+  _migrated ??= _migrateProspectos().catch(e => { _migrated = null; throw e })
+  return _migrated
+}
+async function _migrateProspectos() {
 
   await execute(`
     CREATE TABLE IF NOT EXISTS prospectos_isp (
@@ -106,10 +109,13 @@ export async function migrateProspectos() {
 }
 
 /** Tabla de radiografías (PDF por prospecto); la usan las consultas de abajo, así que se crea junto con ellas. */
-let _radiografias = false
-export async function migrateRadiografiasTabla() {
-  if (_radiografias) return
-  _radiografias = true
+let _radiografias: Promise<void> | null = null
+/** Una sola promesa compartida: llamadas simultáneas esperan a que las tablas existan. */
+export function migrateRadiografiasTabla(): Promise<void> {
+  _radiografias ??= _migrateRadiografiasTabla().catch(e => { _radiografias = null; throw e })
+  return _radiografias
+}
+async function _migrateRadiografiasTabla() {
   await execute(`
     CREATE TABLE IF NOT EXISTS radiografias (
       prospecto_id TEXT PRIMARY KEY,

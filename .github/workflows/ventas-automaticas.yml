@@ -1,5 +1,6 @@
 # Reloj de las ventas automáticas (docs/automatizacion-ventas.md): cada hora, de 7 a. m. a 8 p. m. de Bogotá, llama al ciclo
-# de la app (lee el buzón y, en horario hábil, envía los correos de cadencia que tocan). Reemplaza el flujo de n8n.
+# de la app (lee el buzón y, en horario hábil, envía los correos de cadencia que tocan). Es el RESPALDO: el reloj principal
+# está dentro de la app (lib/reloj-ventas.ts). GitHub no garantiza estos horarios; si la hora ya corrió, la app lo omite.
 # Si la app no responde o el ciclo falla, GitHub le avisa por correo a quien hizo el último cambio en este archivo.
 # Necesita el secreto INTERNAL_SECRET (Settings → Secrets and variables → Actions), igual al de Render.
 name: Ventas automáticas
@@ -7,7 +8,8 @@ name: Ventas automáticas
 on:
   schedule:
     # GitHub usa hora UTC; Bogotá es UTC-5 todo el año: 12–23 y 0–1 UTC = 7 a. m. a 8 p. m. en Bogotá.
-    - cron: '5 12-23,0-1 * * *'
+    # Minuto 23: los minutos redondos (:00, :05) son los que más se atrasan o se saltan en GitHub.
+    - cron: '23 12-23,0-1 * * *'
   workflow_dispatch: {}
 
 permissions: {}

@@ -41,10 +41,13 @@ const maxLlamadasDia = () => Number(process.env.IA_MAX_LLAMADAS_DIA) || 300
 /** Segundos que se espera antes de contestar, por si la persona manda varios mensajes seguidos. */
 export const ESPERA_SEGUNDOS = 15
 
-let _migrado = false
-export async function migrateIA() {
-  if (_migrado) return
-  _migrado = true
+let _migrado: Promise<void> | null = null
+/** Una sola promesa compartida: llamadas simultáneas esperan a que las tablas existan. */
+export function migrateIA(): Promise<void> {
+  _migrado ??= _migrateIA().catch(e => { _migrado = null; throw e })
+  return _migrado
+}
+async function _migrateIA() {
   for (const sql of [`ALTER TABLE prospectos_isp ADD COLUMN ia_pausada INTEGER NOT NULL DEFAULT 0`]) {
     try { await execute(sql) } catch { /* ya existe */ }
   }

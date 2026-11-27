@@ -1,11 +1,13 @@
 /**
  * POST /api/interno/ventas-automaticas — un ciclo de las ventas automáticas (lib/ventas-auto.ts): lee el buzón y, en días
- * hábiles (sin festivos de Colombia) de 9 a. m. a 5 p. m., envía los correos y WhatsApp de cadencia que tocan. Lo llama GitHub Actions cada hora (.github/workflows/ventas-automaticas.yml).
+ * hábiles (sin festivos de Colombia) de 9 a. m. a 5 p. m., envía los correos y WhatsApp de cadencia que tocan. El reloj principal
+ * está en la app (lib/reloj-ventas.ts); GitHub Actions lo llama como respaldo. Un ciclo por hora: si ya corrió, responde omitido.
  * GET — estado (modo, último ciclo, prospectos en automático), para revisar que el ciclo esté corriendo.
  * Auth: Authorization: Bearer INTERNAL_SECRET
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { alertar, cicloVentasAutomaticas, estadoVentasAuto } from '@/lib/ventas-auto'
+import { alertar, estadoVentasAuto } from '@/lib/ventas-auto'
+import { cicloSiToca } from '@/lib/reloj-ventas'
 
 const autorizado = (req: NextRequest) => {
   const secret = process.env.INTERNAL_SECRET
@@ -15,7 +17,10 @@ const autorizado = (req: NextRequest) => {
 export async function POST(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   try {
-    const r = await cicloVentasAutomaticas()
+    // Mismo candado que el reloj de la app: si esta hora ya corrió, no se repite.
+    const reloj = await cicloSiToca()
+    if (!reloj.corrio) return NextResponse.json({ ok: true, omitido: reloj.motivo })
+    const r = reloj.resumen
     const cuenta = (xs: string[]) => xs.reduce<Record<string, number>>((a, v) => { a[v] = (a[v] ?? 0) + 1; return a }, {})
     return NextResponse.json({
       ok: r.errores.length === 0, modo: r.modo, hoy: r.hoy, hora: r.hora,

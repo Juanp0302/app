@@ -26,7 +26,7 @@ En la ficha del prospecto, el botón **🤖 Pasar a automático (correo)** lo po
 
 1. Desplegar el código.
 2. En la cuenta de Gmail de `GMAIL_USER`: activar IMAP (Configuración → Reenvío y correo POP/IMAP). La contraseña de aplicación (`GMAIL_APP_PASSWORD`) sirve para SMTP e IMAP.
-3. En GitHub (repositorio Juanp0302/app → Settings → Secrets and variables → Actions): crear el secreto `INTERNAL_SECRET`, igual al de Render. La tarea `.github/workflows/ventas-automaticas.yml` corre sola cada hora (de 7 a. m. a 8 p. m. de Bogotá) y se puede lanzar a mano desde la pestaña Actions ("Run workflow").
+3. Reloj: la app misma revisa cada 5 minutos si toca el ciclo de la hora (`instrumentation.ts` → `lib/reloj-ventas.ts`), de 7 a. m. a 8 p. m. hora de Bogotá. Un candado en la base (`ventas_auto_estado`, clave `ciclo:AAAA-MM-DD:HH`) garantiza un solo ciclo por hora. GitHub Actions queda de respaldo, porque no garantiza sus horarios (el 25 y 26 de noviembre de 2026 corrió 2 de ~20 veces). `RELOJ_VENTAS=apagado` en Render apaga el reloj de la app. En GitHub (repositorio Juanp0302/app → Settings → Secrets and variables → Actions) va el secreto `INTERNAL_SECRET`, igual al de Render. La tarea `.github/workflows/ventas-automaticas.yml` corre sola cada hora (de 7 a. m. a 8 p. m. de Bogotá) y se puede lanzar a mano desde la pestaña Actions ("Run workflow").
 4. Revisar el reporte de simulación del día siguiente.
 5. Pasar prospectos a automático (botón o script, `--dry --prod` primero) y, cuando el reporte se vea bien, poner `VENTAS_AUTOMATICAS=activo`.
 
