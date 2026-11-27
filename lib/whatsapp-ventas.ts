@@ -15,7 +15,7 @@ import { queryAll, queryOne, execute } from './db'
 import { registrarHistorial, type ProspectoRow } from './prospectos-db'
 import { pideBaja, noInteresado } from './correo-ventas'
 import { celularParaWhatsApp } from './whatsapp'
-import { enviarTextoWhatsApp, enviarPlantillaWhatsApp, ventanaAbierta, type MensajeWhatsApp, type EstadoWhatsApp, type EnvioWhatsApp } from './whatsapp-api'
+import { enviarTextoWhatsApp, enviarPlantillaWhatsApp, descargarMedio, ventanaAbierta, type MensajeWhatsApp, type EstadoWhatsApp, type EnvioWhatsApp } from './whatsapp-api'
 import { limpiarVariable, textoDePlantilla } from './plantillas-whatsapp'
 import { nombreParaSaludar } from './radiografia'
 import { ENLACES, MINUTOS_REUNION, hoyBogota } from './ventas'
@@ -50,6 +50,8 @@ export interface FilaWhatsApp {
   ia_accion?: string | null
   ia_motivo?: string | null
   ia_estado?: string | null
+  /** Tipo del archivo guardado (audio, imagen…), si el mensaje trae uno. */
+  medio_mime?: string | null
   created_at: string
 }
 
@@ -119,9 +121,16 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
     [m.wamid, p.id, m.de, m.nombre, m.tipo, m.texto, fechaSql(m.fecha)])
 
   if (accion === 'existente') {
-    // Igual que una respuesta por correo: estado, cadencia, historial y aviso al responsable.
+    // Igual que una respuesta por correo: estado, cadencia, historial y aviso al responsable (el de un audio o archivo
+    // sale aparte, con el archivo adjunto).
     await actuarSobreProspecto(p, tipo, { de: `+${m.de}${m.nombre ? ` (${m.nombre})` : ''}`, asunto: '', texto: m.texto, cabeceras: {}, responde: [] },
-      hoy, 'whatsapp')
+      hoy, 'whatsapp', !m.medio)
+  }
+
+  // Audios, fotos y documentos: la IA no los procesa. Se reenvían al responsable y la conversación pasa al equipo.
+  if (m.medio && !p.baja) {
+    await entregarArchivoAlEquipo(p, m, accion === 'creado')
+    return { wamid: m.wamid, accion, tipo, prospectoId: p.id }
   }
 
   // Con la IA encendida, ella contesta (lib/ia-ventas.ts) y no sale la respuesta fija.
@@ -143,6 +152,45 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
   return { wamid: m.wamid, accion, tipo, prospectoId: p.id, respuestaAutomatica: respuesta }
 }
 
+const ETIQUETA_ARCHIVO: Record<string, string> = { audio: 'una nota de voz', voice: 'una nota de voz', image: 'una foto', video: 'un video', document: 'un documento' }
+const EXTENSION: Record<string, string> = { 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/amr': 'amr',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'application/pdf': 'pdf' }
+
+/** Guarda el audio o archivo, se lo manda adjunto al responsable y deja la conversación en manos del equipo. */
+async function entregarArchivoAlEquipo(p: ProspectoRow, m: MensajeWhatsApp, esNuevo: boolean) {
+  const que = ETIQUETA_ARCHIVO[m.tipo] ?? 'un archivo'
+  const d = await descargarMedio(m.medio!.id)
+  const mime = (d.ok ? d.mime : m.medio!.mime) ?? 'application/octet-stream'
+  await execute(`INSERT OR REPLACE INTO medios_whatsapp (wamid, mime, nombre, contenido, error) VALUES (?, ?, ?, ?, ?)`,
+    [m.wamid, mime, m.medio!.nombre, d.ok ? d.contenido : null, d.ok ? null : d.error])
+  const base = (m.medio!.nombre ?? `${que.replace(/^una? /, '').replace(/ /g, '-')}-${p.empresa}`).replace(/[\\/:*?"<>|]/g, '').slice(0, 80)
+  const archivo = /\.[a-z0-9]{2,4}$/i.test(base) ? base : `${base}.${EXTENSION[mime.split(';')[0]] ?? 'bin'}`
+
+  // En modo activo, un acuse corto (la ventana de 24 h está abierta: acaba de escribir). Solo la primera vez de la conversación.
+  const yaLoTiene = !!(p as any).ia_pausada
+  if (modoIA() === 'activa' && iaConfigurada() && !yaLoTiene) {
+    const tuyo = que.replace(/^una /, 'tu ').replace(/^un /, 'tu ')
+    const texto = `¡Gracias! Recibimos ${tuyo} y ${que.startsWith('un ') ? 'se lo' : 'se la'} pasamos a una persona del equipo, que te responde pronto por aquí.`
+    const r = await enviarTextoWhatsApp(m.de, texto)
+    await guardarSaliente(p.id, m.de, texto, r, null, 'automatico')
+  }
+  if (modoIA() !== 'apagada') await execute(`UPDATE prospectos_isp SET ia_pausada = 1, updated_at = datetime('now') WHERE id = ?`, [p.id])
+  await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: p.estado, user_id: null,
+    nota: `Envió ${que} por WhatsApp${d.ok ? '' : ' (no se pudo descargar: ' + d.error + ')'}: se le reenvió al responsable${modoIA() !== 'apagada' ? ' y la conversación pasa al equipo' : ''}` })
+  await avisar(p.responsable_email, `${m.tipo === 'audio' || m.tipo === 'voice' ? '🎤' : '📎'} ${esNuevo ? 'Nuevo contacto por WhatsApp' : 'WhatsApp'}: ${p.empresa} envió ${que}`, [
+    `<strong>${escHtml(p.empresa)}</strong> · +${escHtml(m.de)}${esNuevo ? ' · <em>nuevo prospecto a tu nombre (el nombre es el de su perfil de WhatsApp: confirma la empresa)</em>' : ''}`,
+    d.ok ? `Va adjunto${m.texto && !/^\[/.test(m.texto) ? `, con el texto: «${escHtml(m.texto.slice(0, 300))}»` : ''}.` : `No se pudo descargar (${escHtml(d.error)}). Escúchalo o ábrelo desde WhatsApp Manager.`,
+    'La IA no procesa audios ni archivos: respóndele tú desde su ficha en Prospectos (pestaña WhatsApp), dentro de las 24 horas siguientes a su mensaje.',
+  ], d.ok ? [{ filename: archivo, content: d.contenido, contentType: mime }] : undefined)
+}
+
+/** Para la ficha: el archivo de un mensaje (audio, foto, documento). */
+export async function medioDelMensaje(wamid: string) {
+  await migrateWhatsApp()
+  return queryOne<{ wamid: string; mime: string | null; nombre: string | null; contenido: ArrayBuffer | null; prospecto_id: string | null }>(
+    `SELECT m.wamid, m.mime, m.nombre, m.contenido, w.prospecto_id FROM medios_whatsapp m JOIN mensajes_whatsapp w ON w.id = m.wamid WHERE m.wamid = ?`, [wamid])
+}
+
 async function crearProspectoDesdeWhatsApp(m: MensajeWhatsApp, hoy: string): Promise<ProspectoRow> {
   const responsable = await elegirResponsable()
   const puesto = Number((await queryOne<{ m: number }>(`SELECT COALESCE(MAX(puesto), 0) AS m FROM prospectos_isp`))?.m ?? 0) + 1
@@ -157,7 +205,8 @@ async function crearProspectoDesdeWhatsApp(m: MensajeWhatsApp, hoy: string): Pro
   await registrarHistorial({ prospecto_id: id, estado_anterior: null, estado_nuevo: 'Respondió', user_id: null,
     nota: `Escribió al WhatsApp de Owl: «${m.texto.slice(0, 300)}»` })
   const p = (await queryOne<ProspectoRow>(`${SELECT_PROSPECTO} WHERE p.id = ?`, [id]))!
-  await avisar(p.responsable_email, `🆕 Nuevo contacto por WhatsApp: ${empresa}`, [
+  // Si llegó con un audio o archivo, el aviso sale aparte con el adjunto (entregarArchivoAlEquipo).
+  if (!m.medio) await avisar(p.responsable_email, `🆕 Nuevo contacto por WhatsApp: ${empresa}`, [
     `<strong>${escHtml(empresa)}</strong> · +${escHtml(m.de)}`,
     `«${escHtml(m.texto.slice(0, 600))}»`,
     'Quedó como prospecto a tu nombre. El nombre es el de su perfil de WhatsApp: confirma la empresa al responderle.',
@@ -204,7 +253,8 @@ export async function conversacionDelProspecto(p: ProspectoRow, ahora = new Date
     `SELECT w.*, u.nombre AS user_nombre,
        (SELECT r.accion FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_accion,
        (SELECT r.motivo FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_motivo,
-       (SELECT r.estado FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_estado
+       (SELECT r.estado FROM ia_respuestas r WHERE r.responde_a = w.id ORDER BY r.created_at DESC LIMIT 1) AS ia_estado,
+       (SELECT md.mime FROM medios_whatsapp md WHERE md.wamid = w.id AND md.contenido IS NOT NULL) AS medio_mime
      FROM mensajes_whatsapp w LEFT JOIN users u ON u.id = w.user_id
      WHERE w.prospecto_id = ? ORDER BY w.created_at, w.rowid`, [p.id])
   const ultimoEntrante = [...mensajes].reverse().find(m => m.direccion === 'entrante')

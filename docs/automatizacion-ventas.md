@@ -122,3 +122,8 @@ Cualquier persona del equipo debe poder asumir un prospecto en cualquier momento
 - **Resumen del caso:** 1 a 3 frases que la IA actualiza con cada mensaje (situación, preocupaciones, lo que pidió y lo que se le prometió). Es interno; nunca se le envía.
 
 En la pestaña WhatsApp, debajo de cada mensaje del prospecto aparece lo que decidió la IA y por qué (respondió, dejó un borrador, no respondió, lo pasó al equipo). El historial sigue registrando cada envío, respuesta, baja y cambio de modo. Los contactos manuales desde celulares personales no quedan registrados salvo que se marquen en la app ("paso enviado").
+
+## Audios, fotos y documentos por WhatsApp
+
+La IA no escucha audios ni lee archivos. Cuando un prospecto manda una nota de voz, una foto, un video o un documento, la app lo descarga de Meta y lo guarda (`medios_whatsapp`), se lo manda adjunto por correo a su responsable (un solo correo) y la conversación pasa al equipo (la IA se calla con ese prospecto hasta que alguien la devuelva desde la ficha). En la pestaña WhatsApp de la ficha el audio se escucha ahí mismo (y las fotos se ven). Con `IA_VENTAS=activa`, la primera vez se le contesta: "¡Gracias! Recibimos tu nota de voz y se la pasamos a una persona del equipo, que te responde pronto por aquí." No hay transcripción (decisión del superadmin del 2026-11-26).
+

@@ -702,7 +702,14 @@ function TabWhatsApp({ p }: { p: any }) {
           return (
             <div key={m.id} style={{ alignSelf: mio ? 'flex-end' : 'flex-start', maxWidth: '85%', background: mio ? '#dcf8c6' : '#fff',
               border: '1px solid #e5e7eb', borderRadius: 10, padding: '0.5rem 0.75rem', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {m.texto}
+              {m.medio_mime ? (
+                <>
+                  {m.medio_mime.startsWith('audio/') ? <audio controls preload="none" src={`/api/prospectos/whatsapp/medio?id=${encodeURIComponent(m.id)}`} style={{ maxWidth: '100%' }} />
+                    : m.medio_mime.startsWith('image/') ? <a href={`/api/prospectos/whatsapp/medio?id=${encodeURIComponent(m.id)}`} target="_blank" rel="noreferrer"><img src={`/api/prospectos/whatsapp/medio?id=${encodeURIComponent(m.id)}`} alt="Imagen enviada por WhatsApp" style={{ maxWidth: 240, borderRadius: 6, display: 'block' }} /></a>
+                    : <a href={`/api/prospectos/whatsapp/medio?id=${encodeURIComponent(m.id)}`} target="_blank" rel="noreferrer" style={{ color: '#0e7490', fontWeight: 600 }}>📎 Abrir archivo</a>}
+                  {m.texto && !/^\[/.test(m.texto) && <div style={{ marginTop: 4 }}>{m.texto}</div>}
+                </>
+              ) : m.texto}
               <div style={{ fontSize: 10, color: '#999', marginTop: 4, textAlign: 'right' }}>
                 {mio ? `${m.user_nombre ?? (m.estado === 'ia' ? 'IA' : 'Sistema')} · ${ESTADO[m.estado] ?? m.estado ?? ''} · ` : ''}
                 {new Date(m.created_at.replace(' ', 'T') + 'Z').toLocaleString('es-CO')}

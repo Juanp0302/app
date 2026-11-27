@@ -89,6 +89,16 @@ export async function migrateVentasAuto() {
     )`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_wa_prospecto ON mensajes_whatsapp(prospecto_id, created_at)`)
   await execute(`CREATE INDEX IF NOT EXISTS idx_wa_telefono ON mensajes_whatsapp(telefono, created_at)`)
+  // Audios, fotos y documentos que llegan por WhatsApp (se guardan para escucharlos en la ficha y reenviarlos al equipo).
+  await execute(`
+    CREATE TABLE IF NOT EXISTS medios_whatsapp (
+      wamid      TEXT PRIMARY KEY,
+      mime       TEXT,
+      nombre     TEXT,
+      contenido  BLOB,
+      error      TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`)
   await execute(`
     CREATE TABLE IF NOT EXISTS ventas_auto_estado (
       clave      TEXT PRIMARY KEY,
@@ -123,12 +133,12 @@ async function correoSuperadmin(): Promise<string> {
 export const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** Aviso al responsable (o al superadmin si no tiene). Nunca lanza: un aviso que falla no detiene el ciclo. */
-export async function avisar(para: string | null | undefined, asunto: string, lineas: string[]) {
+export async function avisar(para: string | null | undefined, asunto: string, lineas: string[], adjuntos?: { filename: string; content: Buffer; contentType?: string }[]) {
   const destino = para || (await correoSuperadmin())
   const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;">` +
     lineas.map(l => `<p style="margin:0 0 10px;">${l}</p>`).join('') +
     `<p style="margin:18px 0 0;"><a href="${URL_APP()}/dashboard/prospectos" style="color:#712529;">Abrir Prospectos</a></p></div>`
-  await enviarSmtp({ para: destino, asunto, html, nombreRemitente: 'Owl Compliance · Ventas' }).catch(() => null)
+  await enviarSmtp({ para: destino, asunto, html, nombreRemitente: 'Owl Compliance · Ventas', adjuntos }).catch(() => null)
 }
 
 /** Alerta al superadmin, una sola vez al día por el mismo problema. */
@@ -388,7 +398,7 @@ export async function procesarEntrante(e: Entrante, hoy = hoyBogota()): Promise<
 
 /** Respuesta, baja o "no me interesa" de un prospecto ya identificado: estado, cadencia, historial y aviso al responsable. */
 export async function actuarSobreProspecto(p: ProspectoRow, tipo: 'baja' | 'no-interesado' | 'respuesta', e: Entrante, hoy: string,
-  canal: 'correo' | 'whatsapp' = 'correo') {
+  canal: 'correo' | 'whatsapp' = 'correo', avisarAlResponsable = true) {
   const propio = textoNuevo(e.texto).slice(0, 600)
   const cita = propio ? `«${propio.length > 300 ? propio.slice(0, 300) + '…' : propio}»` : '(sin texto)'
   let estado = p.estado
@@ -412,7 +422,7 @@ export async function actuarSobreProspecto(p: ProspectoRow, tipo: 'baja' | 'no-i
   const medio = canal === 'whatsapp' ? 'WhatsApp' : 'correo'
   const que = tipo === 'baja' ? `Pidió la baja por ${medio}` : tipo === 'no-interesado' ? 'Respondió que no le interesa' : `Respondió por ${medio}`
   await registrarHistorial({ prospecto_id: p.id, estado_anterior: p.estado, estado_nuevo: estado, user_id: null, nota: `${que}: ${cita}` })
-  await avisar(p.responsable_email, `${tipo === 'respuesta' ? '💬 Respondió' : que}: ${p.empresa}`, [
+  if (avisarAlResponsable) await avisar(p.responsable_email, `${tipo === 'respuesta' ? '💬 Respondió' : que}: ${p.empresa}`, [
     `<strong>${escHtml(p.empresa)}</strong> · ${escHtml(e.de)}`,
     canal === 'correo' ? `Asunto: ${escHtml(e.asunto)}` : '',
     escHtml(cita).replace(/\n/g, '<br>'),

@@ -34,7 +34,12 @@ export interface MensajeWhatsApp {
   /** Texto del mensaje; para lo que no es texto, una descripción ("[imagen]", el pie de foto, el botón que tocó…). */
   texto: string
   fecha: Date
+  /** Audio, nota de voz, imagen, video o documento: su id en Meta para descargarlo (no los stickers ni las reacciones). */
+  medio?: { id: string; mime: string | null; nombre: string | null } | null
 }
+
+/** Tipos de mensaje que traen un archivo que el equipo tiene que ver o escuchar. */
+export const TIPOS_CON_ARCHIVO = ['audio', 'voice', 'image', 'video', 'document']
 
 export interface EstadoWhatsApp {
   wamid: string
@@ -79,9 +84,11 @@ export function leerWebhook(payload: any, phoneId?: string): { mensajes: Mensaje
       for (const m of v.messages ?? []) {
         if (!m?.id || !m.from) continue
         const de = String(m.from).replace(/\D/g, '')
+        const archivo = TIPOS_CON_ARCHIVO.includes(m.type) ? m[m.type] : null
         mensajes.push({
           wamid: String(m.id), de, nombre: nombres.get(de) ?? null, tipo: String(m.type ?? 'desconocido'),
           texto: textoDe(m), fecha: new Date(Number(m.timestamp ?? 0) * 1000 || Date.now()),
+          medio: archivo?.id ? { id: String(archivo.id), mime: archivo.mime_type ?? null, nombre: archivo.filename ?? null } : null,
         })
       }
       for (const s of v.statuses ?? []) {
@@ -124,6 +131,23 @@ export async function enviarTextoWhatsApp(para: string, texto: string): Promise<
       return { ok: false, codigo: d?.error?.code, error: d?.error?.message ?? `HTTP ${r.status}` }
     }
     return { ok: true, wamid: String(d.messages[0].id) }
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? String(e) }
+  }
+}
+
+/** Descarga un archivo que llegó por WhatsApp (dos pasos: la URL temporal del medio y luego el contenido, ambos con el token). */
+export async function descargarMedio(medioId: string): Promise<{ ok: true; contenido: Buffer; mime: string } | { ok: false; error: string }> {
+  const token = process.env.WHATSAPP_TOKEN
+  if (!token) return { ok: false, error: 'WHATSAPP_TOKEN no configurado' }
+  try {
+    const info = await fetch(`https://graph.facebook.com/${version()}/${medioId}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) })
+    const d: any = await info.json().catch(() => ({}))
+    if (!info.ok || !d?.url) return { ok: false, error: d?.error?.message ?? `HTTP ${info.status}` }
+    if (Number(d.file_size ?? 0) > 15 * 1024 * 1024) return { ok: false, error: 'El archivo pesa más de 15 MB' }
+    const r = await fetch(d.url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(60000) })
+    if (!r.ok) return { ok: false, error: `HTTP ${r.status} al descargar` }
+    return { ok: true, contenido: Buffer.from(await r.arrayBuffer()), mime: d.mime_type ?? r.headers.get('content-type') ?? 'application/octet-stream' }
   } catch (e: any) {
     return { ok: false, error: e?.message ?? String(e) }
   }
