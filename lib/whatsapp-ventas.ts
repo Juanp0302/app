@@ -76,6 +76,13 @@ export function cierreNoInteresado(nombre: string | null, empresa: string | null
   return `${saludo} Gracias por tu tiempo. Quedamos atentos para acompañar a ${isPara(empresa)} cuando lo necesites.`
 }
 
+/** Confirmación de la baja (pedida por el superadmin, 2026-11-26): una sola vez, y después nada más. */
+export function confirmacionBaja(nombre: string | null, empresa: string | null): string {
+  const primer = (nombre ?? '').trim().split(/\s+/)[0]
+  const saludo = primer && /^[\p{L}]{2,}$/u.test(primer) ? `Listo, ${primer}.` : 'Listo.'
+  return `${saludo} No te volveremos a escribir. Si en algún momento necesitas apoyo con el cumplimiento de ${isPara(empresa)}, escríbenos por aquí.`
+}
+
 /**
  * Respuesta automática al primer mensaje de una conversación (solo con VENTAS_AUTOMATICAS=activo).
  * Texto aprobado el 2026-11-25: no cambiarlo sin aprobación.
@@ -137,14 +144,16 @@ export async function procesarMensajeWhatsApp(m: MensajeWhatsApp, ahora = new Da
       hoy, 'whatsapp', !m.medio)
   }
 
-  // "No me interesa": queda en No interesado (actuarSobreProspecto) y se le contesta una sola vez con un cierre amable.
-  if (tipo === 'no-interesado' && !p.baja) {
-    const yaCerrado = await queryOne(`SELECT 1 AS x FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'saliente' AND tipo = 'cierre'`, [p.id])
-    if (!yaCerrado) {
-      const texto = cierreNoInteresado(m.nombre ?? p.webinar_nombre ?? p.representante, p.empresa)
+  // "No me interesa" (queda en No interesado) o la baja (queda en No contactar): se le contesta una sola vez, y nada más.
+  if ((tipo === 'no-interesado' && !p.baja) || tipo === 'baja') {
+    const clase = tipo === 'baja' ? 'baja' : 'cierre'
+    const yaRespondido = await queryOne(`SELECT 1 AS x FROM mensajes_whatsapp WHERE prospecto_id = ? AND direccion = 'saliente' AND tipo = ?`, [p.id, clase])
+    if (!yaRespondido) {
+      const nombre = m.nombre ?? p.webinar_nombre ?? p.representante
+      const texto = tipo === 'baja' ? confirmacionBaja(nombre, p.empresa) : cierreNoInteresado(nombre, p.empresa)
       const r = await enviarTextoWhatsApp(m.de, texto)
-      await execute(`INSERT INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, tipo, texto, estado, error) VALUES (?, ?, 'saliente', ?, 'cierre', ?, ?, ?)`,
-        [r.ok ? r.wamid : `error-${crypto.randomUUID()}`, p.id, m.de, texto, r.ok ? 'automatico' : 'failed', r.ok ? null : r.error])
+      await execute(`INSERT INTO mensajes_whatsapp (id, prospecto_id, direccion, telefono, tipo, texto, estado, error) VALUES (?, ?, 'saliente', ?, ?, ?, ?, ?)`,
+        [r.ok ? r.wamid : `error-${crypto.randomUUID()}`, p.id, m.de, clase, texto, r.ok ? 'automatico' : 'failed', r.ok ? null : r.error])
     }
     return { wamid: m.wamid, accion, tipo, prospectoId: p.id }
   }

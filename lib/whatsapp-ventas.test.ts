@@ -145,7 +145,10 @@ describe('mensajes que llegan', () => {
     const p = await prospecto('fijo')
     expect(p.baja).toBe(1)
     expect(p.estado).toBe('No contactar')
-    expect(aMeta).toHaveLength(0)
+    // Solo la confirmación de la baja, una vez.
+    expect(aMeta.map(x => x.body.text.body)).toEqual(['Listo, Rodrigo. No te volveremos a escribir. Si en algún momento necesitas apoyo con el cumplimiento de Fijo SAS, escríbenos por aquí.'])
+    await wv.procesarMensajeWhatsApp(msj('wamid.5b', '573205556677', 'BAJA', new Date(AHORA.getTime() + 60000)), new Date(AHORA.getTime() + 60000))
+    expect(aMeta).toHaveLength(1)
   })
 
   it('un número desconocido se vuelve prospecto E de la campaña whatsapp, con responsable', async () => {
