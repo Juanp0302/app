@@ -43,7 +43,8 @@ const decide = (accion: string, mensaje: string, motivo = 'prueba') => {
 let ia: typeof import('@/lib/ia-ventas')
 let wv: typeof import('@/lib/whatsapp-ventas')
 let q: <T = any>(sql: string, args?: any[]) => Promise<T | undefined>
-const AHORA = new Date('2026-11-25T15:00:00Z')
+// El reloj real: los topes diarios cuentan con la fecha que pone la base de datos.
+const AHORA = new Date()
 const ahora = () => AHORA
 let n = 0
 /** Llega un mensaje del celular `de` y la IA lo atiende sin esperar. */
@@ -216,7 +217,7 @@ describe('atender un WhatsApp', () => {
   })
 
   it('el gasto del mes se puede estimar', async () => {
-    const u = await ia.usoDelMes('2026-11')
+    const u = await ia.usoDelMes()
     expect(u.llamadas).toBeGreaterThan(0)
     expect(u.dolaresAprox).toBeGreaterThan(0)
   })

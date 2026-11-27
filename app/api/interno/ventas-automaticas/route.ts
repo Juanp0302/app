@@ -1,6 +1,6 @@
 /**
  * POST /api/interno/ventas-automaticas — un ciclo de las ventas automáticas (lib/ventas-auto.ts): lee el buzón y, en días
- * hábiles de 8 a. m. a 6 p. m., envía los correos de cadencia que tocan. Lo llama GitHub Actions cada hora (.github/workflows/ventas-automaticas.yml).
+ * hábiles (sin festivos de Colombia) de 9 a. m. a 5 p. m., envía los correos y WhatsApp de cadencia que tocan. Lo llama GitHub Actions cada hora (.github/workflows/ventas-automaticas.yml).
  * GET — estado (modo, último ciclo, prospectos en automático), para revisar que el ciclo esté corriendo.
  * Auth: Authorization: Bearer INTERNAL_SECRET
  */

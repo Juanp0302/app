@@ -1,8 +1,8 @@
 /** Cadencias del webinar, reparto de la base y días hábiles. */
 import { describe, it, expect } from 'vitest'
 import { ENLACES } from './ventas'
-import { CADENCIAS, CUANDO_RESPONDE, cadenciaDe, mensajesCuandoResponde, pasoActual, secuenciaDelProspecto, textoDelPaso, sumarDiasHabiles, FESTIVOS as FESTIVOS_APP } from './cadencias'
-import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, FESTIVOS as FESTIVOS_SCRIPT, sumarDiasHabiles as habilesScript } from './reparto.mjs'
+import { CADENCIAS, CUANDO_RESPONDE, cadenciaDe, mensajesCuandoResponde, pasoActual, secuenciaDelProspecto, textoDelPaso, sumarDiasHabiles } from './cadencias'
+import { repartir, revisarIcp, corregirNitEnEmpresa, coincideConProspecto, claveGrupo, fechasDeInicio, sumarDiasHabiles as habilesScript } from './reparto.mjs'
 
 describe('días hábiles', () => {
   it('salta fines de semana y festivos (2 de noviembre de 2026 es lunes festivo)', () => {
@@ -10,10 +10,19 @@ describe('días hábiles', () => {
     expect(sumarDiasHabiles('2026-10-31', 0)).toBe('2026-11-03')   // sábado → siguiente hábil
     expect(sumarDiasHabiles('2026-10-28', 0)).toBe('2026-10-28')
   })
-  it('el script y la app usan los mismos festivos y la misma regla', () => {
-    expect([...FESTIVOS_SCRIPT].sort()).toEqual([...FESTIVOS_APP].sort())
-    for (const [f, n] of [['2026-10-30', 1], ['2026-11-13', 1], ['2026-12-24', 2]] as const)
+  it('el script y la app usan la misma regla', () => {
+    for (const [f, n] of [['2026-10-30', 1], ['2026-11-13', 1], ['2026-12-24', 2], ['2027-03-24', 1]] as const)
       expect(habilesScript(f, n)).toBe(sumarDiasHabiles(f, n))
+  })
+  it('festivos de Colombia calculados: coinciden con el calendario oficial de 2026 y 2027', async () => {
+    const { festivosColombia, esDiaHabilColombia } = await import('./festivos.mjs')
+    expect(festivosColombia(2026)).toEqual(['2026-01-01', '2026-01-12', '2026-03-23', '2026-04-02', '2026-04-03', '2026-05-01', '2026-05-18',
+      '2026-06-08', '2026-06-15', '2026-06-29', '2026-07-20', '2026-08-07', '2026-08-17', '2026-10-12', '2026-11-02', '2026-11-16', '2026-12-08', '2026-12-25'])
+    expect(festivosColombia(2027)).toEqual(['2027-01-01', '2027-01-11', '2027-03-22', '2027-03-25', '2027-03-26', '2027-05-01', '2027-05-10',
+      '2027-05-31', '2027-06-07', '2027-07-05', '2027-07-20', '2027-08-07', '2027-08-16', '2027-10-18', '2027-11-01', '2027-11-15', '2027-12-08', '2027-12-25'])
+    expect(esDiaHabilColombia('2027-03-25')).toBe(false)    // Jueves Santo
+    expect(esDiaHabilColombia('2026-12-07')).toBe(true)     // lunes normal
+    expect(sumarDiasHabiles('2027-03-24', 1)).toBe('2027-03-29')   // miércoles santo + 1 hábil → lunes de Pascua
   })
 })
 

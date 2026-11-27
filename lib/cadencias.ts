@@ -15,6 +15,7 @@
  * de 15 minutos y se manda el enlace al calendario público. Dos versiones del texto: con radiografía (el prospecto ya tiene su
  * PDF cargado: el paso 1 es el mensaje de lib/radiografia.ts) y sin radiografía.
  */
+import { esDiaHabilColombia } from './festivos.mjs'
 import { ENLACES, MINUTOS_REUNION } from './ventas'
 import { estadoWebinar, isPara, mensajeRadiografia, nombreParaSaludar, puntoConcreto, sinDobles, type EstadoWebinar } from './radiografia'
 
@@ -324,15 +325,11 @@ export function mensajesCuandoResponde(nombre?: string | null) {
 
 // ── Días hábiles (Colombia) ───────────────────────────────────────────────────
 
-/** Festivos de Colombia que caen mientras corre esta campaña. Agregar los del año siguiente cuando haga falta. */
-export const FESTIVOS = new Set([
-  '2026-11-02', '2026-11-16', '2026-12-08', '2026-12-25', '2027-01-01', '2027-01-11',
-])
-
-/** Suma `n` días hábiles (sin sábados, domingos ni festivos) a una fecha AAAA-MM-DD. Con n = 0 devuelve el mismo día si es hábil, o el siguiente hábil. */
+/** Suma `n` días hábiles (sin sábados, domingos ni festivos de Colombia, lib/festivos.mjs) a una fecha AAAA-MM-DD.
+ *  Con n = 0 devuelve el mismo día si es hábil, o el siguiente hábil. */
 export function sumarDiasHabiles(fecha: string, n: number): string {
   const d = new Date(`${fecha}T12:00:00Z`)
-  const esHabil = () => d.getUTCDay() !== 0 && d.getUTCDay() !== 6 && !FESTIVOS.has(d.toISOString().slice(0, 10))
+  const esHabil = () => esDiaHabilColombia(d.toISOString().slice(0, 10))
   while (!esHabil()) d.setUTCDate(d.getUTCDate() + 1)
   for (let i = 0; i < n; i++) {
     d.setUTCDate(d.getUTCDate() + 1)

@@ -189,3 +189,14 @@ describe('baja y ciclo', () => {
     expect(await con.json()).toMatchObject({ modo: 'simulacion' })
   })
 })
+
+describe('horario de envío', () => {
+  it('solo de lunes a viernes no festivos, de 9:00 a 4:59 p. m. (Bogotá)', () => {
+    expect(va.enHorarioDeEnvio('2026-11-26', 9)).toBe(true)      // jueves
+    expect(va.enHorarioDeEnvio('2026-11-26', 16)).toBe(true)
+    expect(va.enHorarioDeEnvio('2026-11-26', 8)).toBe(false)
+    expect(va.enHorarioDeEnvio('2026-11-26', 17)).toBe(false)
+    expect(va.enHorarioDeEnvio('2026-11-28', 10)).toBe(false)    // sábado
+    expect(va.enHorarioDeEnvio('2026-12-08', 10)).toBe(false)    // festivo
+  })
+})

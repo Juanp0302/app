@@ -3,7 +3,7 @@
  * Ventas automáticas, fase 1 (docs/automatizacion-ventas.md):
  *  - quien escribe por la web queda como prospecto, con responsable y la cadencia "entrante", y recibe respuesta de inmediato;
  *  - los prospectos en modo automático reciben su cadencia por correo (el primero con la radiografía adjunta), en días
- *    hábiles de 8 a. m. a 6 p. m.;
+ *    hábiles (lunes a viernes, sin festivos de Colombia) de 9 a. m. a 5 p. m.;
  *  - el buzón se lee cada ciclo: una respuesta detiene la cadencia y avisa al responsable; los rebotes, las bajas y los
  *    "no me interesa" se registran solos;
  *  - el superadmin recibe un resumen diario y una alerta cuando algo falla.
@@ -43,6 +43,11 @@ export const horaBogota = (d = new Date()) =>
   Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bogota', hour: 'numeric', hourCycle: 'h23' }).format(d))
 
 export const esDiaHabil = (fecha: string) => sumarDiasHabiles(fecha, 0) === fecha
+
+/** Ventana de envío de los mensajes automáticos (hora de Bogotá): desde las 9:00 hasta antes de las 17:00. */
+export const HORA_INICIO_ENVIOS = 9
+export const HORA_FIN_ENVIOS = 17
+export const enHorarioDeEnvio = (fecha: string, hora: number) => esDiaHabil(fecha) && hora >= HORA_INICIO_ENVIOS && hora < HORA_FIN_ENVIOS
 
 // ── Tablas ──────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -563,7 +568,7 @@ export async function cicloVentasAutomaticas(ahora = new Date()): Promise<Resume
     await alertar('no se pudo leer el buzón', `${e?.message ?? e}. Sin esto, las respuestas no detienen la cadencia. Revisa que IMAP esté activo en Gmail y que GMAIL_APP_PASSWORD siga vigente.`)
   }
 
-  if (esDiaHabil(hoy) && hora >= 8 && hora < 18) {
+  if (enHorarioDeEnvio(hoy, hora)) {
     // En simulación, el reporte del día sale una sola vez: no se recalcula cada hora.
     const simuladoHoy = modo === 'simulacion' && (await leerEstado('simulacion_reportada')) === hoy
     if (!simuladoHoy) {
