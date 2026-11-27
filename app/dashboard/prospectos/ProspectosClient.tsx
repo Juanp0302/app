@@ -179,6 +179,21 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
     }
   }
 
+  /** Solo superadmin: borra el prospecto y todo lo suyo (para pruebas y duplicados). */
+  async function eliminar() {
+    if (!activo) return
+    if (!window.confirm(`¿Eliminar "${activo.empresa}" y todo lo suyo (historial, conversación de WhatsApp, envíos, radiografía)?\n\nNo se puede deshacer.`)) return
+    setGuardando(true)
+    try {
+      const r = await fetch(`/api/prospectos?id=${encodeURIComponent(activo.id)}`, { method: 'DELETE' })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error ?? 'No se pudo eliminar'); return }
+      setActivo(null)
+      await cargar()
+    } finally {
+      setGuardando(false)
+    }
+  }
+
   function toggleSeleccion(id: string) {
     setSeleccionados(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
@@ -514,6 +529,12 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
                     style={{ alignSelf: 'flex-start', background: C.olivo, color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: guardando ? 0.6 : 1 }}>
                     {guardando ? 'Guardando…' : 'Guardar cambios'}
                   </button>
+                  {isSuperadmin && (
+                    <button onClick={eliminar} disabled={guardando}
+                      style={{ alignSelf: 'flex-start', marginTop: 6, background: 'none', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: 6, padding: '5px 12px', fontWeight: 600, fontSize: 11.5, cursor: 'pointer' }}>
+                      🗑 Eliminar prospecto
+                    </button>
+                  )}
                 </div>
               )}
 

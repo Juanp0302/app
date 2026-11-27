@@ -184,6 +184,25 @@ async function cambiarModoAutomatico(user: { id: string }, p: ProspectoRow, ence
   return { ok: true }
 }
 
+/**
+ * Elimina un prospecto y todo lo suyo (historial, conversación de WhatsApp y sus archivos, decisiones de la IA, envíos de la
+ * cadencia y radiografía). No se puede deshacer. Solo superadmin (se valida en la ruta); pensado para pruebas y duplicados.
+ * El lead del formulario, si lo hay, se queda en Leads (estadísticas).
+ */
+export async function eliminarProspecto(id: string): Promise<{ ok: true; empresa: string } | { ok: false; error: string; status: number }> {
+  const p = await buscarProspecto(id)
+  if (!p) return { ok: false, error: 'Prospecto no encontrado', status: 404 }
+  const borrar = async (sql: string) => { try { await execute(sql, [id]) } catch { /* la tabla puede no existir todavía */ } }
+  await borrar(`DELETE FROM medios_whatsapp WHERE wamid IN (SELECT id FROM mensajes_whatsapp WHERE prospecto_id = ?)`)
+  await borrar(`DELETE FROM mensajes_whatsapp WHERE prospecto_id = ?`)
+  await borrar(`DELETE FROM ia_respuestas WHERE prospecto_id = ?`)
+  await borrar(`DELETE FROM envios_correo WHERE prospecto_id = ?`)
+  await borrar(`DELETE FROM radiografias WHERE prospecto_id = ?`)
+  await borrar(`DELETE FROM prospectos_isp_historial WHERE prospecto_id = ?`)
+  await execute(`DELETE FROM prospectos_isp WHERE id = ?`, [id])
+  return { ok: true, empresa: p.empresa }
+}
+
 /** Reasigna uno o varios prospectos a otro responsable. Solo superadmin (se valida en la ruta). */
 export async function reasignarProspectos(
   ids: string[],

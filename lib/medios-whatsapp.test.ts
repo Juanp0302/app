@@ -87,3 +87,17 @@ describe('audios y archivos', () => {
     delete process.env.IA_VENTAS
   })
 })
+
+describe('eliminar un prospecto', () => {
+  it('borra el prospecto y todo lo suyo; si vuelve a escribir, empieza de cero', async () => {
+    const { eliminarProspecto } = await import('@/lib/prospectos')
+    expect(await eliminarProspecto('p1')).toEqual({ ok: true, empresa: 'Llano SAS' })
+    for (const [tabla, cond] of [['prospectos_isp', "id = 'p1'"], ['mensajes_whatsapp', "prospecto_id = 'p1'"], ['medios_whatsapp', "wamid LIKE 'wamid.A%'"],
+      ['prospectos_isp_historial', "prospecto_id = 'p1'"]] as const)
+      expect((await q<any>(`SELECT COUNT(*) AS n FROM ${tabla} WHERE ${cond}`)).n).toBe(0)
+    expect(await eliminarProspecto('p1')).toMatchObject({ ok: false, status: 404 })
+    const r = await wv.procesarMensajeWhatsApp({ wamid: 'wamid.N1', de: '573105551234', nombre: 'Andrés', tipo: 'text', texto: 'Hola de nuevo', fecha: new Date() }, new Date())
+    expect(r.accion).toBe('creado')
+  })
+})
+

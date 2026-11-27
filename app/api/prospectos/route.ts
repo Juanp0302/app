@@ -7,7 +7,7 @@
  */
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prospectosVisiblesPara, resumenPorEstado, actualizarProspectoComoUsuario } from '@/lib/prospectos'
+import { prospectosVisiblesPara, resumenPorEstado, actualizarProspectoComoUsuario, eliminarProspecto } from '@/lib/prospectos'
 
 async function requireAdminOrSuperadmin() {
   const session = await auth()
@@ -39,5 +39,16 @@ export async function PATCH(req: Request) {
   const resultado = await actualizarProspectoComoUsuario(user, id, { estado, fecha_contacto, proximo_paso, notas, accion })
   if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status })
 
+  return NextResponse.json({ ok: true })
+}
+
+/** DELETE /api/prospectos?id=xxx → elimina el prospecto y todo lo suyo (no se puede deshacer). Solo superadmin. */
+export async function DELETE(req: Request) {
+  const user = await requireAdminOrSuperadmin()
+  if (!user?.is_superadmin) return NextResponse.json({ error: 'Solo el superadmin puede eliminar prospectos' }, { status: 403 })
+  const id = new URL(req.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 })
+  const r = await eliminarProspecto(id)
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
   return NextResponse.json({ ok: true })
 }
