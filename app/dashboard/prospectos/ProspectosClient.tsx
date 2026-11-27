@@ -233,7 +233,11 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
       if (isSuperadmin && filtroResponsable !== 'todos' && p.responsable_id !== filtroResponsable) return false
       if (busqueda) {
         const q = busqueda.toLowerCase()
-        if (!p.empresa?.toLowerCase().includes(q) && !String(p.nit ?? '').includes(q) && !p.representante?.toLowerCase().includes(q)) return false
+        // También por celular, en cualquier formato (3217412860, +57 321 741 2860…).
+        const digitos = q.replace(/\D/g, '')
+        const porTelefono = digitos.length >= 6 && [p.telefono, p.webinar_telefono].some(t => String(t ?? '').replace(/\D/g, '').includes(digitos))
+        if (!p.empresa?.toLowerCase().includes(q) && !String(p.nit ?? '').includes(q) && !p.representante?.toLowerCase().includes(q)
+          && !p.webinar_nombre?.toLowerCase().includes(q) && !porTelefono) return false
       }
       return true
     })
@@ -288,7 +292,7 @@ export default function ProspectosClient({ userId, userName, isSuperadmin }: { u
         {/* ── Lista ── */}
         <div style={{ background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '0.85rem', borderBottom: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <input placeholder="Buscar empresa, NIT o representante…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={inp} />
+            <input placeholder="Buscar empresa, NIT, nombre o celular…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={inp} />
             <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
               <button onClick={() => setSoloHoy(v => !v)} title="Mensajes de la cadencia que tocan hoy o están atrasados"
                 style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 14, cursor: 'pointer', border: `1px solid ${C.vino}`,

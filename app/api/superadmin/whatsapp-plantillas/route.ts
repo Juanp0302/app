@@ -10,6 +10,8 @@ import { auth } from '@/lib/auth'
 import { PLANTILLAS, cuerpoRegistro, textoDePlantilla } from '@/lib/plantillas-whatsapp'
 import { listarPlantillasMeta, registrarPlantillaMeta, whatsappConfigurado, enviarPlantillaWhatsApp } from '@/lib/whatsapp-api'
 import { celularParaWhatsApp } from '@/lib/whatsapp'
+import { tokenRadiografia } from '@/lib/plantillas-whatsapp'
+import { queryOne } from '@/lib/db'
 
 async function requireSuperadmin() {
   const session = await auth()
@@ -39,8 +41,9 @@ export async function POST(req: Request) {
     if (!d) return NextResponse.json({ error: 'Plantilla desconocida' }, { status: 400 })
     const tel = celularParaWhatsApp(String(body.telefono ?? ''))
     if (!tel) return NextResponse.json({ error: 'Escribe un celular colombiano válido (10 dígitos, empieza por 3)' }, { status: 400 })
-    // El botón de la radiografía lleva un enlace de ejemplo (abre "Enlace no válido"): la prueba es del mensaje.
-    const r = await enviarPlantillaWhatsApp(tel, d.nombre, d.ejemplos, d.boton ? 'prueba.ejemplo' : undefined)
+    // El botón abre una radiografía real (la más reciente cargada), para probar que el enlace funciona.
+    const conPdf = d.boton ? await queryOne<{ prospecto_id: string }>(`SELECT prospecto_id FROM radiografias ORDER BY subido_en DESC LIMIT 1`) : undefined
+    const r = await enviarPlantillaWhatsApp(tel, d.nombre, d.ejemplos, d.boton ? (conPdf ? tokenRadiografia(conPdf.prospecto_id) : 'prueba.ejemplo') : undefined)
     return r.ok ? NextResponse.json({ ok: true, para: `+${tel}` }) : NextResponse.json({ error: `Meta no aceptó el envío: ${r.error}` }, { status: 502 })
   }
   const meta = await listarPlantillasMeta()
